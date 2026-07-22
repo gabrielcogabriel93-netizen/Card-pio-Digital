@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { Order, OrderItem } from '@/types'
 import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search } from 'lucide-react'
 
@@ -34,7 +35,7 @@ export default function PedidosPage() {
 
   useEffect(() => {
     loadOrders()
-    
+
     // Subscribe to real-time changes
     const supabase = createClient()
     const channel = supabase
@@ -42,9 +43,14 @@ export default function PedidosPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        () => loadOrders()
+        (payload) => {
+          log('painel:pedidos', 'evento realtime recebido', { eventType: payload.eventType })
+          loadOrders()
+        }
       )
-      .subscribe()
+      .subscribe((status) => {
+        log('painel:pedidos', 'status da inscrição realtime', { status })
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -52,28 +58,32 @@ export default function PedidosPage() {
   }, [])
 
   const loadOrders = async () => {
+    log('painel:pedidos', 'carregando pedidos...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: est } = await supabase
+      const { data: est, error: estError } = await supabase
         .from('establishments')
         .select('id')
         .eq('owner_id', user.id)
         .single()
 
+      if (estError) logError('painel:pedidos', 'erro ao buscar estabelecimento', estError)
       if (!est) return
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .select('*')
         .eq('establishment_id', est.id)
         .order('created_at', { ascending: false })
 
+      if (error) logError('painel:pedidos', 'erro ao carregar pedidos', error)
       if (data) setOrders(data as Order[])
+      log('painel:pedidos', 'pedidos carregados', { total: data?.length || 0 })
     } catch (error) {
-      console.error('Erro ao carregar pedidos:', error)
+      logError('painel:pedidos', 'exceção ao carregar pedidos', error)
     } finally {
       setLoading(false)
     }
@@ -88,6 +98,7 @@ export default function PedidosPage() {
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     setSaving(true)
+    log('painel:pedidos', 'atualizando status do pedido', { orderId, newStatus, statusAnterior: selectedOrder?.status })
     try {
       const supabase = createClient()
       const wasStockAlreadyDeducted =
@@ -107,34 +118,45 @@ export default function PedidosPage() {
         updateData.total = finalTotal
 
         // Confirmar pedido - criar entrada financeira
-        await supabase.from('financial_entries').insert({
+        log('painel:pedidos', 'criando entrada financeira da confirmação', { finalTotal })
+        const { error: financeError } = await supabase.from('financial_entries').insert({
           establishment_id: selectedOrder?.establishment_id,
           order_id: orderId,
           type: 'income',
           amount: finalTotal,
           description: `Pedido #${orderId.slice(0, 8)} - ${selectedOrder?.customer_name}`,
         })
+        if (financeError) throw financeError
 
         // Baixar estoque
+        log('painel:pedidos', 'baixando estoque dos itens do pedido')
         await adjustStockForItems(selectedOrder?.items || [], 'decrement')
       }
 
       // Cancelamento após a baixa de estoque já ter ocorrido: estorna o
       // estoque e remove a entrada financeira lançada na confirmação.
       if (newStatus === 'cancelled' && wasStockAlreadyDeducted) {
+        log('painel:pedidos', 'estornando estoque e removendo entrada financeira (cancelamento)')
         await adjustStockForItems(selectedOrder?.items || [], 'increment')
-        await supabase.from('financial_entries').delete().eq('order_id', orderId)
+        const { error: deleteFinanceError } = await supabase
+          .from('financial_entries')
+          .delete()
+          .eq('order_id', orderId)
+        if (deleteFinanceError) throw deleteFinanceError
       }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('orders')
         .update(updateData)
         .eq('id', orderId)
+      if (updateError) throw updateError
 
+      log('painel:pedidos', 'status do pedido atualizado com sucesso')
       setShowModal(false)
       setSelectedOrder(null)
       await loadOrders()
     } catch (error: any) {
+      logError('painel:pedidos', 'erro ao atualizar status do pedido', error)
       alert('Erro ao atualizar pedido: ' + error.message)
     } finally {
       setSaving(false)
@@ -146,17 +168,23 @@ export default function PedidosPage() {
     const rpcName = direction === 'decrement' ? 'decrement_product_stock' : 'increment_product_stock'
 
     for (const item of items) {
-      const { data: product } = await supabase
+      const { data: product, error: productError } = await supabase
         .from('products')
         .select('track_stock')
         .eq('id', item.product_id)
         .single()
 
+      if (productError) {
+        logError('painel:pedidos', 'erro ao buscar produto para ajuste de estoque', productError)
+        continue
+      }
+
       if (product?.track_stock) {
-        await supabase.rpc(rpcName, {
+        const { error: rpcError } = await supabase.rpc(rpcName, {
           product_id: item.product_id,
           quantity: item.quantity,
         })
+        if (rpcError) logError('painel:pedidos', `erro ao chamar ${rpcName}`, rpcError)
       }
     }
   }

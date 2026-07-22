@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { Category } from '@/types'
 import { Plus, Edit2, Trash2, X, Loader2, GripVertical } from 'lucide-react'
 
@@ -19,28 +20,32 @@ export default function CategoriasPage() {
   }, [])
 
   const loadCategories = async () => {
+    log('painel:categorias', 'carregando categorias...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: est } = await supabase
+      const { data: est, error: estError } = await supabase
         .from('establishments')
         .select('id')
         .eq('owner_id', user.id)
         .single()
 
+      if (estError) logError('painel:categorias', 'erro ao buscar estabelecimento', estError)
       if (!est) return
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('categories')
         .select('*')
         .eq('establishment_id', est.id)
         .order('display_order')
 
+      if (error) logError('painel:categorias', 'erro ao carregar categorias', error)
       if (data) setCategories(data)
+      log('painel:categorias', 'categorias carregadas', { total: data?.length || 0 })
     } catch (error) {
-      console.error('Erro ao carregar categorias:', error)
+      logError('painel:categorias', 'exceção ao carregar categorias', error)
     } finally {
       setLoading(false)
     }
@@ -96,9 +101,11 @@ export default function CategoriasPage() {
         if (error) throw error
       }
 
+      log('painel:categorias', 'categoria salva com sucesso')
       await loadCategories()
       setShowModal(false)
     } catch (error: any) {
+      logError('painel:categorias', 'erro ao salvar categoria', error)
       alert('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
@@ -107,6 +114,7 @@ export default function CategoriasPage() {
 
   const handleDelete = async (category: Category) => {
     if (!confirm(`Tem certeza que deseja excluir "${category.name}"? Os produtos desta categoria serão removidos dela.`)) return
+    log('painel:categorias', 'excluindo categoria', { id: category.id, name: category.name })
 
     try {
       const supabase = createClient()
@@ -116,8 +124,10 @@ export default function CategoriasPage() {
         .eq('id', category.id)
 
       if (error) throw error
+      log('painel:categorias', 'categoria excluída com sucesso')
       await loadCategories()
     } catch (error: any) {
+      logError('painel:categorias', 'erro ao excluir categoria', error)
       alert('Erro ao excluir: ' + error.message)
     }
   }

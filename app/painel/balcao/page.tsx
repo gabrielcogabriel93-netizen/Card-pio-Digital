@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle } from 'lucide-react'
 
@@ -27,17 +28,19 @@ export default function BalcaoPage() {
   }, [])
 
   const loadData = async () => {
+    log('painel:balcao', 'carregando produtos e categorias...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: est } = await supabase
+      const { data: est, error: estError } = await supabase
         .from('establishments')
         .select('id')
         .eq('owner_id', user.id)
         .single()
 
+      if (estError) logError('painel:balcao', 'erro ao buscar estabelecimento', estError)
       if (!est) return
       setEstablishmentId(est.id)
 
@@ -46,10 +49,16 @@ export default function BalcaoPage() {
         supabase.from('products').select('*').eq('establishment_id', est.id).eq('is_active', true).order('display_order'),
       ])
 
+      if (catsRes.error) logError('painel:balcao', 'erro ao carregar categorias', catsRes.error)
+      if (prodsRes.error) logError('painel:balcao', 'erro ao carregar produtos', prodsRes.error)
       if (catsRes.data) setCategories(catsRes.data)
       if (prodsRes.data) setProducts(prodsRes.data)
+      log('painel:balcao', 'dados carregados', {
+        categorias: catsRes.data?.length || 0,
+        produtos: prodsRes.data?.length || 0,
+      })
     } catch (error) {
-      console.error('Erro ao carregar dados:', error)
+      logError('painel:balcao', 'exceção ao carregar dados', error)
     } finally {
       setLoading(false)
     }
@@ -134,6 +143,7 @@ export default function BalcaoPage() {
   const handleFinishSale = async () => {
     if (!customerName.trim() || !customerPhone.trim()) return
     setSaving(true)
+    log('painel:balcao', 'finalizando venda...', { itens: cart.length, paymentMethod })
 
     try {
       const subtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
@@ -162,25 +172,29 @@ export default function BalcaoPage() {
       })
 
       if (error) throw error
+      log('painel:balcao', 'pedido de balcão criado, baixando estoque...')
 
       // Baixar estoque
       for (const item of cart) {
         if (item.product.track_stock) {
-          await supabase.rpc('decrement_product_stock', {
+          const { error: rpcError } = await supabase.rpc('decrement_product_stock', {
             product_id: item.product.id,
             quantity: item.quantity,
           })
+          if (rpcError) logError('painel:balcao', 'erro ao baixar estoque', { item: item.product.name, rpcError })
         }
       }
 
       // Criar entrada financeira
-      await supabase.from('financial_entries').insert({
+      const { error: financeError } = await supabase.from('financial_entries').insert({
         establishment_id: establishmentId,
         type: 'income',
         amount: total,
         description: `Venda balcão - ${customerName.trim()}`,
       })
+      if (financeError) throw financeError
 
+      log('painel:balcao', 'venda finalizada com sucesso', { total })
       setSuccess(true)
       setCart([])
       setCustomerName('')
@@ -190,6 +204,7 @@ export default function BalcaoPage() {
 
       setTimeout(() => setSuccess(false), 3000)
     } catch (error: any) {
+      logError('painel:balcao', 'erro ao finalizar venda', error)
       alert('Erro ao finalizar venda: ' + error.message)
     } finally {
       setSaving(false)

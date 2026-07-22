@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { log, logError } from '@/lib/logger'
 import { Loader2, AlertCircle, Store } from 'lucide-react'
 
 export default function CompletarCadastroPage() {
@@ -21,57 +22,75 @@ export default function CompletarCadastroPage() {
   }, [])
 
   const checkExisting = async () => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    log('completar-cadastro', 'verificando usuário e estabelecimento existente...')
+    try {
+      const supabase = createClient()
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-    if (!user) {
-      router.push('/login')
-      return
+      if (userError) logError('completar-cadastro', 'erro ao obter usuário', userError)
+
+      if (!user) {
+        log('completar-cadastro', 'sem usuário logado -> /login')
+        router.push('/login')
+        return
+      }
+
+      // Se já existe estabelecimento, não há nada para completar.
+      const { data: existing, error: estError } = await supabase
+        .from('establishments')
+        .select('id')
+        .eq('owner_id', user.id)
+        .maybeSingle()
+
+      if (estError) logError('completar-cadastro', 'erro ao checar estabelecimento existente', estError)
+
+      if (existing) {
+        log('completar-cadastro', 'estabelecimento já existe -> /painel', { id: existing.id })
+        router.push('/painel')
+        return
+      }
+
+      // Pré-preenche com os dados salvos no cadastro (caso a confirmação de
+      // e-mail estivesse ativada e a loja não tenha sido criada ainda).
+      const meta = user.user_metadata || {}
+      if (meta.pending_establishment_name) setEstablishmentName(meta.pending_establishment_name)
+      if (meta.pending_whatsapp_number) setWhatsapp(meta.pending_whatsapp_number)
+
+      log('completar-cadastro', 'nenhum estabelecimento encontrado, exibindo formulário')
+    } catch (err) {
+      logError('completar-cadastro', 'exceção ao verificar usuário/estabelecimento', err)
+      setError('Não foi possível carregar seus dados. Recarregue a página.')
+    } finally {
+      setChecking(false)
     }
-
-    // Se já existe estabelecimento, não há nada para completar.
-    const { data: existing } = await supabase
-      .from('establishments')
-      .select('id')
-      .eq('owner_id', user.id)
-      .maybeSingle()
-
-    if (existing) {
-      router.push('/painel')
-      return
-    }
-
-    // Pré-preenche com os dados salvos no cadastro (caso a confirmação de
-    // e-mail estivesse ativada e a loja não tenha sido criada ainda).
-    const meta = user.user_metadata || {}
-    if (meta.pending_establishment_name) setEstablishmentName(meta.pending_establishment_name)
-    if (meta.pending_whatsapp_number) setWhatsapp(meta.pending_whatsapp_number)
-
-    setChecking(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     setError(null)
+    log('completar-cadastro', 'submit do formulário', { establishmentName })
 
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
+        log('completar-cadastro', 'sem usuário logado no submit -> /login')
         router.push('/login')
         return
       }
 
-      await createEstablishmentWithUniqueSlug(supabase, {
+      const establishment = await createEstablishmentWithUniqueSlug(supabase, {
         ownerId: user.id,
         name: establishmentName,
         whatsappNumber: whatsapp,
       })
+      log('completar-cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
 
       router.push('/painel')
       router.refresh()
     } catch (err: any) {
+      logError('completar-cadastro', 'erro ao criar estabelecimento', err)
       setError(err.message)
     } finally {
       setSaving(false)

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 
 export default function LoginPage() {
@@ -18,53 +19,91 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false)
 
   useEffect(() => {
+    log('login', 'variáveis de ambiente do Supabase', {
+      hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    })
+
     // Se o usuário chegou aqui por um link de confirmação de e-mail do
     // Supabase (sessão criada a partir do fragmento da URL), já entra
     // direto no painel em vez de pedir login novamente.
     const supabase = createClient()
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        router.push('/painel')
-        router.refresh()
-      }
-    })
+    log('login', 'verificando sessão existente...')
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          logError('login', 'erro ao verificar sessão existente', error)
+          return
+        }
+        log('login', 'resultado da verificação de sessão', { temSessao: !!data.session })
+        if (data.session) {
+          log('login', 'sessão já existente, redirecionando para /painel')
+          router.push('/painel')
+          router.refresh()
+        }
+      })
+      .catch((err) => logError('login', 'exceção ao verificar sessão existente', err))
   }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    log('login', 'submit do formulário de login', { email })
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const supabase = createClient()
+      log('login', 'chamando signInWithPassword...')
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        logError('login', 'signInWithPassword retornou erro', error)
+        setError(error.message)
+        return
+      }
+
+      log('login', 'login bem-sucedido', { userId: data.user?.id })
+      log('login', 'redirecionando para /painel...')
+      router.push('/painel')
+      router.refresh()
+    } catch (err: any) {
+      logError('login', 'exceção inesperada no login', err)
+      setError(err?.message || 'Erro inesperado ao entrar. Tente novamente.')
+    } finally {
+      // Garante que o botão nunca fique preso girando, mesmo se algo
+      // acima lançar uma exceção não prevista.
       setLoading(false)
-      return
     }
-
-    router.push('/painel')
-    router.refresh()
   }
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) return
     setResetLoading(true)
+    log('login', 'solicitando redefinição de senha', { email })
 
-    const supabase = createClient()
-    await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/redefinir-senha`,
-    })
-
-    // Sempre mostra a mesma mensagem de sucesso, exista ou não o e-mail,
-    // para não revelar quais e-mails estão cadastrados.
-    setResetLoading(false)
-    setResetSent(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/redefinir-senha`,
+      })
+      if (error) {
+        logError('login', 'erro ao solicitar redefinição de senha', error)
+      } else {
+        log('login', 'e-mail de redefinição solicitado com sucesso')
+      }
+    } catch (err) {
+      logError('login', 'exceção ao solicitar redefinição de senha', err)
+    } finally {
+      // Sempre mostra a mesma mensagem de sucesso, exista ou não o e-mail,
+      // para não revelar quais e-mails estão cadastrados.
+      setResetLoading(false)
+      setResetSent(true)
+    }
   }
 
   return (

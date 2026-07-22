@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import {
   LayoutDashboard,
   Package,
@@ -41,36 +42,57 @@ export default function PainelLayout({
 
   useEffect(() => {
     const getUser = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      log('painel:layout', 'carregando usuário e estabelecimento...')
+      try {
+        const supabase = createClient()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-      if (user) {
+        if (userError) logError('painel:layout', 'erro ao obter usuário', userError)
+
+        if (!user) {
+          log('painel:layout', 'sem usuário — middleware deveria ter redirecionado antes')
+          return
+        }
+
         setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário')
 
         // Buscar nome do estabelecimento
-        const { data: est } = await supabase
+        const { data: est, error: estError } = await supabase
           .from('establishments')
           .select('name')
           .eq('owner_id', user.id)
           .maybeSingle()
 
+        if (estError) logError('painel:layout', 'erro ao buscar estabelecimento', estError)
+
         if (est) {
+          log('painel:layout', 'estabelecimento carregado', { name: est.name })
           setEstablishmentName(est.name)
         } else {
           // Conta criada mas a loja ainda não foi configurada
           // (ex: confirmação de e-mail estava ativada no cadastro).
+          log('painel:layout', 'nenhum estabelecimento -> /completar-cadastro')
           router.push('/completar-cadastro')
         }
+      } catch (err) {
+        logError('painel:layout', 'exceção ao carregar usuário/estabelecimento', err)
       }
     }
     getUser()
   }, [router])
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+    log('painel:layout', 'logout solicitado')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signOut()
+      if (error) logError('painel:layout', 'erro ao fazer logout', error)
+    } catch (err) {
+      logError('painel:layout', 'exceção ao fazer logout', err)
+    } finally {
+      router.push('/login')
+      router.refresh()
+    }
   }
 
   return (

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, KeyRound } from 'lucide-react'
 
 export default function RedefinirSenhaPage() {
@@ -20,8 +21,10 @@ export default function RedefinirSenhaPage() {
   useEffect(() => {
     // O link de e-mail do Supabase autentica o usuário via evento
     // PASSWORD_RECOVERY antes que a página termine de carregar.
+    log('redefinir-senha', 'aguardando evento de autenticação do link de recuperação...')
     const supabase = createClient()
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      log('redefinir-senha', 'evento de auth recebido', { event, temSessao: !!session })
       if (event === 'PASSWORD_RECOVERY' || session) {
         setReady(true)
       }
@@ -33,7 +36,10 @@ export default function RedefinirSenhaPage() {
 
     const timeout = setTimeout(() => {
       setReady((current) => {
-        if (!current) setInvalidLink(true)
+        if (!current) {
+          log('redefinir-senha', 'timeout de 4s sem sessão -> link inválido/expirado')
+          setInvalidLink(true)
+        }
         return current
       })
     }, 4000)
@@ -58,17 +64,26 @@ export default function RedefinirSenhaPage() {
     }
 
     setSaving(true)
-    const supabase = createClient()
-    const { error: updateError } = await supabase.auth.updateUser({ password })
-    setSaving(false)
+    log('redefinir-senha', 'atualizando senha...')
+    try {
+      const supabase = createClient()
+      const { error: updateError } = await supabase.auth.updateUser({ password })
 
-    if (updateError) {
-      setError(updateError.message)
-      return
+      if (updateError) {
+        logError('redefinir-senha', 'erro ao atualizar senha', updateError)
+        setError(updateError.message)
+        return
+      }
+
+      log('redefinir-senha', 'senha atualizada com sucesso')
+      setSuccess(true)
+      setTimeout(() => router.push('/painel'), 1500)
+    } catch (err: any) {
+      logError('redefinir-senha', 'exceção ao atualizar senha', err)
+      setError(err?.message || 'Erro inesperado. Tente novamente.')
+    } finally {
+      setSaving(false)
     }
-
-    setSuccess(true)
-    setTimeout(() => router.push('/painel'), 1500)
   }
 
   return (

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import Link from 'next/link'
 import type { Order, DashboardStats } from '@/types'
 import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock } from 'lucide-react'
@@ -21,18 +22,23 @@ export default function Dashboard() {
   }, [])
 
   const loadDashboard = async () => {
+    log('painel:dashboard', 'carregando dashboard...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        log('painel:dashboard', 'sem usuário logado')
+        return
+      }
 
       // Buscar estabelecimento
-      const { data: est } = await supabase
+      const { data: est, error: estError } = await supabase
         .from('establishments')
         .select('id')
         .eq('owner_id', user.id)
         .single()
 
+      if (estError) logError('painel:dashboard', 'erro ao buscar estabelecimento', estError)
       if (!est) return
 
       const todayStart = new Date()
@@ -86,8 +92,14 @@ export default function Dashboard() {
       if (orders) {
         setRecentOrders(orders as Order[])
       }
+      log('painel:dashboard', 'dashboard carregado', {
+        pendingCount,
+        todayRevenue,
+        lowStock,
+        recentOrders: orders?.length || 0,
+      })
     } catch (error) {
-      console.error('Erro ao carregar dashboard:', error)
+      logError('painel:dashboard', 'erro ao carregar dashboard', error)
     } finally {
       setLoading(false)
     }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { PublicEstablishment, Category, Product, VariationGroup, VariationOption, CartItem } from '@/types'
 import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send } from 'lucide-react'
 
@@ -27,6 +28,7 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
   }, [params.slug])
 
   const loadEstablishment = async () => {
+    log('loja', 'carregando cardápio público...', { slug: params.slug })
     try {
       const supabase = createClient()
 
@@ -38,29 +40,36 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
         .single()
 
       if (estError || !est) {
+        logError('loja', 'estabelecimento não encontrado para o slug', { slug: params.slug, estError })
         setError('Estabelecimento não encontrado.')
         return
       }
 
+      log('loja', 'estabelecimento encontrado', { id: est.id, isOpen: est.is_open })
       setEstablishment(est)
 
-      const { data: cats } = await supabase
+      const { data: cats, error: catsError } = await supabase
         .from('categories')
         .select('*')
         .eq('establishment_id', est.id)
         .order('display_order')
 
+      if (catsError) logError('loja', 'erro ao carregar categorias', catsError)
       if (cats) setCategories(cats)
 
-      const { data: prods } = await supabase
+      const { data: prods, error: prodsError } = await supabase
         .from('products')
         .select('*')
         .eq('establishment_id', est.id)
         .eq('is_active', true)
         .order('display_order')
 
+      if (prodsError) logError('loja', 'erro ao carregar produtos', prodsError)
       if (prods) setProducts(prods)
+
+      log('loja', 'cardápio carregado', { categorias: cats?.length || 0, produtos: prods?.length || 0 })
     } catch (err) {
+      logError('loja', 'exceção ao carregar cardápio', err)
       setError('Erro ao carregar cardápio.')
     } finally {
       setLoading(false)
@@ -139,6 +148,7 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
   const handleSendOrder = async () => {
     if (!customerName.trim() || !customerPhone.trim() || !establishment) return
     setSaving(true)
+    log('loja', 'enviando pedido...', { itens: cart.length, establishmentId: establishment.id })
 
     try {
       const subtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
@@ -168,6 +178,7 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
       })
 
       if (orderError) throw orderError
+      log('loja', 'pedido salvo com sucesso, montando mensagem do WhatsApp...')
 
       let message = `🛵 *Novo Pedido - ${establishment.name}*\n\n`
       message += `👤 *Cliente:* ${customerName.trim()}\n`
@@ -194,6 +205,7 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
       const encodedMessage = encodeURIComponent(message)
       const whatsappUrl = `https://wa.me/${establishment.whatsapp_number.replace(/\D/g, '')}?text=${encodedMessage}`
 
+      log('loja', 'abrindo WhatsApp', { whatsappNumber: establishment.whatsapp_number })
       window.open(whatsappUrl, '_blank')
 
       setCart([])
@@ -203,6 +215,7 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
       setNotes('')
       setShowCart(false)
     } catch (err: any) {
+      logError('loja', 'erro ao enviar pedido', err)
       alert('Erro ao enviar pedido: ' + err.message)
     } finally {
       setSaving(false)

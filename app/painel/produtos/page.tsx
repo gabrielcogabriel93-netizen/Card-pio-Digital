@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
 import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers } from 'lucide-react'
 
@@ -40,38 +41,47 @@ export default function ProdutosPage() {
   }, [])
 
   const loadData = async () => {
+    log('painel:produtos', 'carregando produtos e categorias...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        log('painel:produtos', 'sem usuário logado')
+        return
+      }
 
-      const { data: est } = await supabase
+      const { data: est, error: estError } = await supabase
         .from('establishments')
         .select('id')
         .eq('owner_id', user.id)
         .single()
 
+      if (estError) logError('painel:produtos', 'erro ao buscar estabelecimento', estError)
       if (!est) return
 
       // Carregar categorias
-      const { data: cats } = await supabase
+      const { data: cats, error: catsError } = await supabase
         .from('categories')
         .select('*')
         .eq('establishment_id', est.id)
         .order('display_order')
-      
+
+      if (catsError) logError('painel:produtos', 'erro ao carregar categorias', catsError)
       if (cats) setCategories(cats)
 
       // Carregar produtos
-      const { data: prods } = await supabase
+      const { data: prods, error: prodsError } = await supabase
         .from('products')
         .select('*')
         .eq('establishment_id', est.id)
         .order('display_order')
 
+      if (prodsError) logError('painel:produtos', 'erro ao carregar produtos', prodsError)
       if (prods) setProducts(prods)
+
+      log('painel:produtos', 'dados carregados', { categorias: cats?.length || 0, produtos: prods?.length || 0 })
     } catch (error) {
-      console.error('Erro ao carregar dados:', error)
+      logError('painel:produtos', 'exceção ao carregar dados', error)
     } finally {
       setLoading(false)
     }
@@ -223,6 +233,7 @@ export default function ProdutosPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
+    log('painel:produtos', editingProduct ? 'salvando edição de produto' : 'criando novo produto', { name: formData.name })
 
     try {
       const supabase = createClient()
@@ -264,9 +275,11 @@ export default function ProdutosPage() {
         if (error) throw error
       }
 
+      log('painel:produtos', 'produto salvo com sucesso')
       await loadData()
       setShowModal(false)
     } catch (error: any) {
+      logError('painel:produtos', 'erro ao salvar produto', error)
       alert('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
@@ -275,6 +288,7 @@ export default function ProdutosPage() {
 
   const handleDelete = async (product: Product) => {
     if (!confirm(`Tem certeza que deseja excluir "${product.name}"?`)) return
+    log('painel:produtos', 'excluindo produto', { id: product.id, name: product.name })
 
     try {
       const supabase = createClient()
@@ -284,8 +298,10 @@ export default function ProdutosPage() {
         .eq('id', product.id)
 
       if (error) throw error
+      log('painel:produtos', 'produto excluído com sucesso')
       await loadData()
     } catch (error: any) {
+      logError('painel:produtos', 'erro ao excluir produto', error)
       alert('Erro ao excluir: ' + error.message)
     }
   }

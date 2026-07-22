@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { Establishment } from '@/types'
 import { Save, Loader2, Copy, Share2, Clock, Eye, EyeOff } from 'lucide-react'
 
@@ -44,18 +45,22 @@ export default function ConfiguracoesPage() {
   }, [])
 
   const loadEstablishment = async () => {
+    log('painel:configuracoes', 'carregando dados do estabelecimento...')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('establishments')
         .select('*')
         .eq('owner_id', user.id)
         .single()
 
+      if (error) logError('painel:configuracoes', 'erro ao carregar estabelecimento', error)
+
       if (data) {
+        log('painel:configuracoes', 'estabelecimento carregado', { id: data.id })
         setEstablishment(data)
         setFormData({
           name: data.name,
@@ -71,7 +76,7 @@ export default function ConfiguracoesPage() {
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error)
+      logError('painel:configuracoes', 'exceção ao carregar dados', error)
     } finally {
       setLoading(false)
     }
@@ -80,6 +85,7 @@ export default function ConfiguracoesPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
+    log('painel:configuracoes', 'salvando configurações...', { isOpen: formData.is_open })
 
     try {
       const supabase = createClient()
@@ -100,8 +106,10 @@ export default function ConfiguracoesPage() {
         .eq('owner_id', user.id)
 
       if (error) throw error
+      log('painel:configuracoes', 'configurações salvas com sucesso')
       alert('Configurações salvas com sucesso!')
     } catch (error: any) {
+      logError('painel:configuracoes', 'erro ao salvar configurações', error)
       alert('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)

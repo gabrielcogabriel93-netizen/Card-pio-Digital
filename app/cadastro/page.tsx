@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
 
 export default function CadastroPage() {
@@ -33,14 +34,17 @@ export default function CadastroPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    log('cadastro', 'submit do formulário (passo 2)', { email: formData.email })
 
     if (formData.password !== formData.confirmPassword) {
+      log('cadastro', 'validação falhou: senhas não conferem')
       setError('Senhas não conferem.')
       setLoading(false)
       return
     }
 
     if (formData.password.length < 6) {
+      log('cadastro', 'validação falhou: senha curta')
       setError('A senha deve ter no mínimo 6 caracteres.')
       setLoading(false)
       return
@@ -53,6 +57,7 @@ export default function CadastroPage() {
       // nos metadados do usuário para o caso de a confirmação de e-mail
       // estar ativada (nesse caso ainda não há sessão para criar o registro
       // do estabelecimento, que será concluído em /completar-cadastro).
+      log('cadastro', 'chamando auth.signUp...')
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -65,26 +70,35 @@ export default function CadastroPage() {
         },
       })
 
-      if (authError) throw new Error(authError.message)
+      if (authError) {
+        logError('cadastro', 'signUp retornou erro', authError)
+        throw new Error(authError.message)
+      }
       if (!authData.user) throw new Error('Erro ao criar usuário.')
+      log('cadastro', 'signUp concluído', { userId: authData.user.id, temSessao: !!authData.session })
 
       // Sem sessão ativa = confirmação de e-mail está habilitada no projeto.
       if (!authData.session) {
+        log('cadastro', 'sem sessão -> aguardando confirmação de e-mail')
         setAwaitingConfirmation(true)
         setLoading(false)
         return
       }
 
       // 2. Criar estabelecimento (com resolução automática de slug duplicado)
-      await createEstablishmentWithUniqueSlug(supabase, {
+      log('cadastro', 'criando estabelecimento...', { establishmentName: formData.establishmentName })
+      const establishment = await createEstablishmentWithUniqueSlug(supabase, {
         ownerId: authData.user.id,
         name: formData.establishmentName,
         whatsappNumber: formData.whatsapp,
       })
+      log('cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
 
+      log('cadastro', 'redirecionando para /painel...')
       router.push('/painel')
       router.refresh()
     } catch (err: any) {
+      logError('cadastro', 'erro no fluxo de cadastro', err)
       setError(err.message)
     } finally {
       setLoading(false)

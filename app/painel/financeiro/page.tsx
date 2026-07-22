@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { log, logError } from '@/lib/logger'
 import type { FinancialEntry } from '@/types'
 import { DollarSign, TrendingUp, TrendingDown, Calendar, Loader2, ArrowLeft, ArrowRight, Plus, X } from 'lucide-react'
 
@@ -33,12 +34,15 @@ export default function FinanceiroPage() {
 
   const handleDeleteEntry = async (entry: FinancialEntry) => {
     if (!confirm('Excluir este lançamento?')) return
+    log('painel:financeiro', 'excluindo lançamento', { id: entry.id })
     try {
       const supabase = createClient()
       const { error } = await supabase.from('financial_entries').delete().eq('id', entry.id)
       if (error) throw error
+      log('painel:financeiro', 'lançamento excluído com sucesso')
       await loadEntries()
     } catch (error: any) {
+      logError('painel:financeiro', 'erro ao excluir lançamento', error)
       alert('Erro ao excluir: ' + error.message)
     }
   }
@@ -48,6 +52,7 @@ export default function FinanceiroPage() {
     const amount = parseFloat(entryAmount)
     if (!amount || amount <= 0 || !establishmentId) return
     setSaving(true)
+    log('painel:financeiro', 'salvando novo lançamento', { entryType, amount })
 
     try {
       const supabase = createClient()
@@ -59,9 +64,11 @@ export default function FinanceiroPage() {
       })
       if (error) throw error
 
+      log('painel:financeiro', 'lançamento salvo com sucesso')
       setShowModal(false)
       await loadEntries()
     } catch (error: any) {
+      logError('painel:financeiro', 'erro ao salvar lançamento', error)
       alert('Erro ao salvar lançamento: ' + error.message)
     } finally {
       setSaving(false)
@@ -107,23 +114,25 @@ export default function FinanceiroPage() {
   }
 
   const loadEntries = async () => {
+    log('painel:financeiro', 'carregando lançamentos...', { period })
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: est } = await supabase
+      const { data: est, error: estError } = await supabase
         .from('establishments')
         .select('id')
         .eq('owner_id', user.id)
         .single()
 
+      if (estError) logError('painel:financeiro', 'erro ao buscar estabelecimento', estError)
       if (!est) return
       setEstablishmentId(est.id)
 
       const { start, end } = getDateRange()
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('financial_entries')
         .select('*')
         .eq('establishment_id', est.id)
@@ -131,9 +140,11 @@ export default function FinanceiroPage() {
         .lte('created_at', end.toISOString())
         .order('created_at', { ascending: false })
 
+      if (error) logError('painel:financeiro', 'erro ao carregar lançamentos', error)
       if (data) setEntries(data as FinancialEntry[])
+      log('painel:financeiro', 'lançamentos carregados', { total: data?.length || 0 })
     } catch (error) {
-      console.error('Erro ao carregar financeiro:', error)
+      logError('painel:financeiro', 'exceção ao carregar financeiro', error)
     } finally {
       setLoading(false)
     }
