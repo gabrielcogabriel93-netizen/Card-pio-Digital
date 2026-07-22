@@ -14,12 +14,13 @@ export interface Establishment {
   address?: string
   opening_hours?: Record<string, { open: string; close: string }>
   is_open?: boolean
+  delivery_fee?: number
   plan?: string
   created_at?: string
 }
 
-// Estabelecimento como visto pelo cardápio público (sem colunas internas
-// como owner_id/plan, que não são selecionadas nessa rota).
+// Estabelecimento como visto pelo cardápio público — vem da view
+// `public_establishments`, que nunca expõe owner_id/plan (ver migration 005).
 export type PublicEstablishment = Omit<Establishment, 'owner_id' | 'plan' | 'created_at'>
 
 // Categoria
@@ -48,6 +49,21 @@ export interface Product {
   // Relações
   category?: Category
   variation_groups?: VariationGroup[]
+}
+
+// Produto como visto pelo cardápio público — vem da view `public_products`,
+// que nunca expõe stock_qty/track_stock exatos (só se está disponível ou
+// não). Ver migration 005.
+export interface PublicProduct {
+  id: string
+  establishment_id: string
+  category_id?: string
+  name: string
+  description?: string
+  price: number
+  image_url?: string
+  display_order: number
+  in_stock: boolean
 }
 
 // Grupo de Variação
@@ -116,9 +132,10 @@ export interface FinancialEntry {
   created_at: string
 }
 
-// Carrinho (para o cardápio público e balcão)
-export interface CartItem {
-  product: Product
+// Carrinho (para o cardápio público e balcão). Genérico porque o cardápio
+// público usa PublicProduct (sem estoque exato) e o balcão usa Product.
+export interface CartItem<P = Product> {
+  product: P
   quantity: number
   variations: {
     group_name: string

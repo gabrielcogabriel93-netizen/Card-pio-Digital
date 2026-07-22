@@ -20,6 +20,7 @@ export default function ConfiguracoesPage() {
     theme_color: '#22c55e',
     logo_url: '',
     is_open: true,
+    delivery_fee: '0',
   })
   const [openingHours, setOpeningHours] = useState<Record<string, { open: string; close: string }>>({
     seg: { open: '08:00', close: '22:00' },
@@ -71,6 +72,7 @@ export default function ConfiguracoesPage() {
           theme_color: data.theme_color || '#22c55e',
           logo_url: data.logo_url || '',
           is_open: data.is_open ?? true,
+          delivery_fee: String(data.delivery_fee ?? 0),
         })
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
@@ -103,6 +105,7 @@ export default function ConfiguracoesPage() {
           logo_url: formData.logo_url || null,
           is_open: formData.is_open,
           opening_hours: openingHours,
+          delivery_fee: parseFloat(formData.delivery_fee) || 0,
         })
         .eq('owner_id', user.id)
 
@@ -215,6 +218,23 @@ export default function ConfiguracoesPage() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Taxa de entrega padrão</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field max-w-[160px]"
+                value={formData.delivery_fee}
+                onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
+                placeholder="0,00"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Mostrada para o cliente antes de enviar o pedido pelo cardápio online. Deixe 0 se não cobrar entrega
+                (ou se preferir combinar o valor depois, pelo WhatsApp).
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <ImageUpload
                 label="Logo"
@@ -267,6 +287,11 @@ export default function ConfiguracoesPage() {
               </span>
             </label>
           </div>
+
+          <p className="text-xs text-gray-500 mb-4 -mt-2">
+            Esse botão liga/desliga a loja manualmente. Além dele, o cardápio público também fecha
+            sozinho fora dos horários configurados abaixo — não precisa lembrar de fechar todo dia.
+          </p>
 
           <div className="space-y-3">
             {weekDays.map((day) => (

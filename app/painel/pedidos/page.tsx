@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { log, logError } from '@/lib/logger'
+import { log, logError, logCritical } from '@/lib/logger'
 import type { Order, OrderItem } from '@/types'
 import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search } from 'lucide-react'
 
@@ -157,6 +157,7 @@ export default function PedidosPage() {
       await loadOrders()
     } catch (error: any) {
       logError('painel:pedidos', 'erro ao atualizar status do pedido', error)
+      logCritical('painel:pedidos:atualizar-status', error.message, error, selectedOrder?.establishment_id)
       alert('Erro ao atualizar pedido: ' + error.message)
     } finally {
       setSaving(false)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { log, logError } from '@/lib/logger'
+import { log, logError, logCritical } from '@/lib/logger'
 import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle } from 'lucide-react'
 
@@ -205,6 +205,7 @@ export default function BalcaoPage() {
       setTimeout(() => setSuccess(false), 3000)
     } catch (error: any) {
       logError('painel:balcao', 'erro ao finalizar venda', error)
+      logCritical('painel:balcao:finalizar-venda', error.message, error, establishmentId)
       alert('Erro ao finalizar venda: ' + error.message)
     } finally {
       setSaving(false)
