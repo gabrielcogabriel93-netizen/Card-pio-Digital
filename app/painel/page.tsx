@@ -281,7 +281,7 @@ export default function Dashboard() {
             <ShoppingCart size={24} className="text-yellow-600" />
             <div>
               <p className="font-medium text-yellow-700">Ver Pedidos</p>
-              <p className="text-sm text-yellow-600">Gerencie peddos pendentes</p>
+              <p className="text-sm text-yellow-600">Gerencie pedidos pendentes</p>
             </div>
           </Link>
           <Link

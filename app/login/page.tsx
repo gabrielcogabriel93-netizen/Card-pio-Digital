@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 
 export default function LoginPage() {
@@ -17,6 +18,8 @@ export default function LoginPage() {
   const [showReset, setShowReset] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+
+  useEscapeKey(() => setShowReset(false), showReset)
 
   useEffect(() => {
     log('login', 'variáveis de ambiente do Supabase', {

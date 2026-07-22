@@ -3,8 +3,14 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
+import { playNotificationSound } from '@/lib/sound'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Order, OrderItem } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search } from 'lucide-react'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer } from 'lucide-react'
+
+// Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
+// histórico infinito conforme a loja acumula pedidos.
+const MAX_ORDERS = 200
 
 // Classes estáticas (o Tailwind não inclui classes montadas dinamicamente
 // como `bg-${color}-50` no build de produção, então mapeamos aqui).
@@ -24,6 +30,7 @@ export default function PedidosPage() {
   const [shippingFee, setShippingFee] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
 
   const columns: { status: Order['status']; label: string; icon: any; color: keyof typeof columnStyles }[] = [
     { status: 'pending', label: 'Pendente', icon: Clock, color: 'yellow' },
@@ -32,6 +39,8 @@ export default function PedidosPage() {
     { status: 'completed', label: 'Concluído', icon: CheckCircle, color: 'green' },
     { status: 'cancelled', label: 'Cancelado', icon: XCircle, color: 'red' },
   ]
+
+  useEscapeKey(() => setShowModal(false), showModal)
 
   useEffect(() => {
     loadOrders()
@@ -45,6 +54,7 @@ export default function PedidosPage() {
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
           log('painel:pedidos', 'evento realtime recebido', { eventType: payload.eventType })
+          if (payload.eventType === 'INSERT') playNotificationSound()
           loadOrders()
         }
       )
@@ -52,8 +62,18 @@ export default function PedidosPage() {
         log('painel:pedidos', 'status da inscrição realtime', { status })
       })
 
+    // Rede de segurança: em celular, a conexão de tempo real pode cair
+    // silenciosamente quando o app vai para segundo plano. Esse refetch
+    // periódico garante que o Kanban não fique desatualizado por muito
+    // tempo mesmo se isso acontecer.
+    const interval = setInterval(() => {
+      log('painel:pedidos', 'refetch periódico (rede de segurança do realtime)')
+      loadOrders()
+    }, 30000)
+
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(interval)
     }
   }, [])
 
@@ -78,6 +98,7 @@ export default function PedidosPage() {
         .select('*')
         .eq('establishment_id', est.id)
         .order('created_at', { ascending: false })
+        .limit(MAX_ORDERS)
 
       if (error) logError('painel:pedidos', 'erro ao carregar pedidos', error)
       if (data) setOrders(data as Order[])
@@ -190,8 +211,17 @@ export default function PedidosPage() {
     }
   }
 
+  const filteredOrders = orders.filter((o) => {
+    if (!search.trim()) return true
+    const term = search.trim().toLowerCase()
+    return (
+      o.customer_name.toLowerCase().includes(term) ||
+      o.customer_phone.replace(/\D/g, '').includes(term.replace(/\D/g, ''))
+    )
+  })
+
   const getOrdersByStatus = (status: Order['status']) => {
-    return orders.filter((o) => o.status === status)
+    return filteredOrders.filter((o) => o.status === status)
   }
 
   const formatCurrency = (value: number) => {
@@ -208,9 +238,21 @@ export default function PedidosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-        <p className="text-gray-600 mt-1">Gerencie os pedidos dos seus clientes.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
+          <p className="text-gray-600 mt-1">Gerencie os pedidos dos seus clientes.</p>
+        </div>
+        <div className="relative sm:w-72">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nome ou telefone..."
+            className="input-field pl-10"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Kanban Board */}
@@ -294,6 +336,14 @@ export default function PedidosPage() {
                     {selectedOrder.customer_name} - {selectedOrder.customer_phone}
                   </p>
                 </div>
+                <button
+                  onClick={() => window.print()}
+                  className="btn-secondary text-sm"
+                  title="Imprimir comanda"
+                >
+                  <Printer size={16} />
+                  Imprimir
+                </button>
               </div>
             </div>
 
@@ -426,6 +476,46 @@ export default function PedidosPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Comanda para impressão — só aparece no modo de impressão (Ctrl+P) */}
+      {selectedOrder && (
+        <div className="print-area hidden print:block p-6">
+          <h2 className="text-lg font-bold mb-1">Pedido #{selectedOrder.id.slice(0, 8)}</h2>
+          <p className="text-sm mb-1">Cliente: {selectedOrder.customer_name}</p>
+          <p className="text-sm mb-1">Telefone: {selectedOrder.customer_phone}</p>
+          <p className="text-sm mb-4">
+            {new Date(selectedOrder.created_at).toLocaleString('pt-BR')}
+          </p>
+          <hr className="my-3" />
+          {selectedOrder.items.map((item: OrderItem, index: number) => (
+            <div key={index} className="mb-2 text-sm">
+              <div className="flex justify-between font-medium">
+                <span>{item.quantity}x {item.product_name}</span>
+                <span>{formatCurrency(item.total_price)}</span>
+              </div>
+              {item.variations?.map((v, i) => (
+                <p key={i} className="text-xs pl-4">{v.group_name}: {v.option_name}</p>
+              ))}
+            </div>
+          ))}
+          <hr className="my-3" />
+          <div className="flex justify-between text-sm">
+            <span>Subtotal</span>
+            <span>{formatCurrency(selectedOrder.subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Frete</span>
+            <span>{formatCurrency(selectedOrder.shipping_fee || 0)}</span>
+          </div>
+          <div className="flex justify-between font-bold text-base mt-1">
+            <span>Total</span>
+            <span>{formatCurrency(selectedOrder.total)}</span>
+          </div>
+          {selectedOrder.notes && (
+            <p className="text-sm mt-3">Obs: {selectedOrder.notes}</p>
+          )}
         </div>
       )}
     </div>

@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { isWithinOpeningHours } from '@/lib/hours'
+import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem } from '@/types'
 import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send } from 'lucide-react'
 
@@ -36,6 +38,9 @@ export default function PublicMenuClient({
   }, [establishment.is_open, establishment.opening_hours])
 
   const deliveryFee = Number(establishment.delivery_fee) || 0
+
+  useEscapeKey(() => setShowCart(false), showCart)
+  useEscapeKey(() => setShowCustomerModal(false), showCustomerModal)
 
   const addToCart = async (product: PublicProduct) => {
     const supabase = createClient()
@@ -170,7 +175,7 @@ export default function PublicMenuClient({
       message += `\n\n💰 *Total: R$ ${total.toFixed(2)}*`
 
       const encodedMessage = encodeURIComponent(message)
-      const whatsappUrl = `https://wa.me/${establishment.whatsapp_number.replace(/\D/g, '')}?text=${encodedMessage}`
+      const whatsappUrl = `https://wa.me/${toWhatsAppNumber(establishment.whatsapp_number)}?text=${encodedMessage}`
 
       log('loja', 'abrindo WhatsApp', { whatsappNumber: establishment.whatsapp_number })
       window.open(whatsappUrl, '_blank')
@@ -489,7 +494,7 @@ export default function PublicMenuClient({
                   type="tel"
                   className="input-field"
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
                   placeholder="(11) 99999-8888"
                   required
                 />

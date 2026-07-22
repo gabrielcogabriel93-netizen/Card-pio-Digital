@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
+import { formatPhoneNumber } from '@/lib/phone'
 import type { Establishment } from '@/types'
 import { Save, Loader2, Copy, Share2, Clock, Eye, EyeOff } from 'lucide-react'
 
@@ -200,11 +201,14 @@ export default function ConfiguracoesPage() {
                 type="tel"
                 className="input-field"
                 value={formData.whatsapp_number}
-                onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, whatsapp_number: formatPhoneNumber(e.target.value) })}
                 placeholder="(11) 99999-8888"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Número para receber pedidos dos clientes.</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Número para receber pedidos dos clientes, com DDD. Não precisa incluir o código do
+                Brasil (55) — o link do WhatsApp já adiciona sozinho.
+              </p>
             </div>
 
             <div>

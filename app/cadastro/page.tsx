@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { formatPhoneNumber } from '@/lib/phone'
 import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
 
@@ -267,7 +268,7 @@ export default function CadastroPage() {
                     placeholder="(11) 99999-8888"
                     className="input-field"
                     value={formData.whatsapp}
-                    onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, whatsapp: formatPhoneNumber(e.target.value) })}
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">

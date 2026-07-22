@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Category } from '@/types'
 import { Plus, Edit2, Trash2, X, Loader2, GripVertical } from 'lucide-react'
 
@@ -18,6 +19,8 @@ export default function CategoriasPage() {
   useEffect(() => {
     loadCategories()
   }, [])
+
+  useEscapeKey(() => setShowModal(false), showModal)
 
   const loadCategories = async () => {
     log('painel:categorias', 'carregando categorias...')
@@ -202,6 +205,7 @@ export default function CategoriasPage() {
                     onClick={() => moveCategory(index, 'up')}
                     disabled={index === 0}
                     className="p-0.5 hover:bg-gray-100 rounded disabled:opacity-30"
+                    aria-label="Mover categoria para cima"
                   >
                     <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -211,6 +215,7 @@ export default function CategoriasPage() {
                     onClick={() => moveCategory(index, 'down')}
                     disabled={index === categories.length - 1}
                     className="p-0.5 hover:bg-gray-100 rounded disabled:opacity-30"
+                    aria-label="Mover categoria para baixo"
                   >
                     <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -231,12 +236,14 @@ export default function CategoriasPage() {
                 <button
                   onClick={() => openEditCategory(category)}
                   className="p-2 hover:bg-gray-100 rounded-lg"
+                  aria-label="Editar categoria"
                 >
                   <Edit2 size={16} className="text-gray-400" />
                 </button>
                 <button
                   onClick={() => handleDelete(category)}
                   className="p-2 hover:bg-red-50 rounded-lg"
+                  aria-label="Excluir categoria"
                 >
                   <Trash2 size={16} className="text-red-400" />
                 </button>
@@ -255,7 +262,7 @@ export default function CategoriasPage() {
               <h2 className="text-lg font-semibold text-gray-900">
                 {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
               </h2>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded" aria-label="Fechar">
                 <X size={20} />
               </button>
             </div>

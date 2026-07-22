@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
-import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers, Copy } from 'lucide-react'
 
 type GroupWithOptions = VariationGroup & { options: VariationOption[] }
 
@@ -41,6 +42,8 @@ export default function ProdutosPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEscapeKey(() => setShowModal(false), showModal)
 
   const loadData = async () => {
     log('painel:produtos', 'carregando produtos e categorias...')
@@ -309,6 +312,96 @@ export default function ProdutosPage() {
     }
   }
 
+  const handleDuplicate = async (product: Product) => {
+    log('painel:produtos', 'duplicando produto', { id: product.id, name: product.name })
+    try {
+      const supabase = createClient()
+      const maxOrder = products.reduce((max, p) => Math.max(max, p.display_order), -1)
+
+      const { data: newProduct, error } = await supabase
+        .from('products')
+        .insert({
+          establishment_id: product.establishment_id,
+          category_id: product.category_id,
+          name: `${product.name} (cópia)`,
+          description: product.description,
+          price: product.price,
+          image_url: product.image_url,
+          stock_qty: product.stock_qty,
+          track_stock: product.track_stock,
+          is_active: false,
+          display_order: maxOrder + 1,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Copia os grupos de variação e opções também
+      const { data: groups } = await supabase
+        .from('variation_groups')
+        .select('*, options:variation_options(*)')
+        .eq('product_id', product.id)
+
+      if (groups && newProduct) {
+        for (const group of groups as any[]) {
+          const { data: newGroup, error: groupError } = await supabase
+            .from('variation_groups')
+            .insert({
+              product_id: newProduct.id,
+              name: group.name,
+              is_required: group.is_required,
+              allow_multiple: group.allow_multiple,
+              display_order: group.display_order,
+            })
+            .select()
+            .single()
+
+          if (groupError) throw groupError
+
+          if (group.options?.length && newGroup) {
+            const { error: optionsError } = await supabase.from('variation_options').insert(
+              group.options.map((o: any) => ({
+                variation_group_id: newGroup.id,
+                name: o.name,
+                price_delta: o.price_delta,
+                display_order: o.display_order,
+              }))
+            )
+            if (optionsError) throw optionsError
+          }
+        }
+      }
+
+      log('painel:produtos', 'produto duplicado com sucesso', { newId: newProduct?.id })
+      await loadData()
+    } catch (error: any) {
+      logError('painel:produtos', 'erro ao duplicar produto', error)
+      alert('Erro ao duplicar produto: ' + error.message)
+    }
+  }
+
+  const moveProduct = async (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    if (newIndex < 0 || newIndex >= filteredProducts.length) return
+
+    const updated = [...filteredProducts]
+    const temp = updated[index]
+    updated[index] = updated[newIndex]
+    updated[newIndex] = temp
+
+    try {
+      const supabase = createClient()
+      for (let i = 0; i < updated.length; i++) {
+        await supabase.from('products').update({ display_order: i }).eq('id', updated[i].id)
+      }
+      log('painel:produtos', 'ordem de produtos atualizada')
+      await loadData()
+    } catch (error: any) {
+      logError('painel:produtos', 'erro ao reordenar produtos', error)
+    }
+  }
+
   const toggleActive = async (product: Product) => {
     try {
       const supabase = createClient()
@@ -397,7 +490,7 @@ export default function ProdutosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProducts.map((product) => {
+          {filteredProducts.map((product, index) => {
             const category = categories.find((c) => c.id === product.category_id)
             return (
               <div key={product.id} className={`card-hover ${!product.is_active ? 'opacity-60' : ''}`}>
@@ -408,10 +501,29 @@ export default function ProdutosPage() {
                       <span className="text-xs text-gray-500">{category.name}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
+                  <div className="flex items-center gap-0.5 ml-2 flex-wrap justify-end">
+                    <button
+                      onClick={() => moveProduct(index, 'up')}
+                      disabled={index === 0}
+                      className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-30"
+                      aria-label="Mover para cima"
+                      title="Mover para cima"
+                    >
+                      <ChevronUp size={16} className="text-gray-400" />
+                    </button>
+                    <button
+                      onClick={() => moveProduct(index, 'down')}
+                      disabled={index === filteredProducts.length - 1}
+                      className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-30"
+                      aria-label="Mover para baixo"
+                      title="Mover para baixo"
+                    >
+                      <ChevronDown size={16} className="text-gray-400" />
+                    </button>
                     <button
                       onClick={() => toggleActive(product)}
                       className="p-1.5 hover:bg-gray-100 rounded"
+                      aria-label={product.is_active ? 'Desativar produto' : 'Ativar produto'}
                       title={product.is_active ? 'Desativar' : 'Ativar'}
                     >
                       {product.is_active ? (
@@ -421,14 +533,26 @@ export default function ProdutosPage() {
                       )}
                     </button>
                     <button
+                      onClick={() => handleDuplicate(product)}
+                      className="p-1.5 hover:bg-gray-100 rounded"
+                      aria-label="Duplicar produto"
+                      title="Duplicar"
+                    >
+                      <Copy size={16} className="text-gray-400" />
+                    </button>
+                    <button
                       onClick={() => openEditProduct(product)}
                       className="p-1.5 hover:bg-gray-100 rounded"
+                      aria-label="Editar produto"
+                      title="Editar"
                     >
                       <Edit2 size={16} className="text-gray-400" />
                     </button>
                     <button
                       onClick={() => handleDelete(product)}
                       className="p-1.5 hover:bg-red-50 rounded"
+                      aria-label="Excluir produto"
+                      title="Excluir"
                     >
                       <Trash2 size={16} className="text-red-400" />
                     </button>

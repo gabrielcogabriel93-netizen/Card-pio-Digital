@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
+import { downloadCsv } from '@/lib/csv'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { FinancialEntry } from '@/types'
-import { DollarSign, TrendingUp, TrendingDown, Calendar, Loader2, ArrowLeft, ArrowRight, Plus, X } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Calendar, Loader2, ArrowLeft, ArrowRight, Plus, X, Download } from 'lucide-react'
 
 type Period = 'today' | 'week' | 'month' | 'custom'
 
@@ -24,6 +26,8 @@ export default function FinanceiroPage() {
   useEffect(() => {
     loadEntries()
   }, [period, customStart, customEnd])
+
+  useEscapeKey(() => setShowModal(false), showModal)
 
   const openNewEntry = () => {
     setEntryType('expense')
@@ -174,6 +178,21 @@ export default function FinanceiroPage() {
     })
   }
 
+  const handleExportCsv = () => {
+    log('painel:financeiro', 'exportando CSV', { total: entries.length })
+    const rows = entries.map((entry) => [
+      formatDate(entry.created_at),
+      entry.type === 'income' ? 'Entrada' : 'Saída',
+      entry.description || '',
+      Number(entry.amount).toFixed(2).replace('.', ','),
+    ])
+    downloadCsv(
+      `financeiro-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Data', 'Tipo', 'Descrição', 'Valor (R$)'],
+      rows
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -189,10 +208,21 @@ export default function FinanceiroPage() {
           <h1 className="text-2xl font-bold text-gray-900">Financeiro</h1>
           <p className="text-gray-600 mt-1">Acompanhe suas movimentações financeiras.</p>
         </div>
-        <button onClick={openNewEntry} className="btn-primary">
-          <Plus size={18} />
-          Novo Lançamento
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportCsv}
+            className="btn-secondary"
+            disabled={entries.length === 0}
+            title="Exportar movimentações do período em CSV"
+          >
+            <Download size={18} />
+            Exportar CSV
+          </button>
+          <button onClick={openNewEntry} className="btn-primary">
+            <Plus size={18} />
+            Novo Lançamento
+          </button>
+        </div>
       </div>
 
       {/* Period Filter */}
@@ -339,7 +369,7 @@ export default function FinanceiroPage() {
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md animate-fade-in">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Novo Lançamento</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded">
+              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded" aria-label="Fechar">
                 <X size={20} />
               </button>
             </div>

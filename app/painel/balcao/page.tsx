@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
+import { formatPhoneNumber } from '@/lib/phone'
+import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle } from 'lucide-react'
 
@@ -22,6 +24,8 @@ export default function BalcaoPage() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [establishmentId, setEstablishmentId] = useState<string>('')
+
+  useEscapeKey(() => setShowCheckout(false), showCheckout)
 
   useEffect(() => {
     loadData()
@@ -405,7 +409,7 @@ export default function BalcaoPage() {
                   type="tel"
                   className="input-field"
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
                   placeholder="(11) 99999-8888"
                   required
                 />
@@ -475,6 +479,8 @@ function VariationModal({
   const [groups, setGroups] = useState<(VariationGroup & { options: VariationOption[] })[]>([])
   const [selected, setSelected] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
+
+  useEscapeKey(onClose, true)
 
   useEffect(() => {
     loadVariations()
