@@ -41,6 +41,11 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 2. `002_stock_functions.sql` — funções de baixa/estorno de estoque
 3. `003_financial_entries_delete_policy.sql` — permite excluir lançamentos financeiros manuais
 4. `004_storage_uploads.sql` — bucket `uploads` e políticas para upload de fotos de produto/logo direto do dispositivo
+5. `005_public_views.sql` — views públicas seguras (`public_establishments`, `public_products`) e taxa de entrega
+6. `006_order_rate_limit.sql` — limite de pedidos por telefone/loja contra spam
+7. `007_error_logs.sql` — tabela de log de erros críticos
+8. `008_coupons.sql` — cupons de desconto
+9. `009_order_tracking.sql` — acompanhamento público do pedido
 
 ### 3. Configure as variáveis de ambiente
 
