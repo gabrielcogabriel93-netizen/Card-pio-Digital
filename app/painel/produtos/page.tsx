@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
+import { ImageUpload } from '@/components/ImageUpload'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
 import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers } from 'lucide-react'
 
@@ -11,6 +12,7 @@ type GroupWithOptions = VariationGroup & { options: VariationOption[] }
 export default function ProdutosPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [establishmentId, setEstablishmentId] = useState('')
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -58,6 +60,7 @@ export default function ProdutosPage() {
 
       if (estError) logError('painel:produtos', 'erro ao buscar estabelecimento', estError)
       if (!est) return
+      setEstablishmentId(est.id)
 
       // Carregar categorias
       const { data: cats, error: catsError } = await supabase
@@ -550,18 +553,13 @@ export default function ProdutosPage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  URL da imagem (opcional)
-                </label>
-                <input
-                  type="url"
-                  className="input-field"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
+              <ImageUpload
+                label="Foto do produto (opcional)"
+                value={formData.image_url}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                establishmentId={establishmentId}
+                folder="products"
+              />
 
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

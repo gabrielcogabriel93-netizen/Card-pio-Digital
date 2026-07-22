@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
+import { ImageUpload } from '@/components/ImageUpload'
 import type { Establishment } from '@/types'
 import { Save, Loader2, Copy, Share2, Clock, Eye, EyeOff } from 'lucide-react'
 
@@ -215,23 +216,14 @@ export default function ConfiguracoesPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">URL da Logo</label>
-                <input
-                  type="url"
-                  className="input-field"
-                  value={formData.logo_url}
-                  onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
-                  placeholder="https://..."
-                />
-                {formData.logo_url && (
-                  <img
-                    src={formData.logo_url}
-                    alt="Logo preview"
-                    className="mt-2 h-16 object-contain rounded border"
-                  />
-                )}
-              </div>
+              <ImageUpload
+                label="Logo"
+                value={formData.logo_url}
+                onChange={(url) => setFormData({ ...formData, logo_url: url })}
+                establishmentId={establishment?.id || ''}
+                folder="logo"
+                aspectClassName="h-20 w-20"
+              />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cor do tema</label>
                 <div className="flex gap-2 items-center">

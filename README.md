@@ -40,6 +40,7 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 1. `001_initial_schema.sql` — tabelas, índices e políticas de RLS
 2. `002_stock_functions.sql` — funções de baixa/estorno de estoque
 3. `003_financial_entries_delete_policy.sql` — permite excluir lançamentos financeiros manuais
+4. `004_storage_uploads.sql` — bucket `uploads` e políticas para upload de fotos de produto/logo direto do dispositivo
 
 ### 3. Configure as variáveis de ambiente
 
