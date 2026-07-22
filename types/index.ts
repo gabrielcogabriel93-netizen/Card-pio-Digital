@@ -110,6 +110,8 @@ export interface Order {
   items: OrderItem[]
   subtotal: number
   shipping_fee: number
+  discount?: number
+  coupon_code?: string
   total: number
   status: OrderStatus
   source: 'online' | 'balcao'
@@ -117,6 +119,20 @@ export interface Order {
   notes?: string
   created_at: string
   updated_at: string
+}
+
+// Cupom de desconto
+export interface Coupon {
+  id: string
+  establishment_id: string
+  code: string
+  discount_type: 'percent' | 'fixed'
+  discount_value: number
+  is_active: boolean
+  expires_at?: string
+  max_uses?: number
+  used_count: number
+  created_at?: string
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'completed' | 'cancelled'

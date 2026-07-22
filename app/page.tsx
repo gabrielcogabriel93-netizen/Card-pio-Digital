@@ -40,6 +40,7 @@ export default function LandingPage() {
             <button
               className="md:hidden p-2 rounded-lg hover:bg-gray-100"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
             >
               {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -285,8 +286,12 @@ export default function LandingPage() {
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 pt-8 text-sm text-center">
+          <div className="border-t border-gray-800 pt-8 text-sm flex flex-col sm:flex-row items-center justify-between gap-4">
             <p>&copy; {new Date().getFullYear()} Cardápio SaaS. Todos os direitos reservados.</p>
+            <div className="flex gap-4">
+              <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
+              <Link href="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>
+            </div>
           </div>
         </div>
       </footer>

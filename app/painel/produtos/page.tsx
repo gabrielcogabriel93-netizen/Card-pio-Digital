@@ -595,6 +595,7 @@ export default function ProdutosPage() {
               <button
                 onClick={() => setShowModal(false)}
                 className="p-1 hover:bg-gray-100 rounded"
+                aria-label="Fechar"
               >
                 <X size={20} />
               </button>
@@ -760,6 +761,7 @@ export default function ProdutosPage() {
                                 type="button"
                                 onClick={() => handleDeleteOption(option)}
                                 className="p-0.5 hover:bg-red-50 rounded"
+                                aria-label={`Remover opção ${option.name}`}
                               >
                                 <X size={12} className="text-red-400" />
                               </button>

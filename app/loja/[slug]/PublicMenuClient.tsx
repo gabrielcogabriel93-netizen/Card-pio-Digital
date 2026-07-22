@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { isWithinOpeningHours } from '@/lib/hours'
@@ -29,6 +31,11 @@ export default function PublicMenuClient({
   const [formOpenedAt] = useState(() => Date.now())
   const [saving, setSaving] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountType: 'percent' | 'fixed'; discountValue: number } | null>(null)
+  const [couponError, setCouponError] = useState<string | null>(null)
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null)
 
   // A loja fecha automaticamente fora do horário configurado, mesmo que o
   // lojista tenha esquecido de virar a chave manual para "fechado".
@@ -97,6 +104,48 @@ export default function PublicMenuClient({
     setCart(cart.filter((_, i) => i !== index))
   }
 
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) return
+    setCouponLoading(true)
+    setCouponError(null)
+    log('loja', 'validando cupom...', { code: couponInput })
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.rpc('validate_coupon', {
+        p_establishment_id: establishment.id,
+        p_code: couponInput.trim(),
+      })
+
+      if (error) throw error
+      const result = data?.[0]
+
+      if (!result?.valid) {
+        setCouponError(result?.message || 'Cupom inválido.')
+        setAppliedCoupon(null)
+        return
+      }
+
+      setAppliedCoupon({
+        code: couponInput.trim().toUpperCase(),
+        discountType: result.discount_type,
+        discountValue: Number(result.discount_value),
+      })
+      log('loja', 'cupom aplicado', { code: couponInput })
+    } catch (err) {
+      logError('loja', 'erro ao validar cupom', err)
+      setCouponError('Não foi possível validar o cupom. Tente novamente.')
+    } finally {
+      setCouponLoading(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponInput('')
+    setCouponError(null)
+  }
+
   const handleSendOrder = async () => {
     if (!customerName.trim() || !customerPhone.trim()) return
 
@@ -120,12 +169,18 @@ export default function PublicMenuClient({
     log('loja', 'enviando pedido...', { itens: cart.length, establishmentId: establishment.id })
 
     try {
-      const subtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
-      const total = subtotal + deliveryFee
+      const subtotal = cartSubtotal
+      const total = cartTotal
 
       const supabase = createClient()
 
+      // Gera o id no client em vez de pedir de volta com .select(): o
+      // RLS só deixa o DONO da loja ler pedidos, então um .select() após
+      // o insert do visitante anônimo voltaria vazio mesmo com sucesso.
+      const orderId = crypto.randomUUID()
+
       const { error: orderError } = await supabase.from('orders').insert({
+        id: orderId,
         establishment_id: establishment.id,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
@@ -140,6 +195,8 @@ export default function PublicMenuClient({
         })),
         subtotal,
         shipping_fee: deliveryFee,
+        discount: discountAmount,
+        coupon_code: appliedCoupon?.code || null,
         total,
         status: 'pending',
         source: 'online',
@@ -168,6 +225,9 @@ export default function PublicMenuClient({
       if (deliveryFee > 0) {
         message += `\n\n🛵 *Taxa de entrega:* R$ ${deliveryFee.toFixed(2)}`
       }
+      if (appliedCoupon && discountAmount > 0) {
+        message += `\n🏷️ *Cupom ${appliedCoupon.code}:* -R$ ${discountAmount.toFixed(2)}`
+      }
       if (notes.trim()) {
         message += `\n\n📝 *Observações:* ${notes.trim()}`
       }
@@ -179,6 +239,7 @@ export default function PublicMenuClient({
 
       log('loja', 'abrindo WhatsApp', { whatsappNumber: establishment.whatsapp_number })
       window.open(whatsappUrl, '_blank')
+      setLastOrderId(orderId)
 
       setCart([])
       setShowCustomerModal(false)
@@ -186,6 +247,7 @@ export default function PublicMenuClient({
       setCustomerPhone('')
       setNotes('')
       setShowCart(false)
+      removeCoupon()
     } catch (err: any) {
       logError('loja', 'erro ao enviar pedido', err)
       logCritical('loja:enviar-pedido', err.message, err, establishment.id)
@@ -195,8 +257,13 @@ export default function PublicMenuClient({
     }
   }
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.total_price, 0) + deliveryFee
   const cartSubtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
+  const discountAmount = appliedCoupon
+    ? appliedCoupon.discountType === 'percent'
+      ? cartSubtotal * (appliedCoupon.discountValue / 100)
+      : Math.min(appliedCoupon.discountValue, cartSubtotal)
+    : 0
+  const cartTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee)
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
   const filteredProducts = activeCategory === 'all'
@@ -214,11 +281,15 @@ export default function PublicMenuClient({
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             {establishment.logo_url && (
-              <img
-                src={establishment.logo_url}
-                alt={establishment.name}
-                className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
-              />
+              <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
+                <Image
+                  src={establishment.logo_url}
+                  alt={establishment.name}
+                  fill
+                  sizes="48px"
+                  className="object-cover"
+                />
+              </div>
             )}
             <div className="flex-1 min-w-0">
               <h1 className="font-bold text-lg text-gray-900 truncate">{establishment.name}</h1>
@@ -291,6 +362,27 @@ export default function PublicMenuClient({
 
       {/* Products */}
       <main className="max-w-2xl mx-auto px-4 py-6 pb-32">
+        {lastOrderId && (
+          <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-medium text-primary-800">Pedido enviado!</p>
+              <p className="text-sm text-primary-600">Acompanhe o status por aqui.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link href={`/pedido/${lastOrderId}`} className="btn-primary text-sm py-2 px-3">
+                Acompanhar
+              </Link>
+              <button
+                onClick={() => setLastOrderId(null)}
+                className="p-1 text-primary-600 hover:text-primary-800"
+                aria-label="Fechar aviso"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {!isEffectivelyOpen && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-center">
             <Clock size={24} className="text-amber-500 mx-auto mb-2" />
@@ -318,11 +410,15 @@ export default function PublicMenuClient({
                   className="w-full text-left bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow disabled:opacity-60 disabled:cursor-not-allowed flex gap-4"
                 >
                   {product.image_url && (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-                    />
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                      <Image
+                        src={product.image_url}
+                        alt={product.name}
+                        fill
+                        sizes="80px"
+                        className="object-cover"
+                      />
+                    </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-gray-900">{product.name}</h3>
@@ -419,10 +515,44 @@ export default function PublicMenuClient({
 
             {cart.length > 0 && (
               <div className="p-4 border-t border-gray-200 space-y-2">
+                {/* Cupom */}
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between bg-primary-50 text-primary-700 text-sm px-3 py-2 rounded-lg">
+                    <span>Cupom <strong>{appliedCoupon.code}</strong> aplicado</span>
+                    <button onClick={removeCoupon} className="text-primary-500 hover:text-primary-700" aria-label="Remover cupom">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="input-field text-sm py-1.5 uppercase"
+                      placeholder="Cupom de desconto"
+                      value={couponInput}
+                      onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null) }}
+                    />
+                    <button
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading || !couponInput.trim()}
+                      className="btn-secondary text-sm py-1.5 px-3 flex-shrink-0"
+                    >
+                      {couponLoading ? <Loader2 size={14} className="animate-spin" /> : 'Aplicar'}
+                    </button>
+                  </div>
+                )}
+                {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Subtotal</span>
                   <span>{formatCurrency(cartSubtotal)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-primary-600">
+                    <span>Desconto</span>
+                    <span>-{formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
                 {deliveryFee > 0 && (
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Taxa de entrega</span>
@@ -518,6 +648,12 @@ export default function PublicMenuClient({
                   <span>Subtotal</span>
                   <span>{formatCurrency(cartSubtotal)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-primary-600 mt-1">
+                    <span>Desconto ({appliedCoupon?.code})</span>
+                    <span>-{formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
                 {deliveryFee > 0 && (
                   <div className="flex justify-between text-sm text-gray-600 mt-1">
                     <span>Taxa de entrega</span>

@@ -130,9 +130,10 @@ export default function PedidosPage() {
       if (newStatus === 'confirmed') {
         // O frete só é definido na confirmação — o total precisa ser
         // recalculado aqui, senão a entrada financeira e o pedido ficam
-        // subestimados pelo valor do frete.
+        // subestimados pelo valor do frete (e o desconto do cupom, se
+        // houver, precisa continuar sendo descontado).
         const finalShippingFee = parseFloat(shippingFee) || 0
-        const finalTotal = (selectedOrder?.subtotal || 0) + finalShippingFee
+        const finalTotal = (selectedOrder?.subtotal || 0) - (selectedOrder?.discount || 0) + finalShippingFee
 
         updateData.payment_method = paymentMethod
         updateData.shipping_fee = finalShippingFee
@@ -379,6 +380,12 @@ export default function PedidosPage() {
                   <span className="text-gray-600">Subtotal</span>
                   <span>{formatCurrency(selectedOrder.subtotal)}</span>
                 </div>
+                {!!selectedOrder.discount && selectedOrder.discount > 0 && (
+                  <div className="flex justify-between text-sm text-primary-600">
+                    <span>Desconto {selectedOrder.coupon_code ? `(${selectedOrder.coupon_code})` : ''}</span>
+                    <span>-{formatCurrency(selectedOrder.discount)}</span>
+                  </div>
+                )}
                 {(selectedOrder.status === 'confirmed' || selectedOrder.status !== 'pending') && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Frete</span>
@@ -505,6 +512,12 @@ export default function PedidosPage() {
             <span>Subtotal</span>
             <span>{formatCurrency(selectedOrder.subtotal)}</span>
           </div>
+          {!!selectedOrder.discount && selectedOrder.discount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Desconto {selectedOrder.coupon_code ? `(${selectedOrder.coupon_code})` : ''}</span>
+              <span>-{formatCurrency(selectedOrder.discount)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span>Frete</span>
             <span>{formatCurrency(selectedOrder.shipping_fee || 0)}</span>

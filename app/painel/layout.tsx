@@ -17,12 +17,14 @@ import {
   X,
   ChevronDown,
   Store,
+  Tag,
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Dashboard', href: '/painel', icon: LayoutDashboard },
   { name: 'Produtos', href: '/painel/produtos', icon: Package },
   { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
+  { name: 'Cupons', href: '/painel/cupons', icon: Tag },
   { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
   { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
   { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
@@ -128,6 +130,7 @@ export default function PainelLayout({
             <button
               className="lg:hidden p-1 rounded hover:bg-gray-100"
               onClick={() => setSidebarOpen(false)}
+              aria-label="Fechar menu"
             >
               <X size={20} />
             </button>
@@ -187,6 +190,7 @@ export default function PainelLayout({
             <button
               className="p-2 rounded-lg hover:bg-gray-100"
               onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menu"
             >
               <Menu size={24} />
             </button>

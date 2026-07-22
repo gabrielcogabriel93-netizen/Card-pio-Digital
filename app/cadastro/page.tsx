@@ -25,6 +25,7 @@ export default function CadastroPage() {
   const [error, setError] = useState<string | null>(null)
   const [slug, setSlug] = useState('')
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   const handleEstablishmentNameChange = (value: string) => {
     setFormData({ ...formData, establishmentName: value })
@@ -206,6 +207,7 @@ export default function CadastroPage() {
                       type="button"
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -276,6 +278,27 @@ export default function CadastroPage() {
                   </p>
                 </div>
 
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                    required
+                  />
+                  <span className="text-sm text-gray-600">
+                    Li e concordo com os{' '}
+                    <Link href="/termos" target="_blank" className="text-primary-600 hover:underline">
+                      Termos de Uso
+                    </Link>{' '}
+                    e a{' '}
+                    <Link href="/privacidade" target="_blank" className="text-primary-600 hover:underline">
+                      Política de Privacidade
+                    </Link>
+                    .
+                  </span>
+                </label>
+
                 {error && (
                   <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start gap-2">
                     <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
@@ -287,7 +310,7 @@ export default function CadastroPage() {
                   <button type="button" onClick={() => setStep(1)} className="btn-secondary flex-1">
                     Voltar
                   </button>
-                  <button type="submit" className="btn-primary flex-1" disabled={loading}>
+                  <button type="submit" className="btn-primary flex-1" disabled={loading || !acceptedTerms}>
                     {loading ? (
                       <Loader2 size={20} className="animate-spin" />
                     ) : (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -280,11 +281,15 @@ export default function BalcaoPage() {
               className="card-hover text-left p-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {product.image_url && (
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  className="w-full h-24 object-cover rounded-lg mb-2"
-                />
+                <div className="relative w-full h-24 rounded-lg overflow-hidden mb-2">
+                  <Image
+                    src={product.image_url}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 640px) 45vw, 180px"
+                    className="object-cover"
+                  />
+                </div>
               )}
               <p className="font-medium text-sm text-gray-900 truncate">{product.name}</p>
               <p className="text-primary-600 font-bold text-sm mt-1">
@@ -330,6 +335,7 @@ export default function BalcaoPage() {
                     <button
                       onClick={() => updateQuantity(index, -1)}
                       className="w-6 h-6 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                      aria-label="Diminuir quantidade"
                     >
                       <Minus size={12} />
                     </button>
@@ -337,6 +343,7 @@ export default function BalcaoPage() {
                     <button
                       onClick={() => updateQuantity(index, 1)}
                       className="w-6 h-6 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                      aria-label="Aumentar quantidade"
                     >
                       <Plus size={12} />
                     </button>
@@ -347,6 +354,7 @@ export default function BalcaoPage() {
                   <button
                     onClick={() => removeFromCart(index)}
                     className="text-red-400 hover:text-red-600 mt-1"
+                    aria-label="Remover item do carrinho"
                   >
                     <Trash2 size={14} />
                   </button>
