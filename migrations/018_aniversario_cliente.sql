@@ -37,7 +37,11 @@ FROM establishments;
 
 GRANT SELECT ON public_establishments TO anon, authenticated;
 
--- get_customer_profile precisa devolver a data de nascimento salva.
+-- get_customer_profile precisa devolver a data de nascimento salva —
+-- muda a lista de colunas do retorno, então precisa de DROP antes
+-- (Postgres não permite trocar OUT params com CREATE OR REPLACE).
+DROP FUNCTION IF EXISTS get_customer_profile(UUID, TEXT);
+
 CREATE OR REPLACE FUNCTION get_customer_profile(p_establishment_id UUID, p_phone TEXT)
 RETURNS TABLE(customer_id UUID, name TEXT, birth_date DATE, addresses JSONB)
 LANGUAGE plpgsql
