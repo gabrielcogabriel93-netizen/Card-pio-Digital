@@ -79,6 +79,8 @@
 - [x] 10.7 - SEO técnico: sitemap dinâmico (`app/sitemap.ts`), `robots.txt` dinâmico (`app/robots.ts`) e JSON-LD por loja
 - [x] 10.8 - Taxa de entrega por bairro (`013_taxa_entrega_por_bairro.sql` + `/painel/bairros`): lojista cadastra bairro + valor, cliente escolhe da lista no checkout
 - [x] 10.9 - Notificações Push (`014_push_subscriptions.sql` + `/api/push/send` + `public/sw.js`): avisa o lojista de pedido novo mesmo com o painel fechado — tem passo manual de configuração pós-deploy, ver README
+- [x] 10.10 - Limite de usos de cupom por cliente/telefone (`015_cupom_limite_por_cliente.sql`) — ex: cupom de primeira compra limitado a 1 uso por telefone, validado no carrinho e reforçado por trigger no banco (não dava só pra confiar no client)
+- [x] 10.11 - Perfil do cliente (`016_perfil_cliente.sql`): nome/telefone e endereços salvos com rótulo (Casa, Trabalho...), vinculados ao telefone — funciona mesmo de outro aparelho, preenche automaticamente nas próximas compras e só pede pra confirmar/trocar o endereço
 
 ## Pendências conhecidas (fora do escopo desta rodada)
 - [ ] Planos pagos / limites de uso por plano (hoje só existe o aviso de doação — sem gate de feature)

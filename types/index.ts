@@ -150,6 +150,26 @@ export interface PublicDeliveryNeighborhood {
   fee: number
 }
 
+// Endereço salvo no perfil do cliente (rótulo tipo "Casa", "Trabalho").
+export interface CustomerAddress {
+  id: string
+  label: string
+  street: string
+  number: string
+  neighborhood: string
+  complement?: string | null
+  reference?: string | null
+  zip_code?: string | null
+}
+
+// Perfil do cliente — vem da função `get_customer_profile`, identificado
+// só pelo telefone (sem conta/senha), com todos os endereços salvos.
+export interface CustomerProfile {
+  customer_id: string
+  name: string
+  addresses: CustomerAddress[]
+}
+
 // Pedido
 export interface Order {
   id: string
@@ -182,6 +202,7 @@ export interface Coupon {
   is_active: boolean
   expires_at?: string
   max_uses?: number
+  max_uses_per_customer?: number | null
   used_count: number
   created_at?: string
 }

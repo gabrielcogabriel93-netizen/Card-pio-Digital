@@ -58,6 +58,8 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 12. `012_historico_pedidos_cliente.sql` — consulta de histórico de pedidos do cliente por telefone ("Meus Pedidos")
 13. `013_taxa_entrega_por_bairro.sql` — bairros cadastrados pelo lojista com frete próprio
 14. `014_push_subscriptions.sql` — inscrições de notificação push + trigger de novo pedido (⚠️ tem um passo manual — veja a seção "Notificações Push" abaixo antes de rodar)
+15. `015_cupom_limite_por_cliente.sql` — limite de usos de cupom por telefone (ex: cupom de primeira compra), validado no carrinho e reforçado por trigger no banco
+16. `016_perfil_cliente.sql` — perfil do cliente (nome + endereços salvos) vinculado ao telefone, sem conta/senha
 
 ### 3. Configure as variáveis de ambiente
 

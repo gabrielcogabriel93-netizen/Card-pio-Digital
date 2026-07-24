@@ -20,6 +20,7 @@ export default function CuponsPage() {
     discount_value: '',
     expires_at: '',
     max_uses: '',
+    max_uses_per_customer: '',
     is_active: true,
   })
 
@@ -70,6 +71,7 @@ export default function CuponsPage() {
       discount_value: '',
       expires_at: '',
       max_uses: '',
+      max_uses_per_customer: '',
       is_active: true,
     })
     setShowModal(true)
@@ -83,6 +85,7 @@ export default function CuponsPage() {
       discount_value: String(coupon.discount_value),
       expires_at: coupon.expires_at ? coupon.expires_at.slice(0, 10) : '',
       max_uses: coupon.max_uses ? String(coupon.max_uses) : '',
+      max_uses_per_customer: coupon.max_uses_per_customer ? String(coupon.max_uses_per_customer) : '',
       is_active: coupon.is_active,
     })
     setShowModal(true)
@@ -102,6 +105,7 @@ export default function CuponsPage() {
         discount_value: formData.discount_type === 'free_shipping' ? 0 : (parseFloat(formData.discount_value) || 0),
         expires_at: formData.expires_at ? new Date(formData.expires_at + 'T23:59:59').toISOString() : null,
         max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
+        max_uses_per_customer: formData.max_uses_per_customer ? parseInt(formData.max_uses_per_customer) : null,
         is_active: formData.is_active,
       }
 
@@ -240,6 +244,9 @@ export default function CuponsPage() {
 
                 <div className="text-xs text-gray-500 space-y-0.5">
                   <p>Usos: {coupon.used_count}{coupon.max_uses ? ` / ${coupon.max_uses}` : ''}</p>
+                  {coupon.max_uses_per_customer && (
+                    <p>Limite por cliente: {coupon.max_uses_per_customer}x</p>
+                  )}
                   {coupon.expires_at && (
                     <p>Válido até: {new Date(coupon.expires_at).toLocaleDateString('pt-BR')}</p>
                   )}
@@ -331,7 +338,7 @@ export default function CuponsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Limite de usos</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Limite de usos (total)</label>
                   <input
                     type="number"
                     min="1"
@@ -341,6 +348,22 @@ export default function CuponsPage() {
                     placeholder="Sem limite"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Limite de usos por cliente</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="input-field max-w-[160px]"
+                  value={formData.max_uses_per_customer}
+                  onChange={(e) => setFormData({ ...formData, max_uses_per_customer: e.target.value })}
+                  placeholder="Sem limite"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Quantas vezes o MESMO telefone pode usar esse cupom. Deixe em branco pra não limitar. Use "1" em
+                  cupons de primeira compra, por exemplo.
+                </p>
               </div>
 
               <label className="flex items-center gap-2 cursor-pointer">

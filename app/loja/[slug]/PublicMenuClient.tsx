@@ -22,8 +22,8 @@ import {
   saveAddress,
   type SavedAddress,
 } from '@/lib/customerStorage'
-import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood } from '@/types'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList } from 'lucide-react'
+import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress } from '@/types'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle } from 'lucide-react'
 
 export default function PublicMenuClient({
   establishment,
@@ -49,6 +49,15 @@ export default function PublicMenuClient({
   const useNeighborhoodFee = establishment.use_neighborhood_delivery_fee ?? false
   const [neighborhoods, setNeighborhoods] = useState<PublicDeliveryNeighborhood[]>([])
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string>('')
+  // Perfil do cliente (nome + endereços salvos), identificado só pelo
+  // telefone — funciona mesmo trocando de aparelho, diferente do
+  // localStorage. "new" = formulário em branco/edição, "select" = lista
+  // de endereços salvos, "confirm" = mostra o endereço já escolhido.
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [addressMode, setAddressMode] = useState<'new' | 'select' | 'confirm'>('new')
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('')
+  const [addressLabel, setAddressLabel] = useState('')
   const [website, setWebsite] = useState('') // honeypot: campo invisível, só bot preenche
   const [formOpenedAt] = useState(() => Date.now())
   const [saving, setSaving] = useState(false)
@@ -142,6 +151,98 @@ export default function PublicMenuClient({
     saveCart(establishment.id, cart)
   }, [cart, establishment.id])
 
+  // Preenche os campos do endereço a partir de um endereço salvo do
+  // perfil e tenta casar o bairro com a lista de taxa por bairro, se a
+  // loja usar isso (mesma lógica do auto-match por CEP).
+  const selectSavedAddress = (addr: CustomerAddress) => {
+    setSelectedAddressId(addr.id)
+    setAddress({
+      street: addr.street,
+      number: addr.number,
+      neighborhood: addr.neighborhood,
+      complement: addr.complement || '',
+      reference: addr.reference || '',
+      zip_code: addr.zip_code || '',
+    })
+    if (useNeighborhoodFee) {
+      const match = neighborhoods.find(n => n.name.trim().toLowerCase() === addr.neighborhood.trim().toLowerCase())
+      setSelectedNeighborhoodId(match ? match.id : '')
+      if (!match && neighborhoods.length > 0) {
+        // Bairro salvo não está mais na lista de entrega da loja — manda
+        // pro formulário editável (com os campos já preenchidos) em vez
+        // de "confirmar" um endereço sem taxa de entrega definida.
+        setAddressMode('new')
+        return
+      }
+    }
+    setAddressMode('confirm')
+  }
+
+  // Busca o perfil (nome + endereços) pelo telefone digitado — funciona
+  // mesmo se o cliente nunca pediu nesse aparelho antes, já que fica
+  // vinculado ao telefone e não ao navegador.
+  const lookupCustomerProfile = async () => {
+    const digits = customerPhone.replace(/\D/g, '')
+    if (digits.length < 10) return
+
+    setProfileLoading(true)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.rpc('get_customer_profile', {
+        p_establishment_id: establishment.id,
+        p_phone: customerPhone,
+      })
+      if (error) throw error
+      const result = data?.[0]
+
+      if (result?.customer_id) {
+        if (!customerName.trim()) setCustomerName(result.name)
+        const addresses = (result.addresses || []) as CustomerAddress[]
+        setCustomerProfile({ customer_id: result.customer_id, name: result.name, addresses })
+        if (orderType === 'delivery' && addresses.length > 0 && addressMode === 'new' && !address.street.trim()) {
+          selectSavedAddress(addresses[0])
+        }
+      } else {
+        setCustomerProfile(null)
+      }
+    } catch (err) {
+      logError('loja', 'erro ao buscar perfil do cliente', err)
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  // Se o telefone já veio pré-preenchido do localStorage (cliente
+  // recorrente neste mesmo navegador), busca o perfil assim que o modal
+  // abre — sem precisar esperar o campo perder o foco.
+  useEffect(() => {
+    if (showCustomerModal && customerPhone.replace(/\D/g, '').length >= 10) {
+      lookupCustomerProfile()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCustomerModal])
+
+  const handleDeleteSavedAddress = async (addressId: string) => {
+    if (!confirm('Remover este endereço salvo?')) return
+    try {
+      const supabase = createClient()
+      await supabase.rpc('delete_customer_address', {
+        p_establishment_id: establishment.id,
+        p_phone: customerPhone.trim(),
+        p_address_id: addressId,
+      })
+      setCustomerProfile(prev => prev ? { ...prev, addresses: prev.addresses.filter(a => a.id !== addressId) } : prev)
+      if (selectedAddressId === addressId) {
+        setSelectedAddressId('')
+        setAddressLabel('')
+        setAddress({ street: '', number: '', neighborhood: '', complement: '', reference: '', zip_code: '' })
+        setAddressMode('new')
+      }
+    } catch (err) {
+      logError('loja', 'erro ao remover endereço salvo', err)
+    }
+  }
+
   const addToCart = async (product: PublicProduct) => {
     const supabase = createClient()
     const { data: groups } = await supabase
@@ -205,9 +306,14 @@ export default function PublicMenuClient({
 
     try {
       const supabase = createClient()
+      // Se o telefone já foi preenchido antes (cliente recorrente, vem
+      // do localStorage), já dá pra checar o limite por cliente aqui.
+      // Senão, essa checagem só acontece de fato no envio do pedido —
+      // ver handleSendOrder.
       const { data, error } = await supabase.rpc('validate_coupon', {
         p_establishment_id: establishment.id,
         p_code: couponInput.trim(),
+        p_customer_phone: customerPhone.trim() || null,
       })
 
       if (error) throw error
@@ -242,6 +348,7 @@ export default function PublicMenuClient({
   // Quando a loja usa taxa por bairro E já tem bairro cadastrado, o
   // cliente precisa escolher um da lista em vez de só digitar o nome.
   const usingNeighborhoodSelect = useNeighborhoodFee && neighborhoods.length > 0
+  const selectedSavedAddress = customerProfile?.addresses.find(a => a.id === selectedAddressId) || null
   const isAddressValid = orderType === 'pickup' ||
     (address.street.trim() && address.number.trim() &&
       (usingNeighborhoodSelect ? !!selectedNeighborhoodId : !!address.neighborhood.trim()))
@@ -311,6 +418,28 @@ export default function PublicMenuClient({
 
       const supabase = createClient()
 
+      // Revalida o cupom agora que o telefone é conhecido (obrigatório
+      // neste passo). No carrinho, um cliente novo ainda não tinha
+      // digitado o telefone, então o limite "por cliente" não dava pra
+      // checar antes — é aqui que isso é garantido de verdade. O banco
+      // também barra isso de novo no INSERT como segunda camada, então
+      // mesmo pulando esse passo o limite continua valendo.
+      if (appliedCoupon) {
+        const { data: recheckData, error: recheckError } = await supabase.rpc('validate_coupon', {
+          p_establishment_id: establishment.id,
+          p_code: appliedCoupon.code,
+          p_customer_phone: customerPhone.trim(),
+        })
+        if (recheckError) throw recheckError
+        const recheckResult = recheckData?.[0]
+        if (!recheckResult?.valid) {
+          whatsappWindow?.close()
+          removeCoupon()
+          alert(recheckResult?.message || 'Esse cupom não é mais válido. Removemos ele do pedido — confira o total e envie novamente.')
+          return // o `finally` abaixo cuida de setSaving(false)
+        }
+      }
+
       // Gera o id no client em vez de pedir de volta com .select(): o
       // RLS só deixa o DONO da loja ler pedidos, então um .select() após
       // o insert do visitante anônimo voltaria vazio mesmo com sucesso.
@@ -353,6 +482,50 @@ export default function PublicMenuClient({
       if (orderError) throw orderError
       log('loja', 'pedido salvo com sucesso, montando mensagem do WhatsApp...')
       if (orderType === 'delivery') saveAddress(address)
+
+      // Salva o perfil (nome + telefone) e, se foi um endereço novo, o
+      // endereço com o rótulo — vinculado ao telefone, então funciona
+      // mesmo trocando de aparelho depois. Uma falha aqui não pode
+      // derrubar o pedido, que já foi salvo com sucesso — por isso tem
+      // try/catch próprio, separado do catch geral lá embaixo.
+      try {
+        await supabase.rpc('upsert_customer_profile', {
+          p_establishment_id: establishment.id,
+          p_phone: customerPhone.trim(),
+          p_name: customerName.trim(),
+        })
+
+        if (orderType === 'delivery' && addressMode === 'new') {
+          const { data: newAddressId } = await supabase.rpc('upsert_customer_address', {
+            p_establishment_id: establishment.id,
+            p_phone: customerPhone.trim(),
+            p_label: addressLabel.trim() || 'Principal',
+            p_street: address.street.trim(),
+            p_number: address.number.trim(),
+            p_neighborhood: address.neighborhood.trim(),
+            p_complement: address.complement?.trim() || null,
+            p_reference: address.reference?.trim() || null,
+            p_zip_code: address.zip_code?.trim() || null,
+          })
+          if (newAddressId) {
+            const savedAddr: CustomerAddress = {
+              id: newAddressId as string,
+              label: addressLabel.trim() || 'Principal',
+              street: address.street.trim(),
+              number: address.number.trim(),
+              neighborhood: address.neighborhood.trim(),
+              complement: address.complement?.trim() || null,
+              reference: address.reference?.trim() || null,
+              zip_code: address.zip_code?.trim() || null,
+            }
+            setCustomerProfile(prev => prev
+              ? { ...prev, addresses: [savedAddr, ...prev.addresses.filter(a => a.id !== savedAddr.id)] }
+              : { customer_id: '', name: customerName.trim(), addresses: [savedAddr] })
+          }
+        }
+      } catch (profileErr) {
+        logError('loja', 'erro ao salvar perfil/endereço do cliente', profileErr)
+      }
 
       let message = `🛵 *Novo Pedido - ${establishment.name}*\n\n`
       message += `👤 *Cliente:* ${customerName.trim()}\n`
@@ -424,6 +597,9 @@ export default function PublicMenuClient({
       setCustomerPhone('')
       setNotes('')
       setSelectedNeighborhoodId('')
+      setSelectedAddressId('')
+      setAddressLabel('')
+      setAddressMode('new')
       setShowCart(false)
       removeCoupon()
     } catch (err: any) {
@@ -835,15 +1011,24 @@ export default function PublicMenuClient({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone *
+                  {profileLoading && <Loader2 size={12} className="inline-block animate-spin ml-2 text-gray-400" />}
+                </label>
                 <input
                   type="tel"
                   className="input-field"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
+                  onBlur={lookupCustomerProfile}
                   placeholder="(11) 99999-8888"
                   required
                 />
+                {customerProfile && (
+                  <p className="text-xs text-primary-600 mt-1">
+                    Olá de novo, {customerProfile.name.split(' ')[0]}! Já preenchemos seus dados.
+                  </p>
+                )}
               </div>
               {offersDelivery && offersPickup && (
                 <div>
@@ -874,101 +1059,183 @@ export default function PublicMenuClient({
               )}
 
               {orderType === 'delivery' ? (
-                <div className="space-y-3 bg-gray-50 rounded-lg p-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">CEP</label>
-                    <div className="relative max-w-[160px]">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        className="input-field text-sm"
-                        value={address.zip_code}
-                        onChange={(e) => setAddress({ ...address, zip_code: formatCep(e.target.value) })}
-                        onBlur={handleCepBlur}
-                        placeholder="00000-000"
-                      />
-                      {cepLoading && (
-                        <Loader2 size={14} className="animate-spin text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">Preenche rua e bairro automaticamente (opcional).</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Rua *</label>
-                      <input
-                        type="text"
-                        className="input-field text-sm"
-                        value={address.street}
-                        onChange={(e) => setAddress({ ...address, street: e.target.value })}
-                        placeholder="Rua/Av."
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Número *</label>
-                      <input
-                        type="text"
-                        className="input-field text-sm"
-                        value={address.number}
-                        onChange={(e) => setAddress({ ...address, number: e.target.value })}
-                        placeholder="Nº"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Bairro *</label>
-                    {usingNeighborhoodSelect ? (
-                      <select
-                        className="input-field text-sm"
-                        value={selectedNeighborhoodId}
-                        onChange={(e) => {
-                          const id = e.target.value
-                          setSelectedNeighborhoodId(id)
-                          const n = neighborhoods.find(n => n.id === id)
-                          if (n) setAddress({ ...address, neighborhood: n.name })
-                        }}
-                        required
+                <div className="space-y-3">
+                  {addressMode === 'confirm' && selectedSavedAddress ? (
+                    <div className="bg-gray-50 rounded-lg p-3 flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <MapPin size={16} className="text-primary-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm min-w-0">
+                          <p className="font-medium text-gray-900">{selectedSavedAddress.label}</p>
+                          <p className="text-gray-600 truncate">
+                            {selectedSavedAddress.street}, {selectedSavedAddress.number}
+                            {selectedSavedAddress.complement ? ` - ${selectedSavedAddress.complement}` : ''}
+                            {' — '}{selectedSavedAddress.neighborhood}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAddressMode('select')}
+                        className="text-xs text-primary-600 hover:underline flex-shrink-0"
                       >
-                        <option value="">Selecione o bairro</option>
-                        {neighborhoods.map((n) => (
-                          <option key={n.id} value={n.id}>
-                            {n.name} — {formatCurrency(Number(n.fee))}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        className="input-field text-sm"
-                        value={address.neighborhood}
-                        onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
-                        placeholder="Bairro"
-                        required
-                      />
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Complemento</label>
-                    <input
-                      type="text"
-                      className="input-field text-sm"
-                      value={address.complement}
-                      onChange={(e) => setAddress({ ...address, complement: e.target.value })}
-                      placeholder="Apto, bloco, casa..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Ponto de referência</label>
-                    <input
-                      type="text"
-                      className="input-field text-sm"
-                      value={address.reference}
-                      onChange={(e) => setAddress({ ...address, reference: e.target.value })}
-                      placeholder="Ex: perto do mercado X"
-                    />
-                  </div>
+                        Trocar
+                      </button>
+                    </div>
+                  ) : addressMode === 'select' && customerProfile && customerProfile.addresses.length > 0 ? (
+                    <div className="space-y-2">
+                      {customerProfile.addresses.map((addr) => (
+                        <div key={addr.id} className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => selectSavedAddress(addr)}
+                            className={`flex-1 text-left p-3 rounded-lg border-2 transition-colors ${
+                              selectedAddressId === addr.id ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <p className="font-medium text-sm text-gray-900">{addr.label}</p>
+                            <p className="text-xs text-gray-500 truncate">{addr.street}, {addr.number} — {addr.neighborhood}</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSavedAddress(addr.id)}
+                            className="p-2 text-red-400 hover:bg-red-50 rounded-lg flex-shrink-0"
+                            aria-label="Remover endereço salvo"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddressMode('new')
+                          setSelectedAddressId('')
+                          setAddressLabel('')
+                          setAddress({ street: '', number: '', neighborhood: '', complement: '', reference: '', zip_code: '' })
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                      >
+                        <PlusCircle size={16} />
+                        Cadastrar novo endereço
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 bg-gray-50 rounded-lg p-3">
+                      {customerProfile && customerProfile.addresses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setAddressMode('select')}
+                          className="text-xs text-primary-600 hover:underline"
+                        >
+                          ← Usar um endereço salvo
+                        </button>
+                      )}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Nome do endereço (opcional)</label>
+                        <input
+                          type="text"
+                          className="input-field text-sm"
+                          value={addressLabel}
+                          onChange={(e) => setAddressLabel(e.target.value)}
+                          placeholder="Ex: Casa, Trabalho..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">CEP</label>
+                        <div className="relative max-w-[160px]">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            className="input-field text-sm"
+                            value={address.zip_code}
+                            onChange={(e) => setAddress({ ...address, zip_code: formatCep(e.target.value) })}
+                            onBlur={handleCepBlur}
+                            placeholder="00000-000"
+                          />
+                          {cepLoading && (
+                            <Loader2 size={14} className="animate-spin text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Preenche rua e bairro automaticamente (opcional).</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Rua *</label>
+                          <input
+                            type="text"
+                            className="input-field text-sm"
+                            value={address.street}
+                            onChange={(e) => setAddress({ ...address, street: e.target.value })}
+                            placeholder="Rua/Av."
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Número *</label>
+                          <input
+                            type="text"
+                            className="input-field text-sm"
+                            value={address.number}
+                            onChange={(e) => setAddress({ ...address, number: e.target.value })}
+                            placeholder="Nº"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Bairro *</label>
+                        {usingNeighborhoodSelect ? (
+                          <select
+                            className="input-field text-sm"
+                            value={selectedNeighborhoodId}
+                            onChange={(e) => {
+                              const id = e.target.value
+                              setSelectedNeighborhoodId(id)
+                              const n = neighborhoods.find(n => n.id === id)
+                              if (n) setAddress({ ...address, neighborhood: n.name })
+                            }}
+                            required
+                          >
+                            <option value="">Selecione o bairro</option>
+                            {neighborhoods.map((n) => (
+                              <option key={n.id} value={n.id}>
+                                {n.name} — {formatCurrency(Number(n.fee))}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            className="input-field text-sm"
+                            value={address.neighborhood}
+                            onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
+                            placeholder="Bairro"
+                            required
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Complemento</label>
+                        <input
+                          type="text"
+                          className="input-field text-sm"
+                          value={address.complement}
+                          onChange={(e) => setAddress({ ...address, complement: e.target.value })}
+                          placeholder="Apto, bloco, casa..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Ponto de referência</label>
+                        <input
+                          type="text"
+                          className="input-field text-sm"
+                          value={address.reference}
+                          onChange={(e) => setAddress({ ...address, reference: e.target.value })}
+                          placeholder="Ex: perto do mercado X"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 establishment.address && (
