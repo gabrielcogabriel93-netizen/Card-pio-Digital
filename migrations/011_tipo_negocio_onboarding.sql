@@ -46,6 +46,11 @@ GRANT SELECT ON public_establishments TO anon, authenticated;
 -- get_order_status precisa devolver os dados novos (tema, tipo/endereço
 -- do pedido, se o acompanhamento detalhado está ativo) para a página
 -- pública de tracking se adaptar sem precisar de uma segunda consulta.
+-- Como o RETURN TABLE ganhou colunas novas, o Postgres não deixa só dar
+-- CREATE OR REPLACE (só aceita trocar o corpo, não a assinatura de
+-- retorno) — precisa derrubar a função antiga primeiro.
+DROP FUNCTION IF EXISTS get_order_status(UUID);
+
 CREATE OR REPLACE FUNCTION get_order_status(p_order_id UUID)
 RETURNS TABLE(
   id UUID,
