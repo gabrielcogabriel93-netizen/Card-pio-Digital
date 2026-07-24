@@ -25,7 +25,10 @@ tudo em um único painel.
   - Financeiro: entradas automáticas (pedidos confirmados/vendas de balcão) + lançamentos manuais de entrada/saída, filtros por período
   - Configurações: dados da loja, horário de funcionamento, loja aberta/fechada, link público, cor do tema (aplicada de verdade no cardápio, com trava de contraste automática), tipo de negócio, entrega/retirada
   - Cupons: percentual, valor fixo ou frete grátis
-  - Planos: aviso de sistema gratuito + doação via PIX
+  - Relatórios (`/painel/relatorios`): produtos mais vendidos, horário de pico e ticket médio por período
+  - WhatsApp (`/painel/whatsapp`): conecta o número da loja via QR Code (WPPConnect, servidor separado) e liga notificações automáticas 1-para-1 de status de pedido pro cliente, além de mensagem manual pros aniversariantes do dia
+  - Domínio próprio (em Configurações): a loja pode apontar um domínio dela pro cardápio público, além do link padrão
+  - Planos: aviso de sistema gratuito + CTA de "planos pagos em breve" + doação via PIX
   - Tutorial: como cada funcionalidade do painel funciona
 - **Onboarding** (`/onboarding`): quiz de 3 perguntas logo após o cadastro que já deixa o painel configurado pro tipo de negócio
 - **Cardápio público** (`/loja/[slug]`): navegação por categoria, variações, carrinho persistente, entrega (com busca de CEP e bairro por lista) ou retirada, e envio do pedido pronto via WhatsApp com link de acompanhamento
@@ -60,6 +63,14 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 14. `014_push_subscriptions.sql` — inscrições de notificação push + trigger de novo pedido (⚠️ tem um passo manual — veja a seção "Notificações Push" abaixo antes de rodar)
 15. `015_cupom_limite_por_cliente.sql` — limite de usos de cupom por telefone (ex: cupom de primeira compra), validado no carrinho e reforçado por trigger no banco
 16. `016_perfil_cliente.sql` — perfil do cliente (nome + endereços salvos) vinculado ao telefone, sem conta/senha
+17. `017_pagamento_cliente.sql` — `get_order_status` passa a devolver forma de pagamento, código do cupom e observações
+18. `018_aniversario_cliente.sql` — data de nascimento no perfil + desconto automático de aniversário (opcional, configurável)
+19. `019_sugestoes_carrinho.sql` — produtos em destaque (`is_featured`) e valor mínimo para frete grátis progressivo
+20. `020_pix_automatico.sql` — chave Pix do lojista, pra gerar QR Code/copia-e-cola automaticamente no checkout
+21. `021_lgpd_exclusao_dados.sql` — cliente pode apagar o próprio perfil salvo (nome, endereços) por telefone
+22. `022_mais_vendido.sql` — cálculo real de produtos mais vendidos (30 dias) pro selo "🔥 Mais vendido" no cardápio
+23. `023_whatsapp_notificacoes.sql` — coluna `whatsapp_notifications_enabled` (liga/desliga notificações automáticas de status via WhatsApp)
+24. `024_dominio_proprio.sql` — coluna `custom_domain` por loja + view pública atualizada
 
 ### 3. Configure as variáveis de ambiente
 
@@ -70,6 +81,13 @@ NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key
 SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Opcional — só se for usar notificações via WhatsApp (ver seção 6)
+WHATSAPP_SERVER_URL=https://seu-servidor-whatsapp.exemplo.com
+WHATSAPP_SERVER_SECRET=uma-string-aleatoria-compartilhada-com-o-servidor
+
+# Opcional — só se for usar domínio próprio por loja (ver seção 7)
+NEXT_PUBLIC_ROOT_DOMAIN=seuapp.vercel.app
 ```
 
 > A `SUPABASE_SERVICE_ROLE_KEY` é usada pela rota de servidor
@@ -120,7 +138,49 @@ partes — o app (já pronto) e um passo manual no banco depois do deploy:
    um botão "Testar" pra confirmar que chegou sem precisar esperar um pedido de
    verdade.
 
-### 6. Instale e rode
+### 6. Notificações via WhatsApp (opcional)
+
+Avisa o cliente pelo WhatsApp quando o status do pedido dele muda ("Recebemos
+seu pedido!", "Saiu para entrega!", etc.) — sempre 1 mensagem pra 1 cliente,
+disparada manualmente pela ação do lojista no Kanban, nunca em massa. Usa
+WPPConnect (automação não-oficial do WhatsApp) rodando num servidor **separado**
+em `whatsapp-server/`, que **não roda no Vercel** (precisa de VPS — mantém um
+Chromium aberto por sessão conectada). Leia `whatsapp-server/README.md` antes
+de decidir usar: tem um aviso importante sobre risco de banimento do número.
+
+Resumo:
+1. Rode `migrations/023_whatsapp_notificacoes.sql`.
+2. Suba `whatsapp-server/` numa VPS (passo a passo completo no README dela).
+3. Configure `WHATSAPP_SERVER_URL` e `WHATSAPP_SERVER_SECRET` no app principal
+   (mesmo valor do `API_SECRET` da VPS).
+4. Cada loja conecta o próprio número em **Painel → WhatsApp** (QR Code) e liga
+   o toggle de notificações automáticas.
+
+Sem essas variáveis configuradas, a página `/painel/whatsapp` e o botão de
+notificação simplesmente não funcionam — o resto do app continua normal.
+
+### 7. Domínio próprio por loja (opcional)
+
+Cada loja pode usar um domínio dela (ex: `cardapio.minhaloja.com.br`) em vez do
+link padrão `/loja/[slug]`, preenchendo o campo em **Painel → Configurações**.
+Isso sozinho não ativa nada — depois de rodar `migrations/024_dominio_proprio.sql`,
+ainda é preciso, manualmente, por domínio:
+
+1. Criar um registro **CNAME** no DNS do domínio apontando pra
+   `cname.vercel-dns.com` (ou o valor que a Vercel indicar).
+2. Adicionar esse mesmo domínio em **Vercel → seu projeto → Settings →
+   Domains**.
+3. Configurar `NEXT_PUBLIC_ROOT_DOMAIN` nas variáveis de ambiente com o
+   domínio principal do seu app (ex: `seuapp.vercel.app` ou seu domínio
+   próprio da plataforma) — é o que o middleware usa pra saber quando um
+   request **não** é o app principal e vale a pena consultar o banco pra
+   resolver um domínio de loja.
+
+Sem `NEXT_PUBLIC_ROOT_DOMAIN` configurado, esse recurso fica inerte (nenhuma
+consulta extra é feita) e o app se comporta como se a funcionalidade não
+existisse.
+
+### 8. Instale e rode
 
 ```bash
 npm install
@@ -145,9 +205,15 @@ app/
   completar-cadastro/      → conclusão do cadastro (fallback p/ confirmação de e-mail)
   redefinir-senha/         → redefinição de senha
   loja/[slug]/             → cardápio público
-  painel/                  → área logada do lojista (produtos, categorias, pedidos, balcão, financeiro, configurações)
+  painel/                  → área logada do lojista (produtos, categorias, pedidos, balcão, financeiro, configurações, relatórios, whatsapp, planos)
+  api/whatsapp/            → rotas proxy autenticadas pro servidor WhatsApp (status/start/logout/send)
 lib/supabase/              → clients Supabase (browser, server, middleware, admin)
 lib/establishment.ts       → criação de estabelecimento com slug único
+lib/paymentMethods.ts      → formas de pagamento compartilhadas (checkout público + painel)
+lib/pix.ts                 → geração de payload Pix (EMV + CRC16) sem gateway
+lib/whatsappServer.ts      → cliente HTTP server-side pro whatsapp-server/
+lib/verifyEstablishmentOwner.ts → autorização das rotas de API do WhatsApp
+whatsapp-server/           → pacote Node separado (WPPConnect) — deploy próprio em VPS, ver seção 6
 migrations/                → schema SQL + RLS + funções de estoque
 types/                     → tipos compartilhados
 public/                    → manifest, ícones e service worker do PWA
@@ -156,6 +222,8 @@ public/                    → manifest, ícones e service worker do PWA
 ## Limitações conhecidas / próximos passos
 
 - Os ícones em `public/icons/` são placeholders gerados automaticamente — troque por artes reais da marca antes de publicar em lojas de apps ou divulgar o link de instalação.
-- Não há planos pagos/limites por plano implementados (campo `plan` existe no banco, mas sem cobrança ou gate de uso).
+- Não há cobrança/gate de uso por plano implementado (campo `plan` existe no banco, mas hoje tudo é liberado gratuitamente) — a aba Planos só tem um CTA de contato pra quem quiser saber mais.
+- Notificações via WhatsApp dependem de infraestrutura própria (VPS rodando `whatsapp-server/`, fora do Vercel) e usam automação não-oficial do WhatsApp (WPPConnect) — leia o aviso em `whatsapp-server/README.md` antes de ativar.
+- Domínio próprio por loja depende de configuração manual de DNS (CNAME) e cadastro do domínio na Vercel, além de `NEXT_PUBLIC_ROOT_DOMAIN` configurado — ver seção 7.
 - Não há paginação em listagens (produtos/pedidos); para catálogos muito grandes, considere adicionar.
 - Uploads de imagem são feitos via URL — não há upload direto de arquivo para storage do Supabase.

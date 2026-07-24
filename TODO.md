@@ -82,9 +82,29 @@
 - [x] 10.10 - Limite de usos de cupom por cliente/telefone (`015_cupom_limite_por_cliente.sql`) — ex: cupom de primeira compra limitado a 1 uso por telefone, validado no carrinho e reforçado por trigger no banco (não dava só pra confiar no client)
 - [x] 10.11 - Perfil do cliente (`016_perfil_cliente.sql`): nome/telefone e endereços salvos com rótulo (Casa, Trabalho...), vinculados ao telefone — funciona mesmo de outro aparelho, preenche automaticamente nas próximas compras e só pede pra confirmar/trocar o endereço
 
+## FASE 11: Forma de pagamento ponta a ponta + diferenciais de comercialização
+- [x] 11.1 - Cliente escolhe forma de pagamento preferida no checkout público (`lib/paymentMethods.ts` compartilhada), vai na mensagem do WhatsApp e no pedido salvo
+- [x] 11.2 - `payment_method` agora aparece em todas as telas que exibem pedido: card do Kanban, modal de detalhes (com "cliente indicou: X"), comanda impressa, Dashboard, página pública de acompanhamento (`017_pagamento_cliente.sql` atualiza `get_order_status`)
+- [x] 11.3 - Balcão/PDV mostra resumo pós-venda (itens, pagamento, total) em vez de só um toast de sucesso
+- [x] 11.4 - Página pública de acompanhamento também passou a mostrar código do cupom e observações do pedido (antes só o Kanban/comanda mostravam)
+- [x] 11.5 - Data de nascimento (opcional) no perfil do cliente + desconto automático de aniversário configurável em Configurações (`018_aniversario_cliente.sql`) — banner "Feliz aniversário" e desconto aplicado sozinho no checkout, sem depender de envio de mensagem
+- [x] 11.6 - Sugestão de produtos no carrinho (`019_sugestoes_carrinho.sql`): lojista marca produtos como destaque em Produtos ("Sugerir no carrinho"), aparecem como "Que tal adicionar também?" — e frete grátis progressivo configurável em Configurações, com barra de progresso real no carrinho. Nada inventado/adivinhado — as duas coisas são 100% controladas pelo lojista
+- [x] 11.7 - Pix automático (`020_pix_automatico.sql`): chave Pix cadastrada em Configurações gera QR Code + copia-e-cola na hora do checkout, sem gateway/taxa (`lib/pix.ts`, EMV + CRC16 puro)
+- [x] 11.8 - Relatórios avançados (`/painel/relatorios`): mais vendidos, horário de pico e ticket médio por período, com filtro hoje/7 dias/mês/personalizado
+- [x] 11.9 - LGPD (`021_lgpd_exclusao_dados.sql`): cliente pode apagar o próprio perfil salvo (nome, endereços) em "Meus Pedidos", informando o telefone — pedidos já feitos continuam no histórico da loja (registro comercial)
+- [x] 11.10 - Checklist de onboarding no Dashboard (logo, cor, categoria, produto, Pix) — só aparece enquanto a loja não tiver terminado a configuração
+- [x] 11.11 - Selo "🔥 Mais vendido" no cardápio público (`022_mais_vendido.sql`), calculado a partir de pedidos reais dos últimos 30 dias
+
+## FASE 12: WhatsApp 1-para-1 + planos pagos (CTA) + domínio próprio
+- [x] 12.1 - Notificações de status via WhatsApp (`023_whatsapp_notificacoes.sql`): servidor separado `whatsapp-server/` (WPPConnect, precisa de VPS própria), rotas proxy autenticadas (`app/api/whatsapp/*`), página `/painel/whatsapp` (QR Code, status, toggle, aniversariantes do dia) e disparo 1-para-1 (fire-and-forget, sem travar o Kanban) em `handleUpdateStatus` quando o pedido é `online` e o toggle está ligado — nunca broadcast/marketing em massa, por risco de banimento do número (decisão explícita)
+- [x] 12.2 - CTA "Planos pagos em breve" na aba Planos (contato via WhatsApp) — sem checkout/cobrança de verdade, já que não há credencial de gateway de pagamento
+- [x] 12.3 - Domínio próprio por loja (`024_dominio_proprio.sql`): campo `custom_domain` em Configurações + `middleware.ts` resolve o host e reescreve pra `/loja/[slug]` — exige configuração manual de DNS (CNAME) e cadastro do domínio na Vercel, além de `NEXT_PUBLIC_ROOT_DOMAIN`
+
 ## Pendências conhecidas (fora do escopo desta rodada)
-- [ ] Planos pagos / limites de uso por plano (hoje só existe o aviso de doação — sem gate de feature)
+- [ ] Planos pagos de verdade / limites de uso por plano (hoje só existe o CTA de contato — sem cobrança ou gate de feature real)
 - [ ] Paginação em listagens grandes
 - [ ] Ícones de marca reais (os atuais em public/icons são placeholders gerados)
 - [ ] "Meus Pedidos" por telefone não tem proteção contra enumeração de números (ver comentário de segurança em `012_historico_pedidos_cliente.sql`) — aceitável para o porte atual, mas vale revisar se o produto crescer
 - [ ] Um usuário só pode ter um estabelecimento (`owner_id` sempre com `.single()`) — sem suporte a multi-loja por dono
+- [ ] Servidor WhatsApp (`whatsapp-server/`) precisa de VPS própria e usa automação não-oficial (WPPConnect) — risco de banimento do número se usado fora do padrão 1-para-1 já implementado
+- [ ] Domínio próprio depende inteiramente de passos manuais fora do app (DNS + Vercel) — o campo salvo sozinho não faz nada

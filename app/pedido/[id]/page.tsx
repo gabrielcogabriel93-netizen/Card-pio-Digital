@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
+import { paymentMethodLabel } from '@/lib/paymentMethods'
 import type { OrderItem, OrderStatus, DeliveryAddress } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, Store, Bike, MapPin } from 'lucide-react'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, Store, Bike, MapPin, Wallet } from 'lucide-react'
 
 interface OrderStatusData {
   id: string
@@ -19,6 +20,9 @@ interface OrderStatusData {
   total: number
   order_type: 'delivery' | 'pickup'
   delivery_address: DeliveryAddress | null
+  payment_method: string | null
+  coupon_code: string | null
+  notes: string | null
   created_at: string
   establishment_name: string
   establishment_slug: string
@@ -202,7 +206,7 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
             </div>
             {order.discount > 0 && (
               <div className="flex justify-between text-sm text-primary-600">
-                <span>Desconto</span>
+                <span>Desconto{order.coupon_code ? ` (${order.coupon_code})` : ''}</span>
                 <span>-{formatCurrency(order.discount)}</span>
               </div>
             )}
@@ -216,8 +220,21 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
               <span>Total</span>
               <span className="text-primary-600">{formatCurrency(order.total)}</span>
             </div>
+            {order.payment_method && (
+              <div className="flex justify-between text-sm text-gray-600 pt-1">
+                <span className="flex items-center gap-1"><Wallet size={12} /> Pagamento</span>
+                <span>{paymentMethodLabel(order.payment_method)}</span>
+              </div>
+            )}
           </div>
         </div>
+
+        {order.notes && (
+          <div className="card mb-4">
+            <h2 className="text-sm font-medium text-gray-700 mb-1">Observações</h2>
+            <p className="text-sm text-gray-600">{order.notes}</p>
+          </div>
+        )}
 
         <Link href={`/loja/${order.establishment_slug}`} className="btn-secondary w-full">
           Voltar ao cardápio

@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import Link from 'next/link'
 import type { Order, DashboardStats, BusinessType } from '@/types'
-import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock, Bike, Store, ChefHat, Layers, Settings } from 'lucide-react'
+import { paymentMethodLabel } from '@/lib/paymentMethods'
+import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock, Bike, Store, ChefHat, Layers, Settings, Wallet, CheckCircle2, Circle, ImageIcon, Palette, ListOrdered, QrCode } from 'lucide-react'
 
 const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
   preparo: 'Com preparo',
@@ -32,6 +33,13 @@ export default function Dashboard() {
   const [businessType, setBusinessType] = useState<BusinessType>('preparo')
   const [trackingEnabled, setTrackingEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [onboardingChecklist, setOnboardingChecklist] = useState({
+    hasLogo: false,
+    hasCustomColor: false,
+    hasCategory: false,
+    hasProduct: false,
+    hasPix: false,
+  })
 
   useEffect(() => {
     loadDashboard()
@@ -50,12 +58,25 @@ export default function Dashboard() {
       // Buscar estabelecimento
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id, business_type, order_tracking_enabled')
+        .select('id, business_type, order_tracking_enabled, logo_url, theme_color, pix_key')
         .eq('owner_id', user.id)
         .single()
 
       if (estError) logError('painel:dashboard', 'erro ao buscar estabelecimento', estError)
       if (!est) return
+
+      const [{ count: categoriesCount }, { count: productsCount }] = await Promise.all([
+        supabase.from('categories').select('*', { count: 'exact', head: true }).eq('establishment_id', est.id),
+        supabase.from('products').select('*', { count: 'exact', head: true }).eq('establishment_id', est.id),
+      ])
+
+      setOnboardingChecklist({
+        hasLogo: !!est.logo_url,
+        hasCustomColor: !!est.theme_color && est.theme_color !== '#22c55e',
+        hasCategory: (categoriesCount || 0) > 0,
+        hasProduct: (productsCount || 0) > 0,
+        hasPix: !!est.pix_key,
+      })
 
       setBusinessType((est.business_type as BusinessType) || 'preparo')
       setTrackingEnabled(est.order_tracking_enabled ?? true)
@@ -200,6 +221,46 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      {/* Onboarding checklist — só aparece enquanto não tiver terminado */}
+      {(() => {
+        const steps = [
+          { done: onboardingChecklist.hasLogo, label: 'Adicione a logo da loja', href: '/painel/configuracoes', icon: ImageIcon },
+          { done: onboardingChecklist.hasCustomColor, label: 'Personalize a cor da marca', href: '/painel/configuracoes', icon: Palette },
+          { done: onboardingChecklist.hasCategory, label: 'Crie uma categoria', href: '/painel/categorias', icon: ListOrdered },
+          { done: onboardingChecklist.hasProduct, label: 'Cadastre um produto', href: '/painel/produtos', icon: Package },
+          { done: onboardingChecklist.hasPix, label: 'Configure sua chave Pix', href: '/painel/configuracoes', icon: QrCode },
+        ]
+        const completedCount = steps.filter((s) => s.done).length
+        if (completedCount === steps.length) return null
+
+        return (
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Complete seu cardápio</h2>
+              <span className="text-sm text-gray-500">{completedCount} de {steps.length}</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-4">
+              <div className="h-full bg-primary-500 transition-all" style={{ width: `${(completedCount / steps.length) * 100}%` }} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {steps.map((step) => (
+                <Link
+                  key={step.label}
+                  href={step.href}
+                  className={`flex items-center gap-2 p-2.5 rounded-lg text-sm transition-colors ${
+                    step.done ? 'text-gray-400' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {step.done ? <CheckCircle2 size={16} className="text-primary-500 flex-shrink-0" /> : <Circle size={16} className="text-gray-300 flex-shrink-0" />}
+                  <step.icon size={14} className="flex-shrink-0" />
+                  <span className={step.done ? 'line-through' : ''}>{step.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card">
@@ -328,6 +389,12 @@ export default function Dashboard() {
                         <span className="text-xs text-gray-400 flex items-center gap-1">
                           {order.order_type === 'pickup' ? <Store size={11} /> : <Bike size={11} />}
                           {order.order_type === 'pickup' ? 'Retirada' : 'Entrega'}
+                        </span>
+                      )}
+                      {order.payment_method && (
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Wallet size={11} />
+                          {paymentMethodLabel(order.payment_method)}
                         </span>
                       )}
                     </div>

@@ -1,0 +1,16 @@
+{
+  "name": "cardapio-whatsapp-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor separado (roda numa VPS, não no Vercel) que mantém a sessão do WhatsApp de cada loja via WPPConnect e envia notificações de status a pedido do painel.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@wppconnect-team/wppconnect": "^1.35.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

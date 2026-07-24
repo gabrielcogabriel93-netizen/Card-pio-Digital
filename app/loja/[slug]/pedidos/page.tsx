@@ -8,7 +8,7 @@ import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { formatPhoneNumber } from '@/lib/phone'
 import { getSavedCustomer } from '@/lib/customerStorage'
 import type { OrderItem, OrderStatus } from '@/types'
-import { ArrowLeft, Loader2, Search, ShoppingBag, Bike, Store } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, ShoppingBag, Bike, Store, Trash2 } from 'lucide-react'
 
 interface OrderSummary {
   id: string
@@ -43,6 +43,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
   const [orders, setOrders] = useState<OrderSummary[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [deletingData, setDeletingData] = useState(false)
 
   const themeStyle = useMemo(
     () => themeShadesToCssVars(generateColorShades(establishment?.theme_color)) as React.CSSProperties,
@@ -100,6 +101,30 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
       setOrders([])
     } finally {
       setSearching(false)
+    }
+  }
+
+  const handleDeleteMyData = async () => {
+    if (!establishment || !phone.trim()) return
+    if (!confirm(
+      'Isso apaga seu nome e endereços salvos nesta loja. Seus pedidos já feitos continuam no ' +
+      'histórico da loja (registro comercial), mas nada mais fica salvo pro seu telefone. Confirmar?'
+    )) return
+
+    setDeletingData(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.rpc('delete_customer_data', {
+        p_establishment_id: establishment.id,
+        p_phone: phone.trim(),
+      })
+      if (error) throw error
+      alert('Seus dados salvos foram apagados.')
+    } catch (err) {
+      logError('loja:meus-pedidos', 'erro ao excluir dados do cliente', err)
+      alert('Não foi possível apagar seus dados agora. Tente novamente.')
+    } finally {
+      setDeletingData(false)
     }
   }
 
@@ -193,6 +218,19 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
               ))}
             </div>
           )
+        )}
+
+        {phone.trim() && (
+          <div className="text-center mt-8">
+            <button
+              onClick={handleDeleteMyData}
+              disabled={deletingData}
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500"
+            >
+              {deletingData ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              Apagar meus dados salvos nesta loja
+            </button>
+          </div>
         )}
       </div>
     </div>

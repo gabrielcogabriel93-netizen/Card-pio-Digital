@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { formatPhoneNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
+import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle } from 'lucide-react'
 
@@ -23,7 +24,7 @@ export default function BalcaoPage() {
   const [paymentMethod, setPaymentMethod] = useState('dinheiro')
   const [showCheckout, setShowCheckout] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [lastSale, setLastSale] = useState<{ items: CartItem[]; paymentMethod: string; total: number; customerName: string } | null>(null)
   const [establishmentId, setEstablishmentId] = useState<string>('')
 
   useEscapeKey(() => setShowCheckout(false), showCheckout)
@@ -201,14 +202,14 @@ export default function BalcaoPage() {
       if (financeError) throw financeError
 
       log('painel:balcao', 'venda finalizada com sucesso', { total })
-      setSuccess(true)
+      setLastSale({ items: cart, paymentMethod, total, customerName: customerName.trim() })
       setCart([])
       setCustomerName('')
       setCustomerPhone('')
       setPaymentMethod('dinheiro')
       setShowCheckout(false)
 
-      setTimeout(() => setSuccess(false), 3000)
+      setTimeout(() => setLastSale(null), 12000)
     } catch (error: any) {
       logError('painel:balcao', 'erro ao finalizar venda', error)
       logCritical('painel:balcao:finalizar-venda', error.message, error, establishmentId)
@@ -430,11 +431,9 @@ export default function BalcaoPage() {
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 >
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao_credito">Cartão de Crédito</option>
-                  <option value="cartao_debito">Cartão de Débito</option>
-                  <option value="pix">PIX</option>
-                  <option value="outro">Outro</option>
+                  {PAYMENT_METHODS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -464,11 +463,37 @@ export default function BalcaoPage() {
         </div>
       )}
 
-      {/* Success Toast */}
-      {success && (
-        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
-          <CheckCircle size={20} />
-          <span>Venda finalizada com sucesso!</span>
+      {/* Resumo pós-venda */}
+      {lastSale && (
+        <div className="fixed bottom-4 right-4 bg-white border border-gray-200 rounded-xl shadow-xl w-full max-w-xs animate-fade-in">
+          <div className="flex items-center justify-between gap-2 bg-green-500 text-white px-4 py-2.5 rounded-t-xl">
+            <span className="flex items-center gap-2 font-medium text-sm">
+              <CheckCircle size={18} />
+              Venda finalizada!
+            </span>
+            <button onClick={() => setLastSale(null)} className="text-white/80 hover:text-white" aria-label="Fechar resumo">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="p-4 space-y-2">
+            {lastSale.customerName && <p className="text-sm text-gray-600">Cliente: {lastSale.customerName}</p>}
+            <div className="space-y-1">
+              {lastSale.items.map((item, i) => (
+                <div key={i} className="flex justify-between text-xs text-gray-600">
+                  <span>{item.quantity}x {item.product.name}</span>
+                  <span>{formatCurrency(item.total_price)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-sm text-gray-600 pt-1 border-t border-gray-100">
+              <span>Pagamento</span>
+              <span>{paymentMethodLabel(lastSale.paymentMethod)}</span>
+            </div>
+            <div className="flex justify-between font-bold text-primary-600">
+              <span>Total</span>
+              <span>{formatCurrency(lastSale.total)}</span>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Heart, CheckCircle2, Copy, X, Gift, Sparkles } from 'lucide-react'
+import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle } from 'lucide-react'
+
+// Contato pra quem quiser saber mais sobre os planos pagos que ainda
+// estão em preparação — nenhum checkout de verdade acontece aqui, só
+// o CTA de contato (não há credencial de gateway de pagamento). Mesmo
+// número já usado na doação Pix acima.
+const CONTACT_WHATSAPP = '5521972652314'
 
 // Chave PIX (telefone) para doações. Formato E.164 (+55 + DDD + número) —
 // é o que a maioria dos apps de banco espera ao colar uma chave "celular".
@@ -56,6 +62,27 @@ export default function PlanosPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Planos pagos em breve */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={20} className="text-primary-500" />
+          <h2 className="text-lg font-semibold text-gray-900">Planos pagos em breve</h2>
+        </div>
+        <p className="text-gray-600 text-sm mb-4">
+          Estamos preparando planos pagos com recursos extras. Por enquanto tudo continua liberado
+          gratuitamente. Se quiser saber mais ou entrar na lista de interessados, fale com a gente.
+        </p>
+        <a
+          href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Quero saber mais sobre os planos pagos do Cardápio Digital.')}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-secondary inline-flex"
+        >
+          <MessageCircle size={18} />
+          Falar no WhatsApp
+        </a>
       </div>
 
       {/* Doação */}

@@ -10,6 +10,9 @@ import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { lookupCep, formatCep } from '@/lib/cep'
+import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
+import { generatePixPayload } from '@/lib/pix'
+import QRCode from 'qrcode'
 import {
   getSavedCustomer,
   saveCustomer,
@@ -23,7 +26,7 @@ import {
   type SavedAddress,
 } from '@/lib/customerStorage'
 import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress } from '@/types'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle } from 'lucide-react'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy } from 'lucide-react'
 
 export default function PublicMenuClient({
   establishment,
@@ -41,6 +44,10 @@ export default function PublicMenuClient({
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [notes, setNotes] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('')
+  const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null)
+  const [pixCopied, setPixCopied] = useState(false)
+  const [birthDate, setBirthDate] = useState('')
   const offersDelivery = establishment.offers_delivery ?? true
   const offersPickup = establishment.offers_pickup ?? true
   const [orderType, setOrderType] = useState<'delivery' | 'pickup'>(offersDelivery ? 'delivery' : 'pickup')
@@ -78,6 +85,8 @@ export default function PublicMenuClient({
 
   const selectedNeighborhood = neighborhoods.find(n => n.id === selectedNeighborhoodId) || null
 
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
+
   // Taxa de entrega só entra na conta quando o cliente escolhe "Entrega" —
   // antes disso era cobrada em qualquer pedido, mesmo retirando no local.
   // Se a loja usa taxa por bairro e o bairro escolhido tem valor próprio,
@@ -88,8 +97,26 @@ export default function PublicMenuClient({
         : Number(establishment.delivery_fee) || 0)
     : 0
   const isFreeShippingCoupon = appliedCoupon?.discountType === 'free_shipping'
-  // Taxa realmente cobrada — zerada quando o cupom aplicado é de frete grátis.
-  const effectiveDeliveryFee = isFreeShippingCoupon ? 0 : deliveryFee
+  // Frete grátis progressivo: valor mínimo configurado pelo lojista —
+  // conta real em cima do carrinho atual, não é sugestão nem estimativa.
+  const freeShippingThreshold = Number(establishment.free_shipping_threshold) || 0
+  const qualifiesForFreeShippingThreshold =
+    orderType === 'delivery' && freeShippingThreshold > 0 && cartSubtotal >= freeShippingThreshold
+  // Taxa realmente cobrada — zerada quando o cupom aplicado é de frete
+  // grátis OU quando o carrinho já bateu o valor mínimo configurado.
+  const effectiveDeliveryFee = (isFreeShippingCoupon || qualifiesForFreeShippingThreshold) ? 0 : deliveryFee
+
+  // Desconto de aniversário: 100% automático, sem nenhuma mensagem
+  // enviada — só compara mês/dia (string, evita fuso horário bagunçar a
+  // comparação) com a data salva no perfil. Não acumula com cupom
+  // manual, pra não complicar a conta.
+  const todayMonthDay = useMemo(() => {
+    const now = new Date()
+    return `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  }, [])
+  const isBirthdayToday = !!birthDate && birthDate.slice(5, 10) === todayMonthDay
+  const birthdayDiscountPercent = Number(establishment.birthday_discount_percent) || 0
+  const isBirthdayDiscountActive = isBirthdayToday && birthdayDiscountPercent > 0 && !appliedCoupon
 
   // Aplica a cor de marca da loja (Configurações > Cor do tema) como CSS
   // custom properties só dentro desta árvore — todas as classes
@@ -197,8 +224,9 @@ export default function PublicMenuClient({
 
       if (result?.customer_id) {
         if (!customerName.trim()) setCustomerName(result.name)
+        if (result.birth_date && !birthDate) setBirthDate(result.birth_date)
         const addresses = (result.addresses || []) as CustomerAddress[]
-        setCustomerProfile({ customer_id: result.customer_id, name: result.name, addresses })
+        setCustomerProfile({ customer_id: result.customer_id, name: result.name, birth_date: result.birth_date, addresses })
         if (orderType === 'delivery' && addresses.length > 0 && addressMode === 'new' && !address.street.trim()) {
           selectSavedAddress(addresses[0])
         }
@@ -462,7 +490,7 @@ export default function PublicMenuClient({
         subtotal,
         shipping_fee: effectiveDeliveryFee,
         discount: discountAmount,
-        coupon_code: appliedCoupon?.code || null,
+        coupon_code: appliedCoupon?.code || (isBirthdayDiscountActive ? 'ANIVERSARIO' : null),
         total,
         status: 'pending',
         source: 'online',
@@ -476,6 +504,7 @@ export default function PublicMenuClient({
           zip_code: address.zip_code?.trim() || null,
           neighborhood_id: usingNeighborhoodSelect ? (selectedNeighborhoodId || null) : null,
         } : null,
+        payment_method: paymentMethod || null,
         notes: notes.trim() || null,
       })
 
@@ -493,6 +522,7 @@ export default function PublicMenuClient({
           p_establishment_id: establishment.id,
           p_phone: customerPhone.trim(),
           p_name: customerName.trim(),
+          p_birth_date: birthDate || null,
         })
 
         if (orderType === 'delivery' && addressMode === 'new') {
@@ -559,9 +589,14 @@ export default function PublicMenuClient({
       }
       if (appliedCoupon && (discountAmount > 0 || isFreeShippingCoupon) && !isFreeShippingCoupon) {
         message += `\n🏷️ *Cupom ${appliedCoupon.code}:* -R$ ${discountAmount.toFixed(2)}`
+      } else if (isBirthdayDiscountActive) {
+        message += `\n🎉 *Desconto de aniversário (${birthdayDiscountPercent}%):* -R$ ${discountAmount.toFixed(2)}`
       }
       if (notes.trim()) {
         message += `\n\n📝 *Observações:* ${notes.trim()}`
+      }
+      if (paymentMethod) {
+        message += `\n💳 *Pagamento:* ${paymentMethodLabel(paymentMethod)}`
       }
 
       message += `\n\n💰 *Total: R$ ${total.toFixed(2)}*`
@@ -596,6 +631,7 @@ export default function PublicMenuClient({
       setCustomerName('')
       setCustomerPhone('')
       setNotes('')
+      setPaymentMethod('')
       setSelectedNeighborhoodId('')
       setSelectedAddressId('')
       setAddressLabel('')
@@ -612,20 +648,61 @@ export default function PublicMenuClient({
     }
   }
 
-  const cartSubtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
   const discountAmount = appliedCoupon
     ? appliedCoupon.discountType === 'percent'
       ? cartSubtotal * (appliedCoupon.discountValue / 100)
       : appliedCoupon.discountType === 'fixed'
         ? Math.min(appliedCoupon.discountValue, cartSubtotal)
         : 0 // free_shipping não desconta o subtotal, desconta o frete (effectiveDeliveryFee)
-    : 0
+    : isBirthdayDiscountActive
+      ? cartSubtotal * (birthdayDiscountPercent / 100)
+      : 0
   const cartTotal = Math.max(0, cartSubtotal - discountAmount + effectiveDeliveryFee)
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+  const canShowPixQr = paymentMethod === 'pix' && !!establishment.pix_key && !!establishment.pix_city && cartTotal > 0
+
+  // Gera o QR do Pix na hora, com o valor exato do pedido — some
+  // sozinho se o cliente trocar a forma de pagamento ou o total mudar.
+  useEffect(() => {
+    if (!canShowPixQr) {
+      setPixQrDataUrl(null)
+      return
+    }
+    let cancelled = false
+    const payload = generatePixPayload({
+      pixKey: establishment.pix_key!,
+      merchantName: establishment.name,
+      merchantCity: establishment.pix_city!,
+      amount: cartTotal,
+    })
+    QRCode.toDataURL(payload, { width: 220, margin: 1 })
+      .then((url) => { if (!cancelled) setPixQrDataUrl(url) })
+      .catch((err) => logError('loja', 'erro ao gerar QR Code do Pix', err))
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canShowPixQr, cartTotal])
+
+  const pixPayload = canShowPixQr
+    ? generatePixPayload({ pixKey: establishment.pix_key!, merchantName: establishment.name, merchantCity: establishment.pix_city!, amount: cartTotal })
+    : ''
+
+  const handleCopyPixCode = () => {
+    navigator.clipboard.writeText(pixPayload)
+    setPixCopied(true)
+    setTimeout(() => setPixCopied(false), 2000)
+  }
 
   const filteredProducts = activeCategory === 'all'
     ? products
     : products.filter(p => p.category_id === activeCategory)
+
+  // Sugestões no carrinho: só produtos que o próprio lojista marcou
+  // como destaque, disponíveis e que o cliente ainda não colocou no
+  // carrinho — nunca é uma "adivinhação" de afinidade.
+  const featuredSuggestions = products
+    .filter(p => p.is_featured && p.in_stock && !cart.some(item => item.product.id === p.id))
+    .slice(0, 4)
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -807,7 +884,14 @@ export default function PublicMenuClient({
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900">{product.name}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-medium text-gray-900">{product.name}</h3>
+                      {product.is_bestseller && (
+                        <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          🔥 Mais vendido
+                        </span>
+                      )}
+                    </div>
                     {product.description && (
                       <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{product.description}</p>
                     )}
@@ -899,6 +983,49 @@ export default function PublicMenuClient({
               )}
             </div>
 
+            {cart.length > 0 && featuredSuggestions.length > 0 && (
+              <div className="px-4 pb-3 border-t border-gray-100 pt-3">
+                <p className="text-xs font-medium text-gray-500 mb-2">Que tal adicionar também?</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {featuredSuggestions.map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => addToCart(product)}
+                      className="flex-shrink-0 w-28 text-left bg-gray-50 hover:bg-gray-100 rounded-lg p-2 border border-gray-100 transition-colors"
+                    >
+                      {product.image_url && (
+                        <div className="relative w-full h-16 rounded-md overflow-hidden mb-1">
+                          <Image src={product.image_url} alt={product.name} fill sizes="112px" className="object-cover" />
+                        </div>
+                      )}
+                      <p className="text-xs font-medium text-gray-900 truncate">{product.name}</p>
+                      <p className="text-xs text-primary-600 font-bold">{formatCurrency(product.price)}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {cart.length > 0 && orderType === 'delivery' && freeShippingThreshold > 0 && (
+              <div className="px-4 pb-3">
+                {qualifiesForFreeShippingThreshold ? (
+                  <p className="text-sm text-primary-600 font-medium flex items-center gap-1">🎉 Você ganhou frete grátis!</p>
+                ) : (
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">
+                      Faltam <strong>{formatCurrency(Math.max(0, freeShippingThreshold - cartSubtotal))}</strong> para frete grátis!
+                    </p>
+                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary-500 transition-all"
+                        style={{ width: `${Math.min(100, (cartSubtotal / freeShippingThreshold) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {cart.length > 0 && (
               <div className="p-4 border-t border-gray-200 space-y-2">
                 {/* Cupom */}
@@ -935,7 +1062,7 @@ export default function PublicMenuClient({
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-primary-600">
-                    <span>Desconto</span>
+                    <span>Desconto{isBirthdayDiscountActive && !appliedCoupon ? ' (Aniversário)' : ''}</span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}
@@ -1030,6 +1157,33 @@ export default function PublicMenuClient({
                   </p>
                 )}
               </div>
+
+              {isBirthdayDiscountActive && (
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-700 flex items-center gap-2">
+                  🎉
+                  <span>
+                    Feliz aniversário{customerName.trim() ? `, ${customerName.trim().split(' ')[0]}` : ''}! Você ganhou{' '}
+                    <strong>{birthdayDiscountPercent}% OFF</strong> nesse pedido.
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data de nascimento (opcional)</label>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {establishment.birthday_discount_percent
+                    ? `Ganhe ${establishment.birthday_discount_percent}% OFF automaticamente no dia do seu aniversário.`
+                    : 'Só usamos pra te desejar feliz aniversário — fica salvo no seu perfil.'}
+                </p>
+              </div>
+
               {offersDelivery && offersPickup && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Como você quer receber?</label>
@@ -1247,6 +1401,46 @@ export default function PublicMenuClient({
               )}
 
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento (opcional)</label>
+                <select
+                  className="input-field"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="">Combinar pelo WhatsApp</option>
+                  {PAYMENT_METHODS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  A loja confirma com você pelo WhatsApp — isso só adianta a informação.
+                </p>
+              </div>
+
+              {paymentMethod === 'pix' && (
+                canShowPixQr ? (
+                  <div className="bg-gray-50 rounded-lg p-4 text-center">
+                    <p className="text-sm font-medium text-gray-700 mb-3">Pague {formatCurrency(cartTotal)} com Pix</p>
+                    {pixQrDataUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={pixQrDataUrl} alt="QR Code Pix" className="mx-auto rounded-lg" width={200} height={200} />
+                    )}
+                    <button type="button" onClick={handleCopyPixCode} className="btn-secondary text-sm mt-3 w-full">
+                      <Copy size={14} />
+                      {pixCopied ? 'Código copiado!' : 'Copiar código Pix'}
+                    </button>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Depois de pagar, envie o pedido pelo WhatsApp normalmente para a loja confirmar.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 -mt-2">
+                    Essa loja ainda não configurou Pix automático — combine o pagamento pelo WhatsApp.
+                  </p>
+                )
+              )}
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                 <textarea
                   className="input-field"
@@ -1267,7 +1461,7 @@ export default function PublicMenuClient({
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-primary-600 mt-1">
-                    <span>Desconto ({appliedCoupon?.code})</span>
+                    <span>Desconto ({appliedCoupon?.code || 'Aniversário'})</span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}

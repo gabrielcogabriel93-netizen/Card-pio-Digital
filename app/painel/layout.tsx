@@ -21,6 +21,8 @@ import {
   Sparkles,
   BookOpen,
   MapPin,
+  TrendingUp,
+  MessageCircle,
 } from 'lucide-react'
 
 const navigation = [
@@ -32,6 +34,8 @@ const navigation = [
   { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
   { name: 'Bairros', href: '/painel/bairros', icon: MapPin },
   { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
+  { name: 'Relatórios', href: '/painel/relatorios', icon: TrendingUp },
+  { name: 'WhatsApp', href: '/painel/whatsapp', icon: MessageCircle },
   { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
   { name: 'Planos', href: '/painel/planos', icon: Sparkles },
   { name: 'Tutorial', href: '/painel/tutorial', icon: BookOpen },

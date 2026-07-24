@@ -6,12 +6,24 @@ import { log, logError, logCritical } from '@/lib/logger'
 import { playNotificationSound } from '@/lib/sound'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PushNotificationToggle } from '@/components/PushNotificationToggle'
+import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import type { Order, OrderItem } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin } from 'lucide-react'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin, Wallet } from 'lucide-react'
 
 // Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
 // histórico infinito conforme a loja acumula pedidos.
 const MAX_ORDERS = 200
+
+// Mensagens 1 pra 1 disparadas pro cliente quando o status muda — só se
+// a loja tiver ligado o toggle em Painel > WhatsApp. Nunca é enviado em
+// massa, sempre um pedido específico de cada vez.
+const STATUS_NOTIFICATION_MESSAGES: Partial<Record<Order['status'], (order: Order) => string>> = {
+  confirmed: () => 'Recebemos seu pedido! Já estamos preparando tudo. 👍',
+  preparing: () => 'Seu pedido está sendo preparado! 👨‍🍳',
+  completed: (order) => order.order_type === 'pickup'
+    ? 'Seu pedido está pronto para retirada! 📦'
+    : 'Seu pedido saiu para entrega! 🛵',
+}
 
 // Classes estáticas (o Tailwind não inclui classes montadas dinamicamente
 // como `bg-${color}-50` no build de produção, então mapeamos aqui).
@@ -37,6 +49,7 @@ export default function PedidosPage() {
   // pula direto de Pendente para Concluído num clique só.
   const [trackingEnabled, setTrackingEnabled] = useState(true)
   const [establishmentId, setEstablishmentId] = useState('')
+  const [whatsappNotificationsEnabled, setWhatsappNotificationsEnabled] = useState(false)
 
   const allColumns: { status: Order['status']; label: string; icon: any; color: keyof typeof columnStyles }[] = [
     { status: 'pending', label: 'Pendente', icon: Clock, color: 'yellow' },
@@ -96,7 +109,7 @@ export default function PedidosPage() {
 
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id, order_tracking_enabled')
+        .select('id, order_tracking_enabled, whatsapp_notifications_enabled')
         .eq('owner_id', user.id)
         .single()
 
@@ -105,6 +118,7 @@ export default function PedidosPage() {
 
       setTrackingEnabled(est.order_tracking_enabled ?? true)
       setEstablishmentId(est.id)
+      setWhatsappNotificationsEnabled(est.whatsapp_notifications_enabled ?? false)
 
       const { data, error } = await supabase
         .from('orders')
@@ -192,6 +206,22 @@ export default function PedidosPage() {
         .update(updateData)
         .eq('id', orderId)
       if (updateError) throw updateError
+
+      // Notificação 1 pra 1 pro cliente via WhatsApp — nunca trava o fluxo
+      // de atualização do pedido; se o servidor WhatsApp estiver fora do
+      // ar, o lojista continua trabalhando normalmente no Kanban.
+      const notificationMessage = STATUS_NOTIFICATION_MESSAGES[newStatus]?.(selectedOrder!)
+      if (whatsappNotificationsEnabled && selectedOrder?.source === 'online' && notificationMessage && selectedOrder?.customer_phone) {
+        fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            establishment_id: selectedOrder.establishment_id,
+            phone: selectedOrder.customer_phone,
+            message: notificationMessage,
+          }),
+        }).catch((err) => logError('painel:pedidos', 'erro ao enviar notificação WhatsApp', err))
+      }
 
       log('painel:pedidos', 'status do pedido atualizado com sucesso')
       setShowModal(false)
@@ -330,7 +360,7 @@ export default function PedidosPage() {
                           })}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         {order.source === 'balcao' && (
                           <span className="text-xs text-blue-500 inline-block">Balcão</span>
                         )}
@@ -338,6 +368,12 @@ export default function PedidosPage() {
                           <span className={`text-xs inline-flex items-center gap-1 ${order.order_type === 'pickup' ? 'text-purple-500' : 'text-teal-600'}`}>
                             {order.order_type === 'pickup' ? <Store size={11} /> : <Bike size={11} />}
                             {order.order_type === 'pickup' ? 'Retirada' : 'Entrega'}
+                          </span>
+                        )}
+                        {order.payment_method && (
+                          <span className="text-xs inline-flex items-center gap-1 text-gray-500">
+                            <Wallet size={11} />
+                            {paymentMethodLabel(order.payment_method)}
                           </span>
                         )}
                       </div>
@@ -453,6 +489,12 @@ export default function PedidosPage() {
                     <span>{formatCurrency(selectedOrder.shipping_fee || 0)}</span>
                   </div>
                 )}
+                {selectedOrder.payment_method && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Pagamento</span>
+                    <span>{paymentMethodLabel(selectedOrder.payment_method)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-2">
                   <span>Total</span>
                   <span className="text-primary-600">{formatCurrency(selectedOrder.total)}</span>
@@ -482,12 +524,15 @@ export default function PedidosPage() {
                         onChange={(e) => setPaymentMethod(e.target.value)}
                       >
                         <option value="">Selecione</option>
-                        <option value="dinheiro">Dinheiro</option>
-                        <option value="cartao_credito">Cartão de Crédito</option>
-                        <option value="cartao_debito">Cartão de Débito</option>
-                        <option value="pix">PIX</option>
-                        <option value="outro">Outro</option>
+                        {PAYMENT_METHODS.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
                       </select>
+                      {selectedOrder.payment_method && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Cliente indicou: {paymentMethodLabel(selectedOrder.payment_method)}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -599,6 +644,9 @@ export default function PedidosPage() {
             <span>Total</span>
             <span>{formatCurrency(selectedOrder.total)}</span>
           </div>
+          {selectedOrder.payment_method && (
+            <p className="text-sm mt-1">Pagamento: {paymentMethodLabel(selectedOrder.payment_method)}</p>
+          )}
           {selectedOrder.notes && (
             <p className="text-sm mt-3">Obs: {selectedOrder.notes}</p>
           )}

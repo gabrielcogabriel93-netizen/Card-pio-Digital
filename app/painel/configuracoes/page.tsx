@@ -6,8 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
 import { formatPhoneNumber } from '@/lib/phone'
+import { PIX_KEY_TYPES } from '@/lib/pix'
 import type { Establishment, BusinessType } from '@/types'
-import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2 } from 'lucide-react'
+import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode } from 'lucide-react'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   { value: 'preparo', title: 'Tem preparo', description: 'Comida, lanches, bebidas montadas na hora.', icon: ChefHat },
@@ -33,6 +34,12 @@ export default function ConfiguracoesPage() {
     order_tracking_enabled: true,
     offers_delivery: true,
     offers_pickup: true,
+    birthday_discount_percent: '',
+    free_shipping_threshold: '',
+    pix_key: '',
+    pix_key_type: 'cpf',
+    pix_city: '',
+    custom_domain: '',
   })
   const [openingHours, setOpeningHours] = useState<Record<string, { open: string; close: string }>>({
     seg: { open: '08:00', close: '22:00' },
@@ -89,6 +96,12 @@ export default function ConfiguracoesPage() {
           order_tracking_enabled: data.order_tracking_enabled ?? true,
           offers_delivery: data.offers_delivery ?? true,
           offers_pickup: data.offers_pickup ?? true,
+          birthday_discount_percent: data.birthday_discount_percent != null ? String(data.birthday_discount_percent) : '',
+          free_shipping_threshold: data.free_shipping_threshold != null ? String(data.free_shipping_threshold) : '',
+          pix_key: data.pix_key || '',
+          pix_key_type: data.pix_key_type || 'cpf',
+          pix_city: data.pix_city || '',
+          custom_domain: data.custom_domain || '',
         })
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
@@ -132,6 +145,12 @@ export default function ConfiguracoesPage() {
           order_tracking_enabled: formData.order_tracking_enabled,
           offers_delivery: formData.offers_delivery,
           offers_pickup: formData.offers_pickup,
+          birthday_discount_percent: formData.birthday_discount_percent ? parseFloat(formData.birthday_discount_percent) : null,
+          free_shipping_threshold: formData.free_shipping_threshold ? parseFloat(formData.free_shipping_threshold) : null,
+          pix_key: formData.pix_key.trim() || null,
+          pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
+          pix_city: formData.pix_city.trim() || null,
+          custom_domain: formData.custom_domain.trim().toLowerCase() || null,
         })
         .eq('owner_id', user.id)
 
@@ -201,6 +220,27 @@ export default function ConfiguracoesPage() {
             <Share2 size={16} />
             Compartilhar
           </button>
+        </div>
+      </div>
+
+      {/* Domínio próprio */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Domínio próprio (avançado)</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Use um domínio seu (ex: cardapio.minhaloja.com.br) pra abrir seu cardápio, em vez do link acima.
+        </p>
+        <input
+          type="text"
+          className="input-field mb-3"
+          placeholder="cardapio.minhaloja.com.br"
+          value={formData.custom_domain}
+          onChange={(e) => setFormData({ ...formData, custom_domain: e.target.value })}
+        />
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
+          <p>Preencher aqui sozinho não ativa nada. Também é preciso, manualmente:</p>
+          <p>1. No DNS do seu domínio, criar um registro CNAME apontando para <code className="bg-white px-1 rounded border">cname.vercel-dns.com</code>.</p>
+          <p>2. Adicionar esse mesmo domínio em Vercel → seu projeto → Settings → Domains.</p>
+          <p>Sem os dois passos acima, o domínio não vai funcionar mesmo salvo aqui.</p>
         </div>
       </div>
 
@@ -375,6 +415,100 @@ export default function ConfiguracoesPage() {
             {!formData.offers_delivery && !formData.offers_pickup && (
               <p className="text-xs text-red-500 mt-2">Ative pelo menos uma opção.</p>
             )}
+          </div>
+
+          {formData.offers_delivery && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Valor mínimo para frete grátis</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field max-w-[160px]"
+                value={formData.free_shipping_threshold}
+                onChange={(e) => setFormData({ ...formData, free_shipping_threshold: e.target.value })}
+                placeholder="Desativado"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Se o cliente comprar esse valor ou mais, a taxa de entrega é isentada sozinha — e o
+                carrinho mostra uma barra "faltam R$X pra frete grátis" incentivando a compra. Deixe em
+                branco para não usar.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Pix */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-1">
+            <QrCode size={20} className="text-gray-400" />
+            <h2 className="text-lg font-semibold text-gray-900">Pix</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Cadastre sua chave Pix pra gerar QR Code e código "copia e cola" automaticamente na hora
+            do pedido — sem gateway, sem taxa, o valor cai direto na sua conta.
+          </p>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de chave</label>
+              <select
+                className="input-field"
+                value={formData.pix_key_type}
+                onChange={(e) => setFormData({ ...formData, pix_key_type: e.target.value })}
+              >
+                {PIX_KEY_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Chave Pix</label>
+              <input
+                type="text"
+                className="input-field"
+                value={formData.pix_key}
+                onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+                placeholder="Sua chave Pix"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cidade (do seu cadastro Pix)</label>
+            <input
+              type="text"
+              className="input-field max-w-xs"
+              value={formData.pix_city}
+              onChange={(e) => setFormData({ ...formData, pix_city: e.target.value })}
+              placeholder="Ex: SAO PAULO"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Exigido pelo padrão do Pix. Obrigatório para o QR Code funcionar.
+            </p>
+          </div>
+        </div>
+
+        {/* Fidelização */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Fidelização</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Quando o cliente informa a data de nascimento (opcional, no checkout), o cardápio já
+            mostra os parabéns e aplica o desconto sozinho no dia — sem precisar de nenhum envio manual.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Desconto automático de aniversário (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              className="input-field max-w-[160px]"
+              value={formData.birthday_discount_percent}
+              onChange={(e) => setFormData({ ...formData, birthday_discount_percent: e.target.value })}
+              placeholder="Desativado"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Deixe em branco para não oferecer desconto de aniversário.
+            </p>
           </div>
         </div>
 

@@ -22,13 +22,24 @@ async function getEstablishment(slug: string): Promise<PublicEstablishment | nul
 
 async function getMenu(establishmentId: string) {
   const supabase = createPublicClient()
-  const [{ data: categories }, { data: products }] = await Promise.all([
+  const [{ data: categories }, { data: products }, { data: bestsellers }] = await Promise.all([
     supabase.from('categories').select('*').eq('establishment_id', establishmentId).order('display_order'),
     supabase.from('public_products').select('*').eq('establishment_id', establishmentId).order('display_order'),
+    supabase.rpc('get_bestseller_products', { p_establishment_id: establishmentId, p_limit: 3 }),
   ])
+
+  // "Mais vendido" é dado real (pedidos aceitos dos últimos 30 dias),
+  // calculado no banco — nunca inventado. Se a loja é nova e não tem
+  // histórico suficiente, simplesmente não marca ninguém.
+  const bestsellerIds = new Set((bestsellers || []).map((b: { product_id: string }) => b.product_id))
+  const productsWithBestsellers = ((products || []) as PublicProduct[]).map((p) => ({
+    ...p,
+    is_bestseller: bestsellerIds.has(p.id),
+  }))
+
   return {
     categories: (categories || []) as Category[],
-    products: (products || []) as PublicProduct[],
+    products: productsWithBestsellers,
   }
 }
 

@@ -24,9 +24,16 @@ export interface Establishment {
   offers_delivery?: boolean
   offers_pickup?: boolean
   use_neighborhood_delivery_fee?: boolean
+  birthday_discount_percent?: number | null
+  free_shipping_threshold?: number | null
+  pix_key?: string | null
+  pix_key_type?: string | null
+  pix_city?: string | null
   business_type?: BusinessType
+  custom_domain?: string | null
   order_tracking_enabled?: boolean
   onboarding_completed?: boolean
+  whatsapp_notifications_enabled?: boolean
   plan?: string
   created_at?: string
 }
@@ -59,6 +66,7 @@ export interface Product {
   stock_qty: number
   track_stock: boolean
   is_active: boolean
+  is_featured?: boolean
   display_order: number
   created_at?: string
   // Relações
@@ -78,6 +86,8 @@ export interface PublicProduct {
   price: number
   image_url?: string
   display_order: number
+  is_featured?: boolean
+  is_bestseller?: boolean
   in_stock: boolean
 }
 
@@ -167,6 +177,7 @@ export interface CustomerAddress {
 export interface CustomerProfile {
   customer_id: string
   name: string
+  birth_date?: string | null
   addresses: CustomerAddress[]
 }
 
