@@ -16,7 +16,9 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
 ALTER TABLE establishments ADD COLUMN IF NOT EXISTS free_shipping_threshold NUMERIC(10,2);
 
 -- View pública de produtos precisa expor is_featured pro carrinho saber
--- quais sugerir.
+-- quais sugerir. CREATE OR REPLACE VIEW só aceita adicionar colunas no
+-- final (não pode inserir no meio nem trocar a ordem das existentes),
+-- então is_featured vai depois de in_stock, não antes.
 CREATE OR REPLACE VIEW public_products AS
 SELECT
   id,
@@ -27,8 +29,8 @@ SELECT
   price,
   image_url,
   display_order,
-  is_featured,
-  CASE WHEN track_stock THEN stock_qty > 0 ELSE true END AS in_stock
+  CASE WHEN track_stock THEN stock_qty > 0 ELSE true END AS in_stock,
+  is_featured
 FROM products
 WHERE is_active = true;
 
