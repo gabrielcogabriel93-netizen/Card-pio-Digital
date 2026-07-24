@@ -18,6 +18,8 @@ import {
   ChevronDown,
   Store,
   Tag,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react'
 
 const navigation = [
@@ -29,6 +31,8 @@ const navigation = [
   { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
   { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
   { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
+  { name: 'Planos', href: '/painel/planos', icon: Sparkles },
+  { name: 'Tutorial', href: '/painel/tutorial', icon: BookOpen },
 ]
 
 export default function PainelLayout({
@@ -61,13 +65,18 @@ export default function PainelLayout({
         // Buscar nome do estabelecimento
         const { data: est, error: estError } = await supabase
           .from('establishments')
-          .select('name')
+          .select('name, onboarding_completed')
           .eq('owner_id', user.id)
           .maybeSingle()
 
         if (estError) logError('painel:layout', 'erro ao buscar estabelecimento', estError)
 
         if (est) {
+          if (!est.onboarding_completed) {
+            log('painel:layout', 'onboarding não concluído -> /onboarding')
+            router.push('/onboarding')
+            return
+          }
           log('painel:layout', 'estabelecimento carregado', { name: est.name })
           setEstablishmentName(est.name)
         } else {

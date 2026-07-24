@@ -6,7 +6,7 @@ import { log, logError, logCritical } from '@/lib/logger'
 import { playNotificationSound } from '@/lib/sound'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Order, OrderItem } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer } from 'lucide-react'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin } from 'lucide-react'
 
 // Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
 // histórico infinito conforme a loja acumula pedidos.
@@ -31,14 +31,22 @@ export default function PedidosPage() {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  // Lojas sem preparo (produto pronto) desligam isso em Configurações —
+  // aí o Kanban some com as colunas "Confirmado"/"Em Preparo" e o pedido
+  // pula direto de Pendente para Concluído num clique só.
+  const [trackingEnabled, setTrackingEnabled] = useState(true)
 
-  const columns: { status: Order['status']; label: string; icon: any; color: keyof typeof columnStyles }[] = [
+  const allColumns: { status: Order['status']; label: string; icon: any; color: keyof typeof columnStyles }[] = [
     { status: 'pending', label: 'Pendente', icon: Clock, color: 'yellow' },
     { status: 'confirmed', label: 'Confirmado', icon: CheckCircle, color: 'blue' },
     { status: 'preparing', label: 'Em Preparo', icon: ChefHat, color: 'purple' },
     { status: 'completed', label: 'Concluído', icon: CheckCircle, color: 'green' },
     { status: 'cancelled', label: 'Cancelado', icon: XCircle, color: 'red' },
   ]
+
+  const columns = trackingEnabled
+    ? allColumns
+    : allColumns.filter((c) => c.status === 'pending' || c.status === 'completed' || c.status === 'cancelled')
 
   useEscapeKey(() => setShowModal(false), showModal)
 
@@ -86,12 +94,14 @@ export default function PedidosPage() {
 
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id')
+        .select('id, order_tracking_enabled')
         .eq('owner_id', user.id)
         .single()
 
       if (estError) logError('painel:pedidos', 'erro ao buscar estabelecimento', estError)
       if (!est) return
+
+      setTrackingEnabled(est.order_tracking_enabled ?? true)
 
       const { data, error } = await supabase
         .from('orders')
@@ -127,7 +137,14 @@ export default function PedidosPage() {
 
       const updateData: any = { status: newStatus }
 
-      if (newStatus === 'confirmed') {
+      // Lojas com acompanhamento desligado pulam direto de Pendente para
+      // Concluído (sem passar por Confirmado/Em Preparo) — mas ainda
+      // precisam do mesmo lançamento financeiro e baixa de estoque que
+      // normalmente aconteceriam na confirmação.
+      const isFirstAcceptance = newStatus === 'confirmed' ||
+        (newStatus === 'completed' && selectedOrder?.status === 'pending')
+
+      if (isFirstAcceptance) {
         // O frete só é definido na confirmação — o total precisa ser
         // recalculado aqui, senão a entrada financeira e o pedido ficam
         // subestimados pelo valor do frete (e o desconto do cupom, se
@@ -307,9 +324,17 @@ export default function PedidosPage() {
                           })}
                         </span>
                       </div>
-                      {order.source === 'balcao' && (
-                        <span className="text-xs text-blue-500 mt-1 inline-block">Balcão</span>
-                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {order.source === 'balcao' && (
+                          <span className="text-xs text-blue-500 inline-block">Balcão</span>
+                        )}
+                        {order.source === 'online' && (
+                          <span className={`text-xs inline-flex items-center gap-1 ${order.order_type === 'pickup' ? 'text-purple-500' : 'text-teal-600'}`}>
+                            {order.order_type === 'pickup' ? <Store size={11} /> : <Bike size={11} />}
+                            {order.order_type === 'pickup' ? 'Retirada' : 'Entrega'}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   ))}
                   {columnOrders.length === 0 && (
@@ -349,6 +374,35 @@ export default function PedidosPage() {
             </div>
 
             <div className="p-6 space-y-4">
+              {/* Entrega/Retirada */}
+              {selectedOrder.source === 'online' && (
+                <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg text-sm">
+                  {selectedOrder.order_type === 'pickup' ? (
+                    <>
+                      <Store size={16} className="text-purple-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-700 font-medium">Retirada no local</span>
+                    </>
+                  ) : (
+                    <>
+                      <MapPin size={16} className="text-teal-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-gray-700 font-medium">Entrega</p>
+                        {selectedOrder.delivery_address && (
+                          <p className="text-gray-600">
+                            {selectedOrder.delivery_address.street}, {selectedOrder.delivery_address.number}
+                            {selectedOrder.delivery_address.complement && ` - ${selectedOrder.delivery_address.complement}`}
+                            {' — '}{selectedOrder.delivery_address.neighborhood}
+                            {selectedOrder.delivery_address.reference && (
+                              <span className="block text-xs text-gray-500">Referência: {selectedOrder.delivery_address.reference}</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Items */}
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-3">Itens do Pedido</h3>
@@ -439,11 +493,11 @@ export default function PedidosPage() {
                       {saving ? <Loader2 size={18} className="animate-spin" /> : 'Cancelar Pedido'}
                     </button>
                     <button
-                      onClick={() => handleUpdateStatus(selectedOrder.id, 'confirmed')}
+                      onClick={() => handleUpdateStatus(selectedOrder.id, trackingEnabled ? 'confirmed' : 'completed')}
                       className="btn-primary flex-1"
                       disabled={saving}
                     >
-                      {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Pedido'}
+                      {saving ? <Loader2 size={18} className="animate-spin" /> : trackingEnabled ? 'Confirmar Pedido' : 'Concluir Pedido'}
                     </button>
                   </div>
                 </div>
@@ -492,6 +546,18 @@ export default function PedidosPage() {
           <h2 className="text-lg font-bold mb-1">Pedido #{selectedOrder.id.slice(0, 8)}</h2>
           <p className="text-sm mb-1">Cliente: {selectedOrder.customer_name}</p>
           <p className="text-sm mb-1">Telefone: {selectedOrder.customer_phone}</p>
+          {selectedOrder.source === 'online' && (
+            <p className="text-sm mb-1">
+              {selectedOrder.order_type === 'pickup' ? 'Retirada no local' : 'Entrega'}
+              {selectedOrder.order_type === 'delivery' && selectedOrder.delivery_address && (
+                <>
+                  {' — '}{selectedOrder.delivery_address.street}, {selectedOrder.delivery_address.number}
+                  {selectedOrder.delivery_address.complement && ` - ${selectedOrder.delivery_address.complement}`}
+                  {' — '}{selectedOrder.delivery_address.neighborhood}
+                </>
+              )}
+            </p>
+          )}
           <p className="text-sm mb-4">
             {new Date(selectedOrder.created_at).toLocaleString('pt-BR')}
           </p>

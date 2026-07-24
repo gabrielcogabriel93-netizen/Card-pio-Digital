@@ -87,7 +87,7 @@ export default function CompletarCadastroPage() {
       })
       log('completar-cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
 
-      router.push('/painel')
+      router.push('/onboarding')
       router.refresh()
     } catch (err: any) {
       logError('completar-cadastro', 'erro ao criar estabelecimento', err)

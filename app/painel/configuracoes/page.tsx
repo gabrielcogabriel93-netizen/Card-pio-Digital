@@ -5,8 +5,14 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
 import { formatPhoneNumber } from '@/lib/phone'
-import type { Establishment } from '@/types'
-import { Save, Loader2, Copy, Share2, Clock, Eye, EyeOff } from 'lucide-react'
+import type { Establishment, BusinessType } from '@/types'
+import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2 } from 'lucide-react'
+
+const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
+  { value: 'preparo', title: 'Tem preparo', description: 'Comida, lanches, bebidas montadas na hora.', icon: ChefHat },
+  { value: 'pronto', title: 'Já é pronto', description: 'Mercado, loja de roupa, adega, papelaria...', icon: Package },
+  { value: 'hibrido', title: 'Um pouco dos dois', description: 'Vende produto pronto e também itens com preparo.', icon: Layers },
+]
 
 export default function ConfiguracoesPage() {
   const [establishment, setEstablishment] = useState<Establishment | null>(null)
@@ -22,6 +28,10 @@ export default function ConfiguracoesPage() {
     logo_url: '',
     is_open: true,
     delivery_fee: '0',
+    business_type: 'preparo' as BusinessType,
+    order_tracking_enabled: true,
+    offers_delivery: true,
+    offers_pickup: true,
   })
   const [openingHours, setOpeningHours] = useState<Record<string, { open: string; close: string }>>({
     seg: { open: '08:00', close: '22:00' },
@@ -74,6 +84,10 @@ export default function ConfiguracoesPage() {
           logo_url: data.logo_url || '',
           is_open: data.is_open ?? true,
           delivery_fee: String(data.delivery_fee ?? 0),
+          business_type: (data.business_type as BusinessType) || 'preparo',
+          order_tracking_enabled: data.order_tracking_enabled ?? true,
+          offers_delivery: data.offers_delivery ?? true,
+          offers_pickup: data.offers_pickup ?? true,
         })
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
@@ -88,6 +102,12 @@ export default function ConfiguracoesPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!formData.offers_delivery && !formData.offers_pickup) {
+      alert('Ative pelo menos uma opção: entrega ou retirada no local.')
+      return
+    }
+
     setSaving(true)
     log('painel:configuracoes', 'salvando configurações...', { isOpen: formData.is_open })
 
@@ -107,6 +127,10 @@ export default function ConfiguracoesPage() {
           is_open: formData.is_open,
           opening_hours: openingHours,
           delivery_fee: parseFloat(formData.delivery_fee) || 0,
+          business_type: formData.business_type,
+          order_tracking_enabled: formData.order_tracking_enabled,
+          offers_delivery: formData.offers_delivery,
+          offers_pickup: formData.offers_pickup,
         })
         .eq('owner_id', user.id)
 
@@ -222,22 +246,24 @@ export default function ConfiguracoesPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Taxa de entrega padrão</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="input-field max-w-[160px]"
-                value={formData.delivery_fee}
-                onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
-                placeholder="0,00"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Mostrada para o cliente antes de enviar o pedido pelo cardápio online. Deixe 0 se não cobrar entrega
-                (ou se preferir combinar o valor depois, pelo WhatsApp).
-              </p>
-            </div>
+            {formData.offers_delivery && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Taxa de entrega padrão</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input-field max-w-[160px]"
+                  value={formData.delivery_fee}
+                  onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
+                  placeholder="0,00"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Mostrada para o cliente antes de enviar o pedido pelo cardápio online. Deixe 0 se não cobrar entrega
+                  (ou se preferir combinar o valor depois, pelo WhatsApp).
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <ImageUpload
@@ -261,6 +287,91 @@ export default function ConfiguracoesPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Tipo de negócio e funcionalidades */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Tipo de negócio e funcionalidades</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Ative só o que faz sentido pro seu negócio — o painel se ajusta automaticamente e some com o resto.
+          </p>
+
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Seus produtos...</label>
+            <div className="grid sm:grid-cols-3 gap-2">
+              {BUSINESS_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => setFormData({
+                    ...formData,
+                    business_type: type.value,
+                    order_tracking_enabled: type.value !== 'pronto',
+                  })}
+                  className={`text-left flex items-start gap-2 p-3 rounded-lg border-2 transition-colors ${
+                    formData.business_type === type.value ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <type.icon size={18} className={formData.business_type === type.value ? 'text-primary-600 flex-shrink-0 mt-0.5' : 'text-gray-400 flex-shrink-0 mt-0.5'} />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{type.title}</p>
+                    <p className="text-xs text-gray-500">{type.description}</p>
+                  </div>
+                  {formData.business_type === type.value && <CheckCircle2 size={16} className="text-primary-500 flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-5 flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Acompanhamento detalhado do pedido</p>
+              <p className="text-xs text-gray-500">
+                Ligado: pedidos passam por Pendente → Confirmado → Em Preparo → Concluído.
+                Desligado: só Pendente → Concluído, mais rápido pra quem não tem preparo.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, order_tracking_enabled: !formData.order_tracking_enabled })}
+              className={`relative w-14 h-7 rounded-full flex-shrink-0 ml-3 transition-colors ${
+                formData.order_tracking_enabled ? 'bg-primary-500' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                  formData.order_tracking_enabled ? 'translate-x-7' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Como o cliente recebe o pedido?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, offers_delivery: !formData.offers_delivery })}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  formData.offers_delivery ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500'
+                }`}
+              >
+                <Bike size={16} /> Entrega
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, offers_pickup: !formData.offers_pickup })}
+                className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  formData.offers_pickup ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500'
+                }`}
+              >
+                <StoreIcon size={16} /> Retirada no local
+              </button>
+            </div>
+            {!formData.offers_delivery && !formData.offers_pickup && (
+              <p className="text-xs text-red-500 mt-2">Ative pelo menos uma opção.</p>
+            )}
           </div>
         </div>
 

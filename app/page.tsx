@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, CheckCircle } from 'lucide-react'
+import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, CheckCircle, Palette, Bike, ClipboardList, Sparkles } from 'lucide-react'
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -125,8 +125,20 @@ export default function LandingPage() {
               {
                 icon: <ShoppingCart className="w-6 h-6" />,
                 title: 'Pedidos via WhatsApp',
-                description: 'Cliente monta o pedido completo e envia direto para seu WhatsApp com todos os detalhes.',
+                description: 'Cliente monta o pedido completo e envia direto para seu WhatsApp, com link de acompanhamento incluso.',
                 color: 'bg-blue-100 text-blue-600'
+              },
+              {
+                icon: <Bike className="w-6 h-6" />,
+                title: 'Entrega ou retirada',
+                description: 'O cliente escolhe como quer receber, com endereço estruturado quando for entrega. Você decide quais opções oferece.',
+                color: 'bg-cyan-100 text-cyan-600'
+              },
+              {
+                icon: <Sparkles className="w-6 h-6" />,
+                title: 'Painel sob medida',
+                description: 'Um quiz rápido no cadastro ajusta o painel pro seu negócio: com preparo, produto pronto ou os dois.',
+                color: 'bg-amber-100 text-amber-600'
               },
               {
                 icon: <Package className="w-6 h-6" />,
@@ -145,6 +157,18 @@ export default function LandingPage() {
                 title: 'Balcão / PDV',
                 description: 'Venda presencial rápida com busca de produtos e baixa de estoque automática.',
                 color: 'bg-pink-100 text-pink-600'
+              },
+              {
+                icon: <Palette className="w-6 h-6" />,
+                title: 'Cor de marca própria',
+                description: 'Escolha a cor do seu cardápio — botões e destaques seguem a identidade da sua loja.',
+                color: 'bg-rose-100 text-rose-600'
+              },
+              {
+                icon: <ClipboardList className="w-6 h-6" />,
+                title: 'Histórico sem cadastro',
+                description: 'Seu cliente consulta os próprios pedidos anteriores só com o telefone, sem precisar criar conta.',
+                color: 'bg-indigo-100 text-indigo-600'
               },
               {
                 icon: <Smartphone className="w-6 h-6" />,
@@ -222,7 +246,7 @@ export default function LandingPage() {
               {
                 step: '1',
                 title: 'Crie sua conta',
-                description: 'Cadastre-se gratuitamente com seu e-mail e informe os dados do seu estabelecimento.'
+                description: 'Cadastre-se gratuitamente e responda um quiz rápido — o painel já nasce ajustado ao seu tipo de negócio.'
               },
               {
                 step: '2',

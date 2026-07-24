@@ -56,8 +56,21 @@
 - [x] 8.8 - Restringir colunas públicas do estabelecimento (owner_id/plan não expostos no cardápio público)
 - [x] 8.9 - Política de RLS para exclusão de lançamentos financeiros
 
+## FASE 9: Auditoria de UX (cliente + lojista) e onboarding sob medida
+- [x] 9.1 - Cor do tema (Configurações) agora é aplicada de fato no cardápio público e na página de acompanhamento (CSS custom properties por loja, ver `lib/theme.ts`)
+- [x] 9.2 - Link de acompanhamento do pedido incluído na própria mensagem do WhatsApp
+- [x] 9.3 - Carrinho, dados do cliente e último pedido persistidos no navegador (`lib/customerStorage.ts`) — sobrevivem a refresh/fechar aba
+- [x] 9.4 - Entrega x retirada no local, com endereço de entrega estruturado (`010_entrega_retirada.sql`)
+- [x] 9.5 - Tipo de negócio (com preparo / pronto / híbrido) com toggle de acompanhamento detalhado do pedido, ajustável em Configurações (`011_tipo_negocio_onboarding.sql`)
+- [x] 9.6 - Quiz de onboarding (`/onboarding`) logo após o cadastro, definindo tipo de negócio, entrega/retirada e cor da marca
+- [x] 9.7 - Painel de Pedidos se adapta ao tracking ativado/desativado (Kanban completo x fluxo Pendente→Concluído)
+- [x] 9.8 - "Meus Pedidos" (`/loja/[slug]/pedidos`): cliente consulta histórico por telefone, sem cadastro (`012_historico_pedidos_cliente.sql`)
+- [x] 9.9 - Aba Planos com aviso de sistema gratuito + doação via PIX
+- [x] 9.10 - Aba Tutorial explicando cada funcionalidade do painel
+- [x] 9.11 - Landing page atualizada com as novas funcionalidades
+
 ## Pendências conhecidas (fora do escopo desta rodada)
-- [ ] Planos pagos / limites de uso por plano
-- [ ] Upload de imagem direto (hoje é só por URL)
+- [ ] Planos pagos / limites de uso por plano (hoje só existe o aviso de doação — sem gate de feature)
 - [ ] Paginação em listagens grandes
 - [ ] Ícones de marca reais (os atuais em public/icons são placeholders gerados)
+- [ ] "Meus Pedidos" por telefone não tem proteção contra enumeração de números (ver comentário de segurança em `012_historico_pedidos_cliente.sql`) — aceitável para o porte atual, mas vale revisar se o produto crescer

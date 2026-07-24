@@ -96,8 +96,8 @@ export default function CadastroPage() {
       })
       log('cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
 
-      log('cadastro', 'redirecionando para /painel...')
-      router.push('/painel')
+      log('cadastro', 'redirecionando para /onboarding...')
+      router.push('/onboarding')
       router.refresh()
     } catch (err: any) {
       logError('cadastro', 'erro no fluxo de cadastro', err)

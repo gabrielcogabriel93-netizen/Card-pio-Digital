@@ -8,8 +8,21 @@ import { log, logError, logCritical } from '@/lib/logger'
 import { isWithinOpeningHours } from '@/lib/hours'
 import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
+import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
+import {
+  getSavedCustomer,
+  saveCustomer,
+  getSavedCart,
+  saveCart,
+  getSavedLastOrder,
+  saveLastOrder,
+  clearSavedLastOrder,
+  getSavedAddress,
+  saveAddress,
+  type SavedAddress,
+} from '@/lib/customerStorage'
 import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem } from '@/types'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send } from 'lucide-react'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList } from 'lucide-react'
 
 export default function PublicMenuClient({
   establishment,
@@ -27,6 +40,10 @@ export default function PublicMenuClient({
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [notes, setNotes] = useState('')
+  const offersDelivery = establishment.offers_delivery ?? true
+  const offersPickup = establishment.offers_pickup ?? true
+  const [orderType, setOrderType] = useState<'delivery' | 'pickup'>(offersDelivery ? 'delivery' : 'pickup')
+  const [address, setAddress] = useState<SavedAddress>({ street: '', number: '', neighborhood: '', complement: '', reference: '' })
   const [website, setWebsite] = useState('') // honeypot: campo invisível, só bot preenche
   const [formOpenedAt] = useState(() => Date.now())
   const [saving, setSaving] = useState(false)
@@ -44,10 +61,48 @@ export default function PublicMenuClient({
     return isWithinOpeningHours(establishment.opening_hours)
   }, [establishment.is_open, establishment.opening_hours])
 
-  const deliveryFee = Number(establishment.delivery_fee) || 0
+  // Taxa de entrega só entra na conta quando o cliente escolhe "Entrega" —
+  // antes disso era cobrada em qualquer pedido, mesmo retirando no local.
+  const deliveryFee = orderType === 'delivery' ? (Number(establishment.delivery_fee) || 0) : 0
+
+  // Aplica a cor de marca da loja (Configurações > Cor do tema) como CSS
+  // custom properties só dentro desta árvore — todas as classes
+  // `bg-primary-*`/`text-primary-*`/`btn-primary` já existentes passam a
+  // refletir a cor escolhida, sem precisar trocar classe por classe.
+  const themeStyle = useMemo(
+    () => themeShadesToCssVars(generateColorShades(establishment.theme_color)) as React.CSSProperties,
+    [establishment.theme_color]
+  )
 
   useEscapeKey(() => setShowCart(false), showCart)
   useEscapeKey(() => setShowCustomerModal(false), showCustomerModal)
+
+  // Recupera carrinho, dados do cliente e último pedido salvos neste
+  // navegador. Roda só no client (após hidratar) para não gerar
+  // mismatch entre o HTML renderizado no servidor e o do navegador.
+  useEffect(() => {
+    const savedCart = getSavedCart<CartItem<PublicProduct>[]>(establishment.id)
+    if (savedCart && savedCart.length > 0) setCart(savedCart)
+
+    const savedCustomer = getSavedCustomer()
+    if (savedCustomer) {
+      setCustomerName(savedCustomer.name)
+      setCustomerPhone(savedCustomer.phone)
+    }
+
+    const savedAddress = getSavedAddress()
+    if (savedAddress) setAddress(savedAddress)
+
+    const savedLastOrderId = getSavedLastOrder(establishment.id)
+    if (savedLastOrderId) setLastOrderId(savedLastOrderId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [establishment.id])
+
+  // Mantém o carrinho salvo a cada mudança, para sobreviver a um refresh
+  // acidental da página (fraqueza comum de navegador mobile).
+  useEffect(() => {
+    saveCart(establishment.id, cart)
+  }, [cart, establishment.id])
 
   const addToCart = async (product: PublicProduct) => {
     const supabase = createClient()
@@ -146,8 +201,11 @@ export default function PublicMenuClient({
     setCouponError(null)
   }
 
+  const isAddressValid = orderType === 'pickup' ||
+    (address.street.trim() && address.number.trim() && address.neighborhood.trim())
+
   const handleSendOrder = async () => {
-    if (!customerName.trim() || !customerPhone.trim()) return
+    if (!customerName.trim() || !customerPhone.trim() || !isAddressValid) return
 
     // Honeypot: campo invisível para humanos. Se veio preenchido, é bot —
     // finge sucesso sem gravar nada.
@@ -200,16 +258,33 @@ export default function PublicMenuClient({
         total,
         status: 'pending',
         source: 'online',
+        order_type: orderType,
+        delivery_address: orderType === 'delivery' ? {
+          street: address.street.trim(),
+          number: address.number.trim(),
+          neighborhood: address.neighborhood.trim(),
+          complement: address.complement?.trim() || null,
+          reference: address.reference?.trim() || null,
+        } : null,
         notes: notes.trim() || null,
       })
 
       if (orderError) throw orderError
       log('loja', 'pedido salvo com sucesso, montando mensagem do WhatsApp...')
+      if (orderType === 'delivery') saveAddress(address)
 
       let message = `🛵 *Novo Pedido - ${establishment.name}*\n\n`
       message += `👤 *Cliente:* ${customerName.trim()}\n`
-      message += `📱 *Telefone:* ${customerPhone.trim()}\n\n`
-      message += `📋 *Itens do Pedido:*\n`
+      message += `📱 *Telefone:* ${customerPhone.trim()}\n`
+      message += orderType === 'delivery' ? `🛵 *Entrega*\n` : `🏪 *Retirada no local*\n`
+      if (orderType === 'delivery') {
+        message += `📍 *Endereço:* ${address.street.trim()}, ${address.number.trim()}`
+        if (address.complement?.trim()) message += ` - ${address.complement.trim()}`
+        message += ` - ${address.neighborhood.trim()}`
+        if (address.reference?.trim()) message += `\n   Referência: ${address.reference.trim()}`
+        message += `\n`
+      }
+      message += `\n📋 *Itens do Pedido:*\n`
 
       cart.forEach((item, index) => {
         message += `\n${index + 1}. *${item.product.name}*`
@@ -234,12 +309,21 @@ export default function PublicMenuClient({
 
       message += `\n\n💰 *Total: R$ ${total.toFixed(2)}*`
 
+      // Link de acompanhamento também vai na própria mensagem do WhatsApp
+      // — assim ele sobrevive mesmo se o cliente fechar a aba do cardápio
+      // (o único outro lugar onde ele aparece é um banner em memória, que
+      // se perde ao recarregar a página).
+      const trackingUrl = `${window.location.origin}/pedido/${orderId}`
+      message += `\n\n📍 *Acompanhe seu pedido:*\n${trackingUrl}`
+
       const encodedMessage = encodeURIComponent(message)
       const whatsappUrl = `https://wa.me/${toWhatsAppNumber(establishment.whatsapp_number)}?text=${encodedMessage}`
 
       log('loja', 'abrindo WhatsApp', { whatsappNumber: establishment.whatsapp_number })
       window.open(whatsappUrl, '_blank')
       setLastOrderId(orderId)
+      saveLastOrder(establishment.id, orderId)
+      saveCustomer({ name: customerName.trim(), phone: customerPhone.trim() })
 
       setCart([])
       setShowCustomerModal(false)
@@ -275,7 +359,7 @@ export default function PublicMenuClient({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={themeStyle}>
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-3">
@@ -310,6 +394,15 @@ export default function PublicMenuClient({
                 )}
               </div>
             </div>
+            {/* Meus Pedidos */}
+            <Link
+              href={`/loja/${establishment.slug}/pedidos`}
+              className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex-shrink-0"
+              aria-label="Meus pedidos"
+              title="Meus pedidos"
+            >
+              <ClipboardList size={22} className="text-gray-700" />
+            </Link>
             {/* Cart Button */}
             <button
               onClick={() => setShowCart(true)}
@@ -373,7 +466,7 @@ export default function PublicMenuClient({
                 Acompanhar
               </Link>
               <button
-                onClick={() => setLastOrderId(null)}
+                onClick={() => { setLastOrderId(null); clearSavedLastOrder(establishment.id) }}
                 className="p-1 text-primary-600 hover:text-primary-800"
                 aria-label="Fechar aviso"
               >
@@ -629,6 +722,101 @@ export default function PublicMenuClient({
                   required
                 />
               </div>
+              {offersDelivery && offersPickup && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Como você quer receber?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('delivery')}
+                      className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+                        orderType === 'delivery' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <Bike size={16} />
+                      Entrega
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('pickup')}
+                      className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${
+                        orderType === 'pickup' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <Package size={16} />
+                      Retirar no local
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {orderType === 'delivery' ? (
+                <div className="space-y-3 bg-gray-50 rounded-lg p-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Rua *</label>
+                      <input
+                        type="text"
+                        className="input-field text-sm"
+                        value={address.street}
+                        onChange={(e) => setAddress({ ...address, street: e.target.value })}
+                        placeholder="Rua/Av."
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Número *</label>
+                      <input
+                        type="text"
+                        className="input-field text-sm"
+                        value={address.number}
+                        onChange={(e) => setAddress({ ...address, number: e.target.value })}
+                        placeholder="Nº"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Bairro *</label>
+                    <input
+                      type="text"
+                      className="input-field text-sm"
+                      value={address.neighborhood}
+                      onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
+                      placeholder="Bairro"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Complemento</label>
+                    <input
+                      type="text"
+                      className="input-field text-sm"
+                      value={address.complement}
+                      onChange={(e) => setAddress({ ...address, complement: e.target.value })}
+                      placeholder="Apto, bloco, casa..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Ponto de referência</label>
+                    <input
+                      type="text"
+                      className="input-field text-sm"
+                      value={address.reference}
+                      onChange={(e) => setAddress({ ...address, reference: e.target.value })}
+                      placeholder="Ex: perto do mercado X"
+                    />
+                  </div>
+                </div>
+              ) : (
+                establishment.address && (
+                  <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600 flex items-start gap-2">
+                    <MapPin size={16} className="flex-shrink-0 mt-0.5 text-gray-400" />
+                    <span>Retire em: {establishment.address}</span>
+                  </div>
+                )
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                 <textarea
@@ -672,7 +860,7 @@ export default function PublicMenuClient({
                   <button
                     onClick={handleSendOrder}
                     className="btn-primary flex-1"
-                    disabled={saving || !customerName.trim() || !customerPhone.trim()}
+                    disabled={saving || !customerName.trim() || !customerPhone.trim() || !isAddressValid}
                   >
                     {saving ? (
                       <Loader2 size={18} className="animate-spin" />

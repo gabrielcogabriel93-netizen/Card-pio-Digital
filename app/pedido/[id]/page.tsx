@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
-import type { OrderItem, OrderStatus } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, Store } from 'lucide-react'
+import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
+import type { OrderItem, OrderStatus, DeliveryAddress } from '@/types'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, Store, Bike, MapPin } from 'lucide-react'
 
 interface OrderStatusData {
   id: string
@@ -16,15 +17,26 @@ interface OrderStatusData {
   shipping_fee: number
   discount: number
   total: number
+  order_type: 'delivery' | 'pickup'
+  delivery_address: DeliveryAddress | null
   created_at: string
   establishment_name: string
   establishment_slug: string
+  establishment_theme_color: string | null
+  order_tracking_enabled: boolean
 }
 
-const STEPS: { status: OrderStatus; label: string; icon: any }[] = [
+const FULL_STEPS: { status: OrderStatus; label: string; icon: any }[] = [
   { status: 'pending', label: 'Pedido recebido', icon: Clock },
   { status: 'confirmed', label: 'Confirmado', icon: CheckCircle },
   { status: 'preparing', label: 'Em preparo', icon: ChefHat },
+  { status: 'completed', label: 'Concluído', icon: CheckCircle },
+]
+
+// Lojas sem preparo (produto pronto) usam um acompanhamento mais curto —
+// sem a etapa de "em preparo", que não existe pra elas.
+const SIMPLE_STEPS: { status: OrderStatus; label: string; icon: any }[] = [
+  { status: 'pending', label: 'Pedido recebido', icon: Clock },
   { status: 'completed', label: 'Concluído', icon: CheckCircle },
 ]
 
@@ -32,6 +44,13 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
   const [order, setOrder] = useState<OrderStatusData | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+
+  // Mesma cor de marca da loja, aplicada aqui também — sem isso a página
+  // de acompanhamento ficava sempre verde, mesmo pra lojas com outra cor.
+  const themeStyle = useMemo(
+    () => themeShadesToCssVars(generateColorShades(order?.establishment_theme_color)) as React.CSSProperties,
+    [order?.establishment_theme_color]
+  )
 
   useEffect(() => {
     loadOrder()
@@ -103,16 +122,30 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
     )
   }
 
-  const currentStepIndex = STEPS.findIndex((s) => s.status === order.status)
+  const STEPS = order.order_tracking_enabled ? FULL_STEPS : SIMPLE_STEPS
+  const currentStepIndex = Math.max(0, STEPS.findIndex((s) => s.status === order.status))
   const isCancelled = order.status === 'cancelled'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={themeStyle}>
       <div className="max-w-lg mx-auto px-4 py-8">
         <div className="text-center mb-6">
           <p className="text-sm text-gray-500">Pedido em</p>
           <h1 className="text-xl font-bold text-gray-900">{order.establishment_name}</h1>
         </div>
+
+        {order.order_type && (
+          <div className="flex items-center justify-center gap-2 mb-4 text-sm text-gray-600">
+            {order.order_type === 'pickup' ? <Store size={14} /> : <Bike size={14} />}
+            <span>{order.order_type === 'pickup' ? 'Retirada no local' : 'Entrega'}</span>
+            {order.order_type === 'delivery' && order.delivery_address && (
+              <span className="flex items-center gap-1 text-gray-400">
+                <MapPin size={12} />
+                {order.delivery_address.street}, {order.delivery_address.number} - {order.delivery_address.neighborhood}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Status timeline */}
         <div className="card mb-4">

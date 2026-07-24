@@ -2,6 +2,12 @@
 // Tipos TypeScript para o Cardápio SaaS
 // ============================================================
 
+// Tipo de negócio, definido no quiz de onboarding (ou depois em
+// Configurações): controla se o painel mostra o acompanhamento completo
+// de pedido (Kanban com "em preparo") ou um fluxo simplificado
+// (recebido -> concluído), pensado para quem vende produto pronto.
+export type BusinessType = 'preparo' | 'pronto' | 'hibrido'
+
 // Estabelecimento (Tenant)
 export interface Establishment {
   id: string
@@ -15,13 +21,21 @@ export interface Establishment {
   opening_hours?: Record<string, { open: string; close: string }>
   is_open?: boolean
   delivery_fee?: number
+  offers_delivery?: boolean
+  offers_pickup?: boolean
+  business_type?: BusinessType
+  order_tracking_enabled?: boolean
+  onboarding_completed?: boolean
   plan?: string
   created_at?: string
 }
 
 // Estabelecimento como visto pelo cardápio público — vem da view
 // `public_establishments`, que nunca expõe owner_id/plan (ver migration 005).
-export type PublicEstablishment = Omit<Establishment, 'owner_id' | 'plan' | 'created_at'>
+export type PublicEstablishment = Omit<
+  Establishment,
+  'owner_id' | 'plan' | 'created_at' | 'onboarding_completed'
+>
 
 // Categoria
 export interface Category {
@@ -101,6 +115,15 @@ export interface OrderItem {
   }[]
 }
 
+// Endereço de entrega estruturado (preenchido só quando order_type = 'delivery')
+export interface DeliveryAddress {
+  street: string
+  number: string
+  neighborhood: string
+  complement?: string
+  reference?: string
+}
+
 // Pedido
 export interface Order {
   id: string
@@ -115,6 +138,8 @@ export interface Order {
   total: number
   status: OrderStatus
   source: 'online' | 'balcao'
+  order_type: 'delivery' | 'pickup'
+  delivery_address?: DeliveryAddress | null
   payment_method?: string
   notes?: string
   created_at: string

@@ -8,7 +8,7 @@ export async function middleware(request: NextRequest) {
 
   // Rotas protegidas do painel
   const isProtectedRoute =
-    pathname.startsWith('/painel') || pathname.startsWith('/completar-cadastro')
+    pathname.startsWith('/painel') || pathname.startsWith('/completar-cadastro') || pathname.startsWith('/onboarding')
 
   if (isProtectedRoute) {
     if (!user) {

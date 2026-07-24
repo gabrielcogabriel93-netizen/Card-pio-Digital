@@ -46,6 +46,9 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 7. `007_error_logs.sql` — tabela de log de erros críticos
 8. `008_coupons.sql` — cupons de desconto
 9. `009_order_tracking.sql` — acompanhamento público do pedido
+10. `010_entrega_retirada.sql` — tipo de pedido (entrega/retirada) e endereço de entrega estruturado
+11. `011_tipo_negocio_onboarding.sql` — tipo de negócio (com preparo/pronto/híbrido), toggle de acompanhamento detalhado e onboarding
+12. `012_historico_pedidos_cliente.sql` — consulta de histórico de pedidos do cliente por telefone ("Meus Pedidos")
 
 ### 3. Configure as variáveis de ambiente
 
