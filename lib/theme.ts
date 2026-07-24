@@ -60,6 +60,27 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
 }
 
+// Luminância relativa (WCAG 2.x) — usada só pra checar contraste do tom
+// 500 contra texto branco (`.btn-primary` usa `text-white` fixo).
+function relativeLuminance(r: number, g: number, b: number): number {
+  const toLinear = (c: number) => {
+    const v = c / 255
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  }
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
+}
+
+function contrastWithWhite(r: number, g: number, b: number): number {
+  const l = relativeLuminance(r, g, b)
+  return 1.05 / (l + 0.05)
+}
+
+// Mínimo aceitável pra texto branco em cima do tom 500 (botões, badges).
+// 3:1 é o limiar de contraste de componentes de UI da WCAG — mais
+// permissivo que o de texto de leitura (4.5:1), mas já evita os piores
+// casos (cor pastel/clara demais deixando o texto ilegível).
+const MIN_CONTRAST_WITH_WHITE = 3
+
 /**
  * Recebe a cor de marca (500) e devolve os 10 tons que o Tailwind usa
  * (50..900), interpolando a claridade para cima (tons claros de fundo) e
@@ -70,7 +91,18 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 export function generateColorShades(hex: string | null | undefined): ThemeShades {
   const rgb = hexToRgb(hex || '') || hexToRgb(DEFAULT_COLOR)!
   const [h, s] = rgbToHsl(...rgb)
-  const baseL = rgbToHsl(...rgb)[2]
+  let baseL = rgbToHsl(...rgb)[2]
+
+  // Se o lojista escolher uma cor clara demais (amarelo pastel, branco,
+  // rosa clarinho...), o texto branco dos botões fica ilegível em cima
+  // dela. Em vez de deixar passar, escurece o tom 500 até o contraste
+  // ficar aceitável — mantém o matiz/saturação escolhidos, só ajusta a
+  // claridade. Na prática só entra em ação pra cores realmente claras.
+  for (let guard = 0; guard < 40; guard++) {
+    const [r, g, b] = hslToRgb(h, s, baseL)
+    if (contrastWithWhite(r, g, b) >= MIN_CONTRAST_WITH_WHITE || baseL <= 25) break
+    baseL -= 2
+  }
 
   // Índice do tom 500 dentro de STOPS (posição 5, 0-based: índice 5).
   const baseIndex = STOPS.indexOf(500)

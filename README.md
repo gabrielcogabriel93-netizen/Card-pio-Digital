@@ -19,13 +19,20 @@ tudo em um único painel.
   - Dashboard com pedidos pendentes, faturamento do dia, ticket médio e alerta de estoque baixo
   - Produtos: CRUD completo + **variações** (tamanho, sabor, adicionais) com preço adicional, obrigatoriedade e múltipla escolha
   - Categorias: CRUD com reordenação
-  - Pedidos: Kanban (pendente → confirmado → em preparo → concluído/cancelado), baixa e estorno automático de estoque, geração de lançamento financeiro na confirmação
+  - Pedidos: Kanban (pendente → confirmado → em preparo → concluído/cancelado, ou um fluxo simplificado pendente→concluído para quem não tem preparo), baixa e estorno automático de estoque, geração de lançamento financeiro na confirmação, notificação push de novo pedido
   - Balcão/PDV: venda presencial com busca de produtos, variações, controle de estoque e forma de pagamento
+  - Bairros: taxa de entrega própria por bairro cadastrado
   - Financeiro: entradas automáticas (pedidos confirmados/vendas de balcão) + lançamentos manuais de entrada/saída, filtros por período
-  - Configurações: dados da loja, horário de funcionamento, loja aberta/fechada, link público, cor do tema
-- **Cardápio público** (`/loja/[slug]`): navegação por categoria, variações, carrinho e envio do pedido pronto via WhatsApp
+  - Configurações: dados da loja, horário de funcionamento, loja aberta/fechada, link público, cor do tema (aplicada de verdade no cardápio, com trava de contraste automática), tipo de negócio, entrega/retirada
+  - Cupons: percentual, valor fixo ou frete grátis
+  - Planos: aviso de sistema gratuito + doação via PIX
+  - Tutorial: como cada funcionalidade do painel funciona
+- **Onboarding** (`/onboarding`): quiz de 3 perguntas logo após o cadastro que já deixa o painel configurado pro tipo de negócio
+- **Cardápio público** (`/loja/[slug]`): navegação por categoria, variações, carrinho persistente, entrega (com busca de CEP e bairro por lista) ou retirada, e envio do pedido pronto via WhatsApp com link de acompanhamento
+- **Meus Pedidos** (`/loja/[slug]/pedidos`): cliente consulta o histórico de pedidos pelo telefone, sem cadastro
 - **Recuperação de senha** (`/login` → `/redefinir-senha`)
-- **PWA**: instalável no celular do lojista e do cliente
+- **SEO**: sitemap dinâmico (`/sitemap.xml`), `robots.txt` dinâmico e dados estruturados (JSON-LD) por loja
+- **PWA**: instalável no celular do lojista e do cliente, com notificações push
 
 ## Configuração
 
@@ -49,6 +56,8 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 10. `010_entrega_retirada.sql` — tipo de pedido (entrega/retirada) e endereço de entrega estruturado
 11. `011_tipo_negocio_onboarding.sql` — tipo de negócio (com preparo/pronto/híbrido), toggle de acompanhamento detalhado e onboarding
 12. `012_historico_pedidos_cliente.sql` — consulta de histórico de pedidos do cliente por telefone ("Meus Pedidos")
+13. `013_taxa_entrega_por_bairro.sql` — bairros cadastrados pelo lojista com frete próprio
+14. `014_push_subscriptions.sql` — inscrições de notificação push + trigger de novo pedido (⚠️ tem um passo manual — veja a seção "Notificações Push" abaixo antes de rodar)
 
 ### 3. Configure as variáveis de ambiente
 
@@ -61,9 +70,12 @@ SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-> A `SUPABASE_SERVICE_ROLE_KEY` não é usada pelo código atual (todas as rotas
-> rodam no client com a `anon key` + RLS), mas fica reservada para futuras
-> rotas de servidor/admin. **Nunca** exponha essa chave no client.
+> A `SUPABASE_SERVICE_ROLE_KEY` é usada pela rota de servidor
+> `app/api/push/send` (precisa ler inscrições push de qualquer loja,
+> ignorando RLS). Confira se o valor no seu `.env.local` é a **service_role
+> key** de verdade (Project Settings → API) e não a anon key — as duas
+> começam parecido, mas são bem diferentes em permissão. **Nunca** exponha
+> essa chave no client.
 
 ### 4. Confirmação de e-mail (Authentication → Settings, no Supabase)
 
@@ -79,7 +91,34 @@ Para o e-mail de recuperação de senha funcionar, garanta que a **Site URL** e
 as **Redirect URLs** (Authentication → URL Configuration) incluam a URL do seu
 deploy (ex.: `https://seuapp.vercel.app/**`).
 
-### 5. Instale e rode
+### 5. Notificações Push (opcional, mas recomendado)
+
+Avisa o lojista de um pedido novo mesmo com o painel fechado (push de verdade,
+não só o beep sonoro que só toca com a aba `/painel/pedidos` aberta). Tem duas
+partes — o app (já pronto) e um passo manual no banco depois do deploy:
+
+1. **Variáveis de ambiente**: já vêm preenchidas no `.env.local` local (chaves
+   VAPID de exemplo geradas com `npx web-push generate-vapid-keys`). Em
+   produção, gere seu próprio par e configure `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (um `mailto:` seu) e
+   `PUSH_TRIGGER_SECRET` (uma string aleatória qualquer) nas variáveis de
+   ambiente do deploy.
+2. **Depois do primeiro deploy**, edite a função `notify_new_order_push` criada
+   pela migration `014_push_subscriptions.sql` direto no SQL Editor do
+   Supabase (`CREATE OR REPLACE FUNCTION ...`, mesmo texto da migration) e
+   troque:
+   - `https://SEU_DOMINIO_AQUI/api/push/send` pela URL real do seu deploy;
+   - `SEU_PUSH_TRIGGER_SECRET_AQUI` pelo mesmo valor de `PUSH_TRIGGER_SECRET`
+     configurado no passo 1.
+
+   Sem esse ajuste, os pedidos continuam salvando normalmente — só a
+   notificação automática não vai disparar (o trigger vai falhar silenciosamente
+   ao tentar chamar uma URL que não existe). O lojista ativa a notificação pelo
+   botão "Ativar notificações" na página Pedidos do painel, que já tem também
+   um botão "Testar" pra confirmar que chegou sem precisar esperar um pedido de
+   verdade.
+
+### 6. Instale e rode
 
 ```bash
 npm install

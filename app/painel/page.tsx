@@ -4,8 +4,19 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import Link from 'next/link'
-import type { Order, DashboardStats } from '@/types'
-import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock } from 'lucide-react'
+import type { Order, DashboardStats, BusinessType } from '@/types'
+import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock, Bike, Store, ChefHat, Layers, Settings } from 'lucide-react'
+
+const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
+  preparo: 'Com preparo',
+  pronto: 'Produto pronto',
+  hibrido: 'Misto (preparo + pronto)',
+}
+const BUSINESS_TYPE_ICON: Record<BusinessType, any> = {
+  preparo: ChefHat,
+  pronto: Package,
+  hibrido: Layers,
+}
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -13,8 +24,13 @@ export default function Dashboard() {
     today_revenue: 0,
     average_ticket: 0,
     low_stock_products: 0,
+    delivery_orders_today: 0,
+    pickup_orders_today: 0,
+    balcao_orders_today: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const [businessType, setBusinessType] = useState<BusinessType>('preparo')
+  const [trackingEnabled, setTrackingEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,12 +50,15 @@ export default function Dashboard() {
       // Buscar estabelecimento
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id')
+        .select('id, business_type, order_tracking_enabled')
         .eq('owner_id', user.id)
         .single()
 
       if (estError) logError('painel:dashboard', 'erro ao buscar estabelecimento', estError)
       if (!est) return
+
+      setBusinessType((est.business_type as BusinessType) || 'preparo')
+      setTrackingEnabled(est.order_tracking_enabled ?? true)
 
       const todayStart = new Date()
       todayStart.setHours(0, 0, 0, 0)
@@ -74,6 +93,19 @@ export default function Dashboard() {
         .lte('stock_qty', 5)
         .gt('stock_qty', 0)
 
+      // Pedidos de hoje, pra ver de relance quanto é entrega x retirada x
+      // balcão — ajuda a decidir prioridade (ex: se hoje é dia de muita
+      // entrega, vale reforçar entregador).
+      const { data: todayOrders } = await supabase
+        .from('orders')
+        .select('source, order_type')
+        .eq('establishment_id', est.id)
+        .gte('created_at', todayStart.toISOString())
+
+      const deliveryToday = todayOrders?.filter(o => o.source === 'online' && o.order_type === 'delivery').length || 0
+      const pickupToday = todayOrders?.filter(o => o.source === 'online' && o.order_type === 'pickup').length || 0
+      const balcaoToday = todayOrders?.filter(o => o.source === 'balcao').length || 0
+
       // Últimos pedidos pendentes
       const { data: orders } = await supabase
         .from('orders')
@@ -87,6 +119,9 @@ export default function Dashboard() {
         today_revenue: todayRevenue,
         average_ticket: averageTicket,
         low_stock_products: lowStock || 0,
+        delivery_orders_today: deliveryToday,
+        pickup_orders_today: pickupToday,
+        balcao_orders_today: balcaoToday,
       })
 
       if (orders) {
@@ -144,9 +179,25 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Visão geral do seu negócio hoje.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">Visão geral do seu negócio hoje.</p>
+        </div>
+        <Link
+          href="/painel/configuracoes"
+          className="inline-flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 transition-colors px-3 py-2 rounded-lg text-gray-700 w-fit"
+          title="Alterar em Configurações"
+        >
+          {(() => {
+            const Icon = BUSINESS_TYPE_ICON[businessType]
+            return <Icon size={16} className="text-primary-600" />
+          })()}
+          {BUSINESS_TYPE_LABEL[businessType]}
+          <span className="text-gray-400">·</span>
+          {trackingEnabled ? 'Acompanhamento completo' : 'Fluxo simplificado'}
+          <Settings size={14} className="text-gray-400" />
+        </Link>
       </div>
 
       {/* Stats Cards */}
@@ -200,6 +251,34 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Pedidos de hoje por tipo */}
+      <div className="card">
+        <h2 className="text-sm font-medium text-gray-700 mb-3">Pedidos de hoje por tipo</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="flex items-center gap-2 p-3 bg-teal-50 rounded-lg">
+            <Bike size={18} className="text-teal-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-gray-900">{stats.delivery_orders_today}</p>
+              <p className="text-xs text-gray-500">Entrega</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg">
+            <Store size={18} className="text-purple-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-gray-900">{stats.pickup_orders_today}</p>
+              <p className="text-xs text-gray-500">Retirada</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
+            <Package size={18} className="text-blue-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-gray-900">{stats.balcao_orders_today}</p>
+              <p className="text-xs text-gray-500">Balcão</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Recent Orders */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
@@ -245,6 +324,12 @@ export default function Dashboard() {
                       <span className={getStatusColor(order.status)}>
                         {getStatusLabel(order.status)}
                       </span>
+                      {order.source === 'online' && (
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          {order.order_type === 'pickup' ? <Store size={11} /> : <Bike size={11} />}
+                          {order.order_type === 'pickup' ? 'Retirada' : 'Entrega'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

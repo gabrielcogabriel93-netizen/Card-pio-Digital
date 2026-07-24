@@ -58,6 +58,7 @@ export interface SavedAddress {
   neighborhood: string
   complement?: string
   reference?: string
+  zip_code?: string
 }
 
 // Endereço de entrega: mesma lógica do nome/telefone — a pessoa costuma

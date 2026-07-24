@@ -23,6 +23,7 @@ export interface Establishment {
   delivery_fee?: number
   offers_delivery?: boolean
   offers_pickup?: boolean
+  use_neighborhood_delivery_fee?: boolean
   business_type?: BusinessType
   order_tracking_enabled?: boolean
   onboarding_completed?: boolean
@@ -122,6 +123,31 @@ export interface DeliveryAddress {
   neighborhood: string
   complement?: string
   reference?: string
+  zip_code?: string
+  // Preenchido só quando o bairro veio da lista de delivery_neighborhoods
+  // (taxa de entrega por bairro) — ajuda a auditar depois, não é usado
+  // pra recalcular nada (o valor já foi travado em shipping_fee).
+  neighborhood_id?: string | null
+}
+
+// Bairro cadastrado pelo lojista com valor de frete próprio.
+export interface DeliveryNeighborhood {
+  id: string
+  establishment_id: string
+  name: string
+  fee: number
+  is_active: boolean
+  display_order: number
+  created_at?: string
+}
+
+// Como o cardápio público vê os bairros — vem da view
+// `public_delivery_neighborhoods`, só bairros ativos.
+export interface PublicDeliveryNeighborhood {
+  id: string
+  establishment_id: string
+  name: string
+  fee: number
 }
 
 // Pedido
@@ -151,7 +177,7 @@ export interface Coupon {
   id: string
   establishment_id: string
   code: string
-  discount_type: 'percent' | 'fixed'
+  discount_type: 'percent' | 'fixed' | 'free_shipping'
   discount_value: number
   is_active: boolean
   expires_at?: string
@@ -193,6 +219,9 @@ export interface DashboardStats {
   today_revenue: number
   average_ticket: number
   low_stock_products: number
+  delivery_orders_today: number
+  pickup_orders_today: number
+  balcao_orders_today: number
 }
 
 // Filtros para o financeiro

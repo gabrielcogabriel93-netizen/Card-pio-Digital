@@ -20,6 +20,7 @@ import {
   Tag,
   Sparkles,
   BookOpen,
+  MapPin,
 } from 'lucide-react'
 
 const navigation = [
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Cupons', href: '/painel/cupons', icon: Tag },
   { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
   { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
+  { name: 'Bairros', href: '/painel/bairros', icon: MapPin },
   { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
   { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
   { name: 'Planos', href: '/painel/planos', icon: Sparkles },

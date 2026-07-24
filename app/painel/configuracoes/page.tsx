@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
@@ -260,7 +261,9 @@ export default function ConfiguracoesPage() {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Mostrada para o cliente antes de enviar o pedido pelo cardápio online. Deixe 0 se não cobrar entrega
-                  (ou se preferir combinar o valor depois, pelo WhatsApp).
+                  (ou se preferir combinar o valor depois, pelo WhatsApp). Também serve de reserva quando a{' '}
+                  <Link href="/painel/bairros" className="text-primary-600 hover:underline">taxa por bairro</Link>{' '}
+                  está ativa mas o bairro do cliente não está cadastrado.
                 </p>
               </div>
             )}

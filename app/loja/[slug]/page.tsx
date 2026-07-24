@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { PublicEstablishment, Category, PublicProduct } from '@/types'
 import PublicMenuClient from './PublicMenuClient'
+import { getBaseUrl } from '@/lib/baseUrl'
 import { Store } from 'lucide-react'
 
 // Recarrega os dados do cardápio a cada 30s no máximo — rápido o
@@ -75,5 +76,29 @@ export default async function PublicMenuPage({ params }: { params: { slug: strin
 
   const { categories, products } = await getMenu(establishment.id)
 
-  return <PublicMenuClient establishment={establishment} categories={categories} products={products} />
+  // Dados estruturados (schema.org) pra buscadores entenderem que é um
+  // estabelecimento comercial com cardápio — LocalBusiness serve pra
+  // qualquer tipo de loja (não só restaurante), já que o app atende
+  // desde pizzaria até loja de roupa.
+  const baseUrl = getBaseUrl()
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: establishment.name,
+    url: `${baseUrl}/loja/${establishment.slug}`,
+    ...(establishment.logo_url && { image: establishment.logo_url }),
+    ...(establishment.address && { address: establishment.address }),
+    ...(establishment.whatsapp_number && { telephone: establishment.whatsapp_number }),
+  }
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <PublicMenuClient establishment={establishment} categories={categories} products={products} />
+    </>
+  )
 }

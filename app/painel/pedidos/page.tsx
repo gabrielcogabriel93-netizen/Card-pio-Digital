@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { playNotificationSound } from '@/lib/sound'
 import { useEscapeKey } from '@/lib/useEscapeKey'
+import { PushNotificationToggle } from '@/components/PushNotificationToggle'
 import type { Order, OrderItem } from '@/types'
 import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin } from 'lucide-react'
 
@@ -35,6 +36,7 @@ export default function PedidosPage() {
   // aí o Kanban some com as colunas "Confirmado"/"Em Preparo" e o pedido
   // pula direto de Pendente para Concluído num clique só.
   const [trackingEnabled, setTrackingEnabled] = useState(true)
+  const [establishmentId, setEstablishmentId] = useState('')
 
   const allColumns: { status: Order['status']; label: string; icon: any; color: keyof typeof columnStyles }[] = [
     { status: 'pending', label: 'Pendente', icon: Clock, color: 'yellow' },
@@ -102,6 +104,7 @@ export default function PedidosPage() {
       if (!est) return
 
       setTrackingEnabled(est.order_tracking_enabled ?? true)
+      setEstablishmentId(est.id)
 
       const { data, error } = await supabase
         .from('orders')
@@ -261,15 +264,18 @@ export default function PedidosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
           <p className="text-gray-600 mt-1">Gerencie os pedidos dos seus clientes.</p>
         </div>
-        <div className="relative sm:w-72">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nome ou telefone..."
-            className="input-field pl-10"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {establishmentId && <PushNotificationToggle establishmentId={establishmentId} />}
+          <div className="relative sm:w-72">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nome ou telefone..."
+              className="input-field pl-10"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -392,6 +398,7 @@ export default function PedidosPage() {
                             {selectedOrder.delivery_address.street}, {selectedOrder.delivery_address.number}
                             {selectedOrder.delivery_address.complement && ` - ${selectedOrder.delivery_address.complement}`}
                             {' — '}{selectedOrder.delivery_address.neighborhood}
+                            {selectedOrder.delivery_address.zip_code && ` (CEP ${selectedOrder.delivery_address.zip_code})`}
                             {selectedOrder.delivery_address.reference && (
                               <span className="block text-xs text-gray-500">Referência: {selectedOrder.delivery_address.reference}</span>
                             )}

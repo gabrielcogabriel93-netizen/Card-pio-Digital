@@ -16,7 +16,7 @@ export default function CuponsPage() {
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     code: '',
-    discount_type: 'percent' as 'percent' | 'fixed',
+    discount_type: 'percent' as 'percent' | 'fixed' | 'free_shipping',
     discount_value: '',
     expires_at: '',
     max_uses: '',
@@ -99,7 +99,7 @@ export default function CuponsPage() {
         establishment_id: establishmentId,
         code: formData.code.trim().toUpperCase(),
         discount_type: formData.discount_type,
-        discount_value: parseFloat(formData.discount_value) || 0,
+        discount_value: formData.discount_type === 'free_shipping' ? 0 : (parseFloat(formData.discount_value) || 0),
         expires_at: formData.expires_at ? new Date(formData.expires_at + 'T23:59:59').toISOString() : null,
         max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
         is_active: formData.is_active,
@@ -149,6 +149,7 @@ export default function CuponsPage() {
   }
 
   const formatDiscount = (coupon: Coupon) => {
+    if (coupon.discount_type === 'free_shipping') return 'Frete grátis'
     return coupon.discount_type === 'percent'
       ? `${coupon.discount_value}%`
       : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(coupon.discount_value)
@@ -233,7 +234,9 @@ export default function CuponsPage() {
                   </div>
                 </div>
 
-                <p className="text-2xl font-bold text-primary-600 mb-2">{formatDiscount(coupon)} de desconto</p>
+                <p className="text-2xl font-bold text-primary-600 mb-2">
+                  {formatDiscount(coupon)}{coupon.discount_type !== 'free_shipping' ? ' de desconto' : ''}
+                </p>
 
                 <div className="text-xs text-gray-500 space-y-0.5">
                   <p>Usos: {coupon.used_count}{coupon.max_uses ? ` / ${coupon.max_uses}` : ''}</p>
@@ -285,27 +288,36 @@ export default function CuponsPage() {
                   <select
                     className="input-field"
                     value={formData.discount_type}
-                    onChange={(e) => setFormData({ ...formData, discount_type: e.target.value as 'percent' | 'fixed' })}
+                    onChange={(e) => setFormData({ ...formData, discount_type: e.target.value as 'percent' | 'fixed' | 'free_shipping' })}
                   >
                     <option value="percent">Percentual (%)</option>
                     <option value="fixed">Valor fixo (R$)</option>
+                    <option value="free_shipping">Frete grátis</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {formData.discount_type === 'percent' ? 'Desconto (%)' : 'Desconto (R$)'} *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={formData.discount_type === 'percent' ? '100' : undefined}
-                    className="input-field"
-                    value={formData.discount_value}
-                    onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
-                    required
-                  />
-                </div>
+                {formData.discount_type === 'free_shipping' ? (
+                  <div className="flex items-end">
+                    <p className="text-xs text-gray-500 pb-2.5">
+                      Zera a taxa de entrega do pedido — não desconta o valor dos produtos.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {formData.discount_type === 'percent' ? 'Desconto (%)' : 'Desconto (R$)'} *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={formData.discount_type === 'percent' ? '100' : undefined}
+                      className="input-field"
+                      value={formData.discount_value}
+                      onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

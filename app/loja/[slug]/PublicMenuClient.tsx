@@ -9,6 +9,7 @@ import { isWithinOpeningHours } from '@/lib/hours'
 import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
+import { lookupCep, formatCep } from '@/lib/cep'
 import {
   getSavedCustomer,
   saveCustomer,
@@ -21,7 +22,7 @@ import {
   saveAddress,
   type SavedAddress,
 } from '@/lib/customerStorage'
-import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem } from '@/types'
+import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood } from '@/types'
 import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList } from 'lucide-react'
 
 export default function PublicMenuClient({
@@ -43,16 +44,21 @@ export default function PublicMenuClient({
   const offersDelivery = establishment.offers_delivery ?? true
   const offersPickup = establishment.offers_pickup ?? true
   const [orderType, setOrderType] = useState<'delivery' | 'pickup'>(offersDelivery ? 'delivery' : 'pickup')
-  const [address, setAddress] = useState<SavedAddress>({ street: '', number: '', neighborhood: '', complement: '', reference: '' })
+  const [address, setAddress] = useState<SavedAddress>({ street: '', number: '', neighborhood: '', complement: '', reference: '', zip_code: '' })
+  const [cepLoading, setCepLoading] = useState(false)
+  const useNeighborhoodFee = establishment.use_neighborhood_delivery_fee ?? false
+  const [neighborhoods, setNeighborhoods] = useState<PublicDeliveryNeighborhood[]>([])
+  const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string>('')
   const [website, setWebsite] = useState('') // honeypot: campo invisível, só bot preenche
   const [formOpenedAt] = useState(() => Date.now())
   const [saving, setSaving] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [couponInput, setCouponInput] = useState('')
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountType: 'percent' | 'fixed'; discountValue: number } | null>(null)
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountType: 'percent' | 'fixed' | 'free_shipping'; discountValue: number } | null>(null)
   const [couponError, setCouponError] = useState<string | null>(null)
   const [couponLoading, setCouponLoading] = useState(false)
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+  const [blockedWhatsAppUrl, setBlockedWhatsAppUrl] = useState<string | null>(null)
 
   // A loja fecha automaticamente fora do horário configurado, mesmo que o
   // lojista tenha esquecido de virar a chave manual para "fechado".
@@ -61,9 +67,20 @@ export default function PublicMenuClient({
     return isWithinOpeningHours(establishment.opening_hours)
   }, [establishment.is_open, establishment.opening_hours])
 
+  const selectedNeighborhood = neighborhoods.find(n => n.id === selectedNeighborhoodId) || null
+
   // Taxa de entrega só entra na conta quando o cliente escolhe "Entrega" —
   // antes disso era cobrada em qualquer pedido, mesmo retirando no local.
-  const deliveryFee = orderType === 'delivery' ? (Number(establishment.delivery_fee) || 0) : 0
+  // Se a loja usa taxa por bairro e o bairro escolhido tem valor próprio,
+  // esse valor vale em vez da taxa padrão do estabelecimento.
+  const deliveryFee = orderType === 'delivery'
+    ? (useNeighborhoodFee && selectedNeighborhood
+        ? Number(selectedNeighborhood.fee) || 0
+        : Number(establishment.delivery_fee) || 0)
+    : 0
+  const isFreeShippingCoupon = appliedCoupon?.discountType === 'free_shipping'
+  // Taxa realmente cobrada — zerada quando o cupom aplicado é de frete grátis.
+  const effectiveDeliveryFee = isFreeShippingCoupon ? 0 : deliveryFee
 
   // Aplica a cor de marca da loja (Configurações > Cor do tema) como CSS
   // custom properties só dentro desta árvore — todas as classes
@@ -97,6 +114,27 @@ export default function PublicMenuClient({
     if (savedLastOrderId) setLastOrderId(savedLastOrderId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [establishment.id])
+
+  // Lista de bairros com frete próprio, só quando a loja usa esse modo —
+  // vira um <select> no lugar do campo de texto livre de bairro.
+  useEffect(() => {
+    if (!useNeighborhoodFee) return
+    const loadNeighborhoods = async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('public_delivery_neighborhoods')
+        .select('*')
+        .eq('establishment_id', establishment.id)
+        .order('name')
+
+      if (error) {
+        logError('loja', 'erro ao carregar bairros de entrega', error)
+        return
+      }
+      setNeighborhoods((data || []) as PublicDeliveryNeighborhood[])
+    }
+    loadNeighborhoods()
+  }, [useNeighborhoodFee, establishment.id])
 
   // Mantém o carrinho salvo a cada mudança, para sobreviver a um refresh
   // acidental da página (fraqueza comum de navegador mobile).
@@ -201,8 +239,39 @@ export default function PublicMenuClient({
     setCouponError(null)
   }
 
+  // Quando a loja usa taxa por bairro E já tem bairro cadastrado, o
+  // cliente precisa escolher um da lista em vez de só digitar o nome.
+  const usingNeighborhoodSelect = useNeighborhoodFee && neighborhoods.length > 0
   const isAddressValid = orderType === 'pickup' ||
-    (address.street.trim() && address.number.trim() && address.neighborhood.trim())
+    (address.street.trim() && address.number.trim() &&
+      (usingNeighborhoodSelect ? !!selectedNeighborhoodId : !!address.neighborhood.trim()))
+
+  const handleCepBlur = async () => {
+    const digits = (address.zip_code || '').replace(/\D/g, '')
+    if (digits.length !== 8) return
+
+    setCepLoading(true)
+    const result = await lookupCep(digits)
+    setCepLoading(false)
+
+    if (result) {
+      setAddress((prev) => ({
+        ...prev,
+        street: result.street || prev.street,
+        // No modo de bairro por lista, o texto livre não é usado pra
+        // enviar o pedido — só serve de referência caso o bairro do CEP
+        // não esteja cadastrado (ver match abaixo).
+        neighborhood: result.neighborhood || prev.neighborhood,
+      }))
+
+      if (useNeighborhoodFee && result.neighborhood) {
+        const match = neighborhoods.find(
+          n => n.name.trim().toLowerCase() === result.neighborhood.trim().toLowerCase()
+        )
+        if (match) setSelectedNeighborhoodId(match.id)
+      }
+    }
+  }
 
   const handleSendOrder = async () => {
     if (!customerName.trim() || !customerPhone.trim() || !isAddressValid) return
@@ -222,6 +291,16 @@ export default function PublicMenuClient({
       log('loja', 'pedido bloqueado (submissão rápida demais)')
       return
     }
+
+    // Abre a aba do WhatsApp AGORA, em branco, ainda dentro do clique
+    // síncrono do usuário. Se esperarmos o pedido salvar no banco (que
+    // tem um `await` de rede) pra só então chamar window.open, vários
+    // navegadores — principalmente iOS Safari e o navegador embutido do
+    // Instagram/Facebook — não reconhecem mais isso como gesto direto do
+    // usuário e bloqueiam o popup EM SILÊNCIO: o pedido salva, mas o
+    // WhatsApp nunca abre e ninguém percebe. Só preenchemos a URL de
+    // verdade depois que a mensagem estiver pronta.
+    const whatsappWindow = window.open('', '_blank')
 
     setSaving(true)
     log('loja', 'enviando pedido...', { itens: cart.length, establishmentId: establishment.id })
@@ -252,7 +331,7 @@ export default function PublicMenuClient({
           variations: item.variations,
         })),
         subtotal,
-        shipping_fee: deliveryFee,
+        shipping_fee: effectiveDeliveryFee,
         discount: discountAmount,
         coupon_code: appliedCoupon?.code || null,
         total,
@@ -265,6 +344,8 @@ export default function PublicMenuClient({
           neighborhood: address.neighborhood.trim(),
           complement: address.complement?.trim() || null,
           reference: address.reference?.trim() || null,
+          zip_code: address.zip_code?.trim() || null,
+          neighborhood_id: usingNeighborhoodSelect ? (selectedNeighborhoodId || null) : null,
         } : null,
         notes: notes.trim() || null,
       })
@@ -281,6 +362,7 @@ export default function PublicMenuClient({
         message += `📍 *Endereço:* ${address.street.trim()}, ${address.number.trim()}`
         if (address.complement?.trim()) message += ` - ${address.complement.trim()}`
         message += ` - ${address.neighborhood.trim()}`
+        if (address.zip_code?.trim()) message += `\n   CEP: ${address.zip_code.trim()}`
         if (address.reference?.trim()) message += `\n   Referência: ${address.reference.trim()}`
         message += `\n`
       }
@@ -297,10 +379,12 @@ export default function PublicMenuClient({
         message += ` = R$ ${item.total_price.toFixed(2)}`
       })
 
-      if (deliveryFee > 0) {
-        message += `\n\n🛵 *Taxa de entrega:* R$ ${deliveryFee.toFixed(2)}`
+      if (isFreeShippingCoupon && deliveryFee > 0) {
+        message += `\n\n🚚 *Frete grátis* (cupom ${appliedCoupon?.code})`
+      } else if (effectiveDeliveryFee > 0) {
+        message += `\n\n🛵 *Taxa de entrega:* R$ ${effectiveDeliveryFee.toFixed(2)}`
       }
-      if (appliedCoupon && discountAmount > 0) {
+      if (appliedCoupon && (discountAmount > 0 || isFreeShippingCoupon) && !isFreeShippingCoupon) {
         message += `\n🏷️ *Cupom ${appliedCoupon.code}:* -R$ ${discountAmount.toFixed(2)}`
       }
       if (notes.trim()) {
@@ -320,7 +404,16 @@ export default function PublicMenuClient({
       const whatsappUrl = `https://wa.me/${toWhatsAppNumber(establishment.whatsapp_number)}?text=${encodedMessage}`
 
       log('loja', 'abrindo WhatsApp', { whatsappNumber: establishment.whatsapp_number })
-      window.open(whatsappUrl, '_blank')
+      if (whatsappWindow) {
+        whatsappWindow.location.href = whatsappUrl
+      } else {
+        // Mesmo abrindo em branco de forma síncrona, algum bloqueador
+        // manual/extensão pode ter impedido. Não deixa o pedido "sumir"
+        // silenciosamente — guarda a URL pra mostrar um botão de abrir
+        // manualmente logo abaixo.
+        log('loja', 'popup do WhatsApp bloqueado mesmo com abertura síncrona')
+        setBlockedWhatsAppUrl(whatsappUrl)
+      }
       setLastOrderId(orderId)
       saveLastOrder(establishment.id, orderId)
       saveCustomer({ name: customerName.trim(), phone: customerPhone.trim() })
@@ -330,11 +423,13 @@ export default function PublicMenuClient({
       setCustomerName('')
       setCustomerPhone('')
       setNotes('')
+      setSelectedNeighborhoodId('')
       setShowCart(false)
       removeCoupon()
     } catch (err: any) {
       logError('loja', 'erro ao enviar pedido', err)
       logCritical('loja:enviar-pedido', err.message, err, establishment.id)
+      whatsappWindow?.close() // fecha a aba em branco — o pedido não foi salvo
       alert('Erro ao enviar pedido: ' + err.message)
     } finally {
       setSaving(false)
@@ -345,9 +440,11 @@ export default function PublicMenuClient({
   const discountAmount = appliedCoupon
     ? appliedCoupon.discountType === 'percent'
       ? cartSubtotal * (appliedCoupon.discountValue / 100)
-      : Math.min(appliedCoupon.discountValue, cartSubtotal)
+      : appliedCoupon.discountType === 'fixed'
+        ? Math.min(appliedCoupon.discountValue, cartSubtotal)
+        : 0 // free_shipping não desconta o subtotal, desconta o frete (effectiveDeliveryFee)
     : 0
-  const cartTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee)
+  const cartTotal = Math.max(0, cartSubtotal - discountAmount + effectiveDeliveryFee)
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
   const filteredProducts = activeCategory === 'all'
@@ -455,6 +552,26 @@ export default function PublicMenuClient({
 
       {/* Products */}
       <main className="max-w-2xl mx-auto px-4 py-6 pb-32">
+        {blockedWhatsAppUrl && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-medium text-amber-800">Pedido salvo!</p>
+              <p className="text-sm text-amber-600">
+                Seu navegador bloqueou a abertura automática do WhatsApp — toque no botão para enviar.
+              </p>
+            </div>
+            <a
+              href={blockedWhatsAppUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setBlockedWhatsAppUrl(null)}
+              className="btn-primary text-sm py-2 px-3 flex-shrink-0"
+            >
+              Abrir WhatsApp
+            </a>
+          </div>
+        )}
+
         {lastOrderId && (
           <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6 flex items-center justify-between gap-3">
             <div>
@@ -646,10 +763,16 @@ export default function PublicMenuClient({
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}
-                {deliveryFee > 0 && (
+                {deliveryFee > 0 && isFreeShippingCoupon && (
+                  <div className="flex justify-between text-sm text-primary-600">
+                    <span>Taxa de entrega</span>
+                    <span>Grátis</span>
+                  </div>
+                )}
+                {effectiveDeliveryFee > 0 && (
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Taxa de entrega</span>
-                    <span>{formatCurrency(deliveryFee)}</span>
+                    <span>{formatCurrency(effectiveDeliveryFee)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold pt-1">
@@ -752,6 +875,24 @@ export default function PublicMenuClient({
 
               {orderType === 'delivery' ? (
                 <div className="space-y-3 bg-gray-50 rounded-lg p-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">CEP</label>
+                    <div className="relative max-w-[160px]">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="input-field text-sm"
+                        value={address.zip_code}
+                        onChange={(e) => setAddress({ ...address, zip_code: formatCep(e.target.value) })}
+                        onBlur={handleCepBlur}
+                        placeholder="00000-000"
+                      />
+                      {cepLoading && (
+                        <Loader2 size={14} className="animate-spin text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Preenche rua e bairro automaticamente (opcional).</p>
+                  </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700 mb-1">Rua *</label>
@@ -778,14 +919,35 @@ export default function PublicMenuClient({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Bairro *</label>
-                    <input
-                      type="text"
-                      className="input-field text-sm"
-                      value={address.neighborhood}
-                      onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
-                      placeholder="Bairro"
-                      required
-                    />
+                    {usingNeighborhoodSelect ? (
+                      <select
+                        className="input-field text-sm"
+                        value={selectedNeighborhoodId}
+                        onChange={(e) => {
+                          const id = e.target.value
+                          setSelectedNeighborhoodId(id)
+                          const n = neighborhoods.find(n => n.id === id)
+                          if (n) setAddress({ ...address, neighborhood: n.name })
+                        }}
+                        required
+                      >
+                        <option value="">Selecione o bairro</option>
+                        {neighborhoods.map((n) => (
+                          <option key={n.id} value={n.id}>
+                            {n.name} — {formatCurrency(Number(n.fee))}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="input-field text-sm"
+                        value={address.neighborhood}
+                        onChange={(e) => setAddress({ ...address, neighborhood: e.target.value })}
+                        placeholder="Bairro"
+                        required
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Complemento</label>
@@ -842,10 +1004,16 @@ export default function PublicMenuClient({
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}
-                {deliveryFee > 0 && (
+                {deliveryFee > 0 && isFreeShippingCoupon && (
+                  <div className="flex justify-between text-sm text-primary-600 mt-1">
+                    <span>Taxa de entrega</span>
+                    <span>Grátis</span>
+                  </div>
+                )}
+                {effectiveDeliveryFee > 0 && (
                   <div className="flex justify-between text-sm text-gray-600 mt-1">
                     <span>Taxa de entrega</span>
-                    <span>{formatCurrency(deliveryFee)}</span>
+                    <span>{formatCurrency(effectiveDeliveryFee)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg mt-2 mb-4">

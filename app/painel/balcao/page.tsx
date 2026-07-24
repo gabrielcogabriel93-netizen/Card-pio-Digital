@@ -173,6 +173,7 @@ export default function BalcaoPage() {
         total,
         status: 'completed',
         source: 'balcao',
+        order_type: 'pickup', // venda presencial — não é "entrega" nem tem endereço
         payment_method: paymentMethod,
       })
 

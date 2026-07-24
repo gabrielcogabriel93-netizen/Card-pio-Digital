@@ -69,8 +69,20 @@
 - [x] 9.10 - Aba Tutorial explicando cada funcionalidade do painel
 - [x] 9.11 - Landing page atualizada com as novas funcionalidades
 
+## FASE 10: Correções técnicas + frete por bairro + notificações push
+- [x] 10.1 - Corrigido popup do WhatsApp bloqueado silenciosamente (window.open síncrono no clique + fallback manual se mesmo assim for bloqueado)
+- [x] 10.2 - Trava de contraste mínimo na cor de marca gerada (`lib/theme.ts`) — evita texto branco ilegível em cor clara demais
+- [x] 10.3 - Balcão passa a gravar `order_type: 'pickup'` explicitamente (antes caía no default 'delivery' do banco)
+- [x] 10.4 - Cupom com tipo "frete grátis", além de percentual/fixo
+- [x] 10.5 - Busca de endereço por CEP (ViaCEP) no checkout de entrega
+- [x] 10.6 - Dashboard com métricas de entrega x retirada x balcão do dia e indicador do tipo de negócio/acompanhamento
+- [x] 10.7 - SEO técnico: sitemap dinâmico (`app/sitemap.ts`), `robots.txt` dinâmico (`app/robots.ts`) e JSON-LD por loja
+- [x] 10.8 - Taxa de entrega por bairro (`013_taxa_entrega_por_bairro.sql` + `/painel/bairros`): lojista cadastra bairro + valor, cliente escolhe da lista no checkout
+- [x] 10.9 - Notificações Push (`014_push_subscriptions.sql` + `/api/push/send` + `public/sw.js`): avisa o lojista de pedido novo mesmo com o painel fechado — tem passo manual de configuração pós-deploy, ver README
+
 ## Pendências conhecidas (fora do escopo desta rodada)
 - [ ] Planos pagos / limites de uso por plano (hoje só existe o aviso de doação — sem gate de feature)
 - [ ] Paginação em listagens grandes
 - [ ] Ícones de marca reais (os atuais em public/icons são placeholders gerados)
 - [ ] "Meus Pedidos" por telefone não tem proteção contra enumeração de números (ver comentário de segurança em `012_historico_pedidos_cliente.sql`) — aceitável para o porte atual, mas vale revisar se o produto crescer
+- [ ] Um usuário só pode ter um estabelecimento (`owner_id` sempre com `.single()`) — sem suporte a multi-loja por dono
