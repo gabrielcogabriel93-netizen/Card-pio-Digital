@@ -26,6 +26,8 @@ import {
   type SavedAddress,
 } from '@/lib/customerStorage'
 import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress } from '@/types'
+import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
+import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy } from 'lucide-react'
 
 export default function PublicMenuClient({
@@ -40,6 +42,7 @@ export default function PublicMenuClient({
   const [cart, setCart] = useState<CartItem<PublicProduct>[]>([])
   const [showCart, setShowCart] = useState(false)
   const [showVariations, setShowVariations] = useState<PublicProduct | null>(null)
+  const [showPizzaOrder, setShowPizzaOrder] = useState<PublicProduct | null>(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -47,6 +50,7 @@ export default function PublicMenuClient({
   const [paymentMethod, setPaymentMethod] = useState('')
   const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null)
   const [pixCopied, setPixCopied] = useState(false)
+  const [mpCheckout, setMpCheckout] = useState<{ orderId: string; amount: number; qrCode: string; qrCodeBase64: string } | null>(null)
   const [birthDate, setBirthDate] = useState('')
   const offersDelivery = establishment.offers_delivery ?? true
   const offersPickup = establishment.offers_pickup ?? true
@@ -272,6 +276,11 @@ export default function PublicMenuClient({
   }
 
   const addToCart = async (product: PublicProduct) => {
+    if (product.pizza_flavor_id) {
+      setShowPizzaOrder(product)
+      return
+    }
+
     const supabase = createClient()
     const { data: groups } = await supabase
       .from('variation_groups')
@@ -285,6 +294,34 @@ export default function PublicMenuClient({
     }
 
     addToCartDirect(product, [])
+  }
+
+  // Item de pizza: o preço já vem calculado pela regra do sabor mais caro
+  // (lib/pizza.ts), não é a soma dos price_delta das variações — por isso
+  // não passa por addToCartDirect, que soma os deltas.
+  const addPizzaItemToCart = (product: PublicProduct, result: PizzaOrderResult) => {
+    const variationsKey = result.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|')
+    const existingIndex = cart.findIndex(
+      item => item.product.id === product.id &&
+      item.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|') === variationsKey
+    )
+
+    if (existingIndex >= 0) {
+      const updated = [...cart]
+      updated[existingIndex].quantity += 1
+      updated[existingIndex].total_price = updated[existingIndex].unit_price * updated[existingIndex].quantity
+      setCart(updated)
+    } else {
+      setCart([...cart, {
+        product,
+        quantity: 1,
+        variations: result.variations,
+        unit_price: result.unitPrice,
+        total_price: result.unitPrice,
+      }])
+    }
+
+    setShowPizzaOrder(null)
   }
 
   const addToCartDirect = (product: PublicProduct, variations: CartItem<PublicProduct>['variations']) => {
@@ -427,6 +464,10 @@ export default function PublicMenuClient({
       return
     }
 
+    // Pix automático (Mercado Pago) não passa pelo WhatsApp — o cliente
+    // paga e o sistema confirma sozinho, sem precisar dessa aba.
+    const isMpAutomatic = paymentMethod === 'mercadopago_pix'
+
     // Abre a aba do WhatsApp AGORA, em branco, ainda dentro do clique
     // síncrono do usuário. Se esperarmos o pedido salvar no banco (que
     // tem um `await` de rede) pra só então chamar window.open, vários
@@ -435,7 +476,7 @@ export default function PublicMenuClient({
     // usuário e bloqueiam o popup EM SILÊNCIO: o pedido salva, mas o
     // WhatsApp nunca abre e ninguém percebe. Só preenchemos a URL de
     // verdade depois que a mensagem estiver pronta.
-    const whatsappWindow = window.open('', '_blank')
+    const whatsappWindow = isMpAutomatic ? null : window.open('', '_blank')
 
     setSaving(true)
     log('loja', 'enviando pedido...', { itens: cart.length, establishmentId: establishment.id })
@@ -557,6 +598,45 @@ export default function PublicMenuClient({
         logError('loja', 'erro ao salvar perfil/endereço do cliente', profileErr)
       }
 
+      // Pix automático: em vez de montar a mensagem do WhatsApp, gera a
+      // cobrança no Mercado Pago e mostra o QR — a confirmação acontece
+      // sozinha (webhook), sem o cliente precisar fazer mais nada.
+      if (isMpAutomatic) {
+        try {
+          const response = await fetch('/api/mercadopago/create-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId }),
+          })
+          const data = await response.json()
+          if (!response.ok) throw new Error(data.error || 'Erro ao gerar o Pix')
+
+          saveCustomer({ name: customerName.trim(), phone: customerPhone.trim() })
+          setLastOrderId(orderId)
+          saveLastOrder(establishment.id, orderId)
+          setMpCheckout({ orderId, amount: total, qrCode: data.qrCode, qrCodeBase64: data.qrCodeBase64 })
+
+          setCart([])
+          setShowCustomerModal(false)
+          setCustomerName('')
+          setCustomerPhone('')
+          setNotes('')
+          setPaymentMethod('')
+          setSelectedNeighborhoodId('')
+          setSelectedAddressId('')
+          setAddressLabel('')
+          setAddressMode('new')
+          setShowCart(false)
+          removeCoupon()
+        } catch (mpErr: any) {
+          logError('loja', 'erro ao gerar pagamento Mercado Pago', mpErr)
+          alert('Erro ao gerar o Pix: ' + mpErr.message + '. Tente novamente ou escolha outra forma de pagamento.')
+        } finally {
+          setSaving(false)
+        }
+        return
+      }
+
       let message = `🛵 *Novo Pedido - ${establishment.name}*\n\n`
       message += `👤 *Cliente:* ${customerName.trim()}\n`
       message += `📱 *Telefone:* ${customerPhone.trim()}\n`
@@ -576,6 +656,7 @@ export default function PublicMenuClient({
         if (item.variations.length > 0) {
           item.variations.forEach(v => {
             message += `\n   - ${v.group_name}: ${v.option_name}`
+            if (v.price_delta > 0) message += ` (+R$ ${v.price_delta.toFixed(2)})`
           })
         }
         message += `\n   Qtd: ${item.quantity} x R$ ${item.unit_price.toFixed(2)}`
@@ -659,6 +740,13 @@ export default function PublicMenuClient({
       : 0
   const cartTotal = Math.max(0, cartSubtotal - discountAmount + effectiveDeliveryFee)
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+  // Quando a loja tem Pix automático (Mercado Pago) ativo, esconde a opção
+  // de Pix manual pra não confundir o cliente com duas variantes — e
+  // vice-versa, só mostra a automática se a loja realmente tiver conectado.
+  const visiblePaymentMethods = PAYMENT_METHODS.filter((p) =>
+    establishment.mercadopago_pix_enabled ? p.value !== 'pix' : p.value !== 'mercadopago_pix'
+  )
 
   const canShowPixQr = paymentMethod === 'pix' && !!establishment.pix_key && !!establishment.pix_city && cartTotal > 0
 
@@ -1095,6 +1183,30 @@ export default function PublicMenuClient({
         </div>
       )}
 
+      {/* Mercado Pago Pix Checkout */}
+      {mpCheckout && (
+        <MercadoPagoPixCheckout
+          orderId={mpCheckout.orderId}
+          amount={mpCheckout.amount}
+          qrCode={mpCheckout.qrCode}
+          qrCodeBase64={mpCheckout.qrCodeBase64}
+          trackingUrl={`${window.location.origin}/pedido/${mpCheckout.orderId}`}
+          onClose={() => setMpCheckout(null)}
+        />
+      )}
+
+      {/* Pizza Order Modal */}
+      {showPizzaOrder && showPizzaOrder.pizza_flavor_id && (
+        <PizzaOrderModal
+          productName={showPizzaOrder.name}
+          productImageUrl={showPizzaOrder.image_url}
+          pizzaFlavorId={showPizzaOrder.pizza_flavor_id}
+          establishmentId={showPizzaOrder.establishment_id}
+          onConfirm={(result) => addPizzaItemToCart(showPizzaOrder, result)}
+          onClose={() => setShowPizzaOrder(null)}
+        />
+      )}
+
       {/* Variations Modal */}
       {showVariations && (
         <VariationsModal
@@ -1408,12 +1520,14 @@ export default function PublicMenuClient({
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 >
                   <option value="">Combinar pelo WhatsApp</option>
-                  {PAYMENT_METHODS.map((p) => (
+                  {visiblePaymentMethods.map((p) => (
                     <option key={p.value} value={p.value}>{p.label}</option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  A loja confirma com você pelo WhatsApp — isso só adianta a informação.
+                  {paymentMethod === 'mercadopago_pix'
+                    ? 'Confirmação automática — assim que você pagar, a loja já recebe o pedido liberado pra preparar.'
+                    : 'A loja confirma com você pelo WhatsApp — isso só adianta a informação.'}
                 </p>
               </div>
 
@@ -1438,6 +1552,14 @@ export default function PublicMenuClient({
                     Essa loja ainda não configurou Pix automático — combine o pagamento pelo WhatsApp.
                   </p>
                 )
+              )}
+
+              {paymentMethod === 'mercadopago_pix' && (
+                <p className="text-xs text-gray-500 -mt-2 bg-gray-50 rounded-lg p-3">
+                  Ao enviar, vamos gerar um QR Code Pix de {formatCurrency(cartTotal)} pra você pagar na
+                  hora — a loja recebe direto na conta dela e o pedido é liberado sozinho assim que o
+                  pagamento cair.
+                </p>
               )}
 
               <div>

@@ -28,6 +28,7 @@ interface OrderStatusData {
   establishment_slug: string
   establishment_theme_color: string | null
   order_tracking_enabled: boolean
+  payment_status: 'pending' | 'approved' | 'rejected' | 'cancelled' | null
 }
 
 const FULL_STEPS: { status: OrderStatus; label: string; icon: any }[] = [
@@ -223,7 +224,16 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
             {order.payment_method && (
               <div className="flex justify-between text-sm text-gray-600 pt-1">
                 <span className="flex items-center gap-1"><Wallet size={12} /> Pagamento</span>
-                <span>{paymentMethodLabel(order.payment_method)}</span>
+                <span className="flex items-center gap-1.5">
+                  {paymentMethodLabel(order.payment_method)}
+                  {order.payment_method === 'mercadopago_pix' && (
+                    order.payment_status === 'approved' ? (
+                      <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">✅ Pago</span>
+                    ) : (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">⏳ Aguardando</span>
+                    )
+                  )}
+                </span>
               </div>
             )}
           </div>

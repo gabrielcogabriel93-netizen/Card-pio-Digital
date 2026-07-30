@@ -8,6 +8,7 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
+import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle } from 'lucide-react'
 
 export default function BalcaoPage() {
@@ -18,6 +19,7 @@ export default function BalcaoPage() {
   const [filterCategory, setFilterCategory] = useState('all')
   const [loading, setLoading] = useState(true)
   const [showVariations, setShowVariations] = useState<Product | null>(null)
+  const [showPizzaOrder, setShowPizzaOrder] = useState<Product | null>(null)
   const [selectedVariations, setSelectedVariations] = useState<Record<string, string[]>>({})
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -71,6 +73,11 @@ export default function BalcaoPage() {
   }
 
   const addToCart = async (product: Product) => {
+    if (product.pizza_flavor_id) {
+      setShowPizzaOrder(product)
+      return
+    }
+
     // Verificar se tem variações
     const supabase = createClient()
     const { data: groups } = await supabase
@@ -86,6 +93,33 @@ export default function BalcaoPage() {
     }
 
     addToCartDirect(product, [])
+  }
+
+  // Item de pizza: preço já calculado pela regra do sabor mais caro
+  // (lib/pizza.ts) — não passa pela soma de price_delta do addToCartDirect.
+  const addPizzaItemToCart = (product: Product, result: PizzaOrderResult) => {
+    const variationsKey = result.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|')
+    const existingIndex = cart.findIndex(
+      item => item.product.id === product.id &&
+      item.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|') === variationsKey
+    )
+
+    if (existingIndex >= 0) {
+      const updated = [...cart]
+      updated[existingIndex].quantity += 1
+      updated[existingIndex].total_price = updated[existingIndex].unit_price * updated[existingIndex].quantity
+      setCart(updated)
+    } else {
+      setCart([...cart, {
+        product,
+        quantity: 1,
+        variations: result.variations,
+        unit_price: result.unitPrice,
+        total_price: result.unitPrice,
+      }])
+    }
+
+    setShowPizzaOrder(null)
   }
 
   const addToCartDirect = (product: Product, variations: CartItem['variations']) => {
@@ -384,6 +418,18 @@ export default function BalcaoPage() {
           </div>
         )}
       </div>
+
+      {/* Pizza Order Modal */}
+      {showPizzaOrder && showPizzaOrder.pizza_flavor_id && (
+        <PizzaOrderModal
+          productName={showPizzaOrder.name}
+          productImageUrl={showPizzaOrder.image_url}
+          pizzaFlavorId={showPizzaOrder.pizza_flavor_id}
+          establishmentId={showPizzaOrder.establishment_id}
+          onConfirm={(result) => addPizzaItemToCart(showPizzaOrder, result)}
+          onClose={() => setShowPizzaOrder(null)}
+        />
+      )}
 
       {/* Variations Modal */}
       {showVariations && (

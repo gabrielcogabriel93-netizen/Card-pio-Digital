@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
 import { formatPhoneNumber } from '@/lib/phone'
 import { PIX_KEY_TYPES } from '@/lib/pix'
-import type { Establishment, BusinessType } from '@/types'
-import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode } from 'lucide-react'
+import type { Establishment, BusinessType, BillingMode } from '@/types'
+import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink } from 'lucide-react'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   { value: 'preparo', title: 'Tem preparo', description: 'Comida, lanches, bebidas montadas na hora.', icon: ChefHat },
@@ -40,7 +41,13 @@ export default function ConfiguracoesPage() {
     pix_key_type: 'cpf',
     pix_city: '',
     custom_domain: '',
+    billing_mode: 'comissao' as BillingMode,
   })
+  const [mpStatus, setMpStatus] = useState<{ connected: boolean; email: string | null } | null>(null)
+  const [mpStatusLoading, setMpStatusLoading] = useState(true)
+  const [mpActionLoading, setMpActionLoading] = useState(false)
+  const [mpBanner, setMpBanner] = useState<string | null>(null)
+  const router = useRouter()
   const [openingHours, setOpeningHours] = useState<Record<string, { open: string; close: string }>>({
     seg: { open: '08:00', close: '22:00' },
     ter: { open: '08:00', close: '22:00' },
@@ -64,6 +71,57 @@ export default function ConfiguracoesPage() {
   useEffect(() => {
     loadEstablishment()
   }, [])
+
+  // Volta do OAuth do Mercado Pago com ?mp=connected|denied|error na URL —
+  // mostra um aviso e limpa o parâmetro pra não reaparecer num refresh.
+  // Lido direto de window.location (em vez de useSearchParams()) pra não
+  // exigir Suspense boundary nessa página no build estático.
+  useEffect(() => {
+    const mp = new URLSearchParams(window.location.search).get('mp')
+    if (!mp) return
+    setMpBanner(mp)
+    router.replace('/painel/configuracoes')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!establishment?.id) return
+    loadMpStatus(establishment.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [establishment?.id])
+
+  const loadMpStatus = async (establishmentId: string) => {
+    setMpStatusLoading(true)
+    try {
+      const response = await fetch(`/api/mercadopago/status?establishment_id=${establishmentId}`)
+      const data = await response.json()
+      if (response.ok) setMpStatus({ connected: data.connected, email: data.email })
+    } catch (error) {
+      logError('painel:configuracoes', 'erro ao consultar status do Mercado Pago', error)
+    } finally {
+      setMpStatusLoading(false)
+    }
+  }
+
+  const handleDisconnectMp = async () => {
+    if (!establishment?.id) return
+    if (!confirm('Desconectar o Mercado Pago? A Pix automática some do cardápio até você conectar de novo.')) return
+    setMpActionLoading(true)
+    try {
+      const response = await fetch('/api/mercadopago/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ establishment_id: establishment.id }),
+      })
+      if (!response.ok) throw new Error('Erro ao desconectar')
+      await loadMpStatus(establishment.id)
+    } catch (error: any) {
+      logError('painel:configuracoes', 'erro ao desconectar Mercado Pago', error)
+      alert('Erro ao desconectar: ' + error.message)
+    } finally {
+      setMpActionLoading(false)
+    }
+  }
 
   const loadEstablishment = async () => {
     log('painel:configuracoes', 'carregando dados do estabelecimento...')
@@ -102,6 +160,7 @@ export default function ConfiguracoesPage() {
           pix_key_type: data.pix_key_type || 'cpf',
           pix_city: data.pix_city || '',
           custom_domain: data.custom_domain || '',
+          billing_mode: (data.billing_mode as BillingMode) || 'comissao',
         })
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
@@ -151,6 +210,7 @@ export default function ConfiguracoesPage() {
           pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
           pix_city: formData.pix_city.trim() || null,
           custom_domain: formData.custom_domain.trim().toLowerCase() || null,
+          billing_mode: formData.billing_mode,
         })
         .eq('owner_id', user.id)
 
@@ -201,6 +261,19 @@ export default function ConfiguracoesPage() {
         <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
         <p className="text-gray-600 mt-1">Gerencie as configurações do seu estabelecimento.</p>
       </div>
+
+      {mpBanner && (
+        <div className={`rounded-lg p-4 text-sm flex items-center justify-between ${
+          mpBanner === 'connected' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+        }`}>
+          <span>
+            {mpBanner === 'connected' && 'Mercado Pago conectado com sucesso! A Pix automática já está disponível no seu cardápio.'}
+            {mpBanner === 'denied' && 'Conexão com o Mercado Pago cancelada.'}
+            {mpBanner === 'error' && 'Não foi possível conectar com o Mercado Pago. Tente novamente.'}
+          </span>
+          <button onClick={() => setMpBanner(null)} className="text-xs underline ml-4 flex-shrink-0">Fechar</button>
+        </div>
+      )}
 
       {/* Cardápio Link */}
       <div className="card">
@@ -485,6 +558,74 @@ export default function ConfiguracoesPage() {
               Exigido pelo padrão do Pix. Obrigatório para o QR Code funcionar.
             </p>
           </div>
+        </div>
+
+        {/* Pagamento automático (Mercado Pago) */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-1">
+            <Zap size={20} className="text-gray-400" />
+            <h2 className="text-lg font-semibold text-gray-900">Pagamento automático (Mercado Pago)</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            O cliente paga Pix na hora pelo Mercado Pago, o dinheiro cai direto na SUA conta, e o
+            pedido já libera pra preparar sozinho assim que o pagamento é aprovado — sem precisar
+            checar nada. A plataforma cobra uma comissão fixa de R$ 1,00 por pedido pago assim.
+          </p>
+
+          {mpStatusLoading ? (
+            <Loader2 size={20} className="animate-spin text-gray-400" />
+          ) : mpStatus?.connected ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                Conectado {mpStatus.email ? `como ${mpStatus.email}` : ''}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Como você paga a plataforma</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, billing_mode: 'comissao' })}
+                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                      formData.billing_mode === 'comissao' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="font-medium text-sm text-gray-900">Comissão</p>
+                    <p className="text-xs text-gray-500">R$ 1,00 por pedido pago automaticamente</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, billing_mode: 'mensalidade' })}
+                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                      formData.billing_mode === 'mensalidade' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="font-medium text-sm text-gray-900">Mensalidade</p>
+                    <p className="text-xs text-gray-500">Em breve — desativa a Pix automática por enquanto</p>
+                  </button>
+                </div>
+                {formData.billing_mode === 'mensalidade' && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    A cobrança por mensalidade ainda não está disponível — enquanto essa opção estiver
+                    marcada, a Pix automática fica desligada no seu cardápio.
+                  </p>
+                )}
+              </div>
+
+              <button type="button" onClick={handleDisconnectMp} disabled={mpActionLoading} className="btn-secondary text-sm">
+                {mpActionLoading ? <Loader2 size={14} className="animate-spin" /> : <Unlink size={14} />}
+                Desconectar
+              </button>
+            </div>
+          ) : (
+            establishment?.id && (
+              <a href={`/api/mercadopago/oauth/start?establishment_id=${establishment.id}`} className="btn-primary inline-flex text-sm">
+                <Zap size={16} />
+                Conectar com Mercado Pago
+              </a>
+            )
+          )}
         </div>
 
         {/* Fidelização */}

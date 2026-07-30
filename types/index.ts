@@ -8,6 +8,11 @@
 // (recebido -> concluído), pensado para quem vende produto pronto.
 export type BusinessType = 'preparo' | 'pronto' | 'hibrido'
 
+// Como o estabelecimento paga a plataforma: comissão por pedido pago
+// automaticamente (Mercado Pago) ou mensalidade fixa. "mensalidade" ainda
+// não tem cobrança recorrente implementada — fica "em breve" na UI.
+export type BillingMode = 'comissao' | 'mensalidade'
+
 // Estabelecimento (Tenant)
 export interface Establishment {
   id: string
@@ -34,6 +39,11 @@ export interface Establishment {
   order_tracking_enabled?: boolean
   onboarding_completed?: boolean
   whatsapp_notifications_enabled?: boolean
+  billing_mode?: BillingMode
+  // Só true quando há uma conta Mercado Pago conectada e ativa E
+  // billing_mode = 'comissao' — nunca inclui token nenhum, é o único sinal
+  // que a view pública (`public_establishments`) expõe (migration 026).
+  mercadopago_pix_enabled?: boolean
   plan?: string
   created_at?: string
 }
@@ -69,6 +79,10 @@ export interface Product {
   is_featured?: boolean
   display_order: number
   created_at?: string
+  // Produto de pizza: aponta pro sabor que ele representa no catálogo.
+  // Quando preenchido, o cadastro de variações genérico (variation_groups)
+  // não se aplica — tamanhos/sabores/adicionais vêm do sistema de pizza.
+  pizza_flavor_id?: string | null
   // Relações
   category?: Category
   variation_groups?: VariationGroup[]
@@ -89,6 +103,7 @@ export interface PublicProduct {
   is_featured?: boolean
   is_bestseller?: boolean
   in_stock: boolean
+  pizza_flavor_id?: string | null
 }
 
 // Grupo de Variação
@@ -109,6 +124,68 @@ export interface VariationOption {
   name: string
   price_delta: number
   display_order: number
+}
+
+// ============================================================
+// SISTEMA DE PIZZA — sabores, tamanhos, meio a meio e adicionais.
+// Ver migration 025. `base_price` do tamanho é o preço do sabor
+// "principal" (o primeiro cadastrado); os demais sabores só guardam um
+// acréscimo (`price_delta`) sobre esse valor, por tamanho.
+// ============================================================
+
+export type PizzaFlavorCategory = 'salgada' | 'doce'
+
+// Tamanho de pizza
+export interface PizzaSize {
+  id: string
+  establishment_id: string
+  name: string
+  base_price: number
+  // Quantos sabores esse tamanho aceita dividir: 1 = não divide, 2 = meio
+  // a meio, 3 = três sabores...
+  max_flavors: number
+  display_order: number
+  is_active: boolean
+  created_at?: string
+}
+
+// Sabor de pizza
+export interface PizzaFlavor {
+  id: string
+  establishment_id: string
+  name: string
+  description?: string | null
+  image_url?: string | null
+  category?: PizzaFlavorCategory | null
+  is_active: boolean
+  display_order: number
+  created_at?: string
+}
+
+// Acréscimo de um sabor sobre o base_price de um tamanho
+export interface PizzaFlavorPrice {
+  id: string
+  flavor_id: string
+  size_id: string
+  price_delta: number
+}
+
+// Adicional de pizza (ex: borda recheada)
+export interface PizzaAdditional {
+  id: string
+  establishment_id: string
+  name: string
+  is_active: boolean
+  display_order: number
+  created_at?: string
+}
+
+// Preço de um adicional para um tamanho específico
+export interface PizzaAdditionalPrice {
+  id: string
+  additional_id: string
+  size_id: string
+  price: number
 }
 
 // Item do Pedido (armazenado em JSONB)
@@ -198,6 +275,12 @@ export interface Order {
   order_type: 'delivery' | 'pickup'
   delivery_address?: DeliveryAddress | null
   payment_method?: string
+  // Só usado em pedidos pagos via Mercado Pago (payment_method =
+  // 'mercadopago_pix') — pagamento manual (dinheiro, Pix copia-e-cola,
+  // cartão na entrega) nunca preenche isso, fica null. Independente do
+  // `status` do Kanban, que o lojista controla manualmente.
+  payment_status?: 'pending' | 'approved' | 'rejected' | 'cancelled' | null
+  mercadopago_payment_id?: string | null
   notes?: string
   created_at: string
   updated_at: string

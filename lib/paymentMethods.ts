@@ -4,6 +4,7 @@
 export const PAYMENT_METHODS = [
   { value: 'dinheiro', label: 'Dinheiro' },
   { value: 'pix', label: 'Pix' },
+  { value: 'mercadopago_pix', label: 'Pix automático (Mercado Pago)' },
   { value: 'cartao_credito', label: 'Cartão de Crédito' },
   { value: 'cartao_debito', label: 'Cartão de Débito' },
   { value: 'outro', label: 'Outro' },

@@ -500,7 +500,14 @@ export default function ProdutosPage() {
               <div key={product.id} className={`card-hover ${!product.is_active ? 'opacity-60' : ''}`}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">{product.name}</h3>
+                    <h3 className="font-medium text-gray-900 truncate flex items-center gap-1.5">
+                      {product.name}
+                      {product.pizza_flavor_id && (
+                        <span className="text-xs bg-primary-50 text-primary-600 px-1.5 py-0.5 rounded flex-shrink-0" title="Produto de pizza">
+                          🍕 Pizza
+                        </span>
+                      )}
+                    </h3>
                     {category && (
                       <span className="text-xs text-gray-500">{category.name}</span>
                     )}
@@ -710,7 +717,22 @@ export default function ProdutosPage() {
                 <span className="text-sm text-gray-700">Sugerir no carrinho do cliente ("Que tal adicionar também?")</span>
               </label>
 
-              {/* Variações */}
+              {/* Variações — não se aplica a produtos de pizza, que têm tamanho/
+                  sabor/adicionais geridos em Pizzas (uma estrutura só, reaproveitada
+                  por todos os sabores, em vez de duplicar por produto). */}
+              {editingProduct?.pizza_flavor_id ? (
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="bg-primary-50 border border-primary-100 rounded-lg p-4">
+                    <p className="text-sm text-gray-700">
+                      🍕 Este produto é um <strong>sabor de pizza</strong>. Tamanhos, outros sabores pra
+                      combinar e adicionais são gerenciados numa estrutura única, em <strong>Pizzas</strong>.
+                    </p>
+                    <a href="/painel/pizzas" className="inline-block mt-2 text-sm font-medium text-primary-600 hover:underline">
+                      Ir para Pizzas →
+                    </a>
+                  </div>
+                </div>
+              ) : (
               <div className="pt-4 border-t border-gray-200">
                 <div className="flex items-center gap-2 mb-3">
                   <Layers size={16} className="text-gray-400" />
@@ -863,6 +885,7 @@ export default function ProdutosPage() {
                   </div>
                 )}
               </div>
+              )}
 
               <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <button

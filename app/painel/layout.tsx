@@ -23,11 +23,13 @@ import {
   MapPin,
   TrendingUp,
   MessageCircle,
+  Pizza,
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Dashboard', href: '/painel', icon: LayoutDashboard },
   { name: 'Produtos', href: '/painel/produtos', icon: Package },
+  { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
   { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
   { name: 'Cupons', href: '/painel/cupons', icon: Tag },
   { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },

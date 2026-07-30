@@ -7,23 +7,13 @@ import { playNotificationSound } from '@/lib/sound'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PushNotificationToggle } from '@/components/PushNotificationToggle'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
+import { STATUS_NOTIFICATION_MESSAGES } from '@/lib/orderStatusMessages'
 import type { Order, OrderItem } from '@/types'
 import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin, Wallet } from 'lucide-react'
 
 // Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
 // histórico infinito conforme a loja acumula pedidos.
 const MAX_ORDERS = 200
-
-// Mensagens 1 pra 1 disparadas pro cliente quando o status muda — só se
-// a loja tiver ligado o toggle em Painel > WhatsApp. Nunca é enviado em
-// massa, sempre um pedido específico de cada vez.
-const STATUS_NOTIFICATION_MESSAGES: Partial<Record<Order['status'], (order: Order) => string>> = {
-  confirmed: () => 'Recebemos seu pedido! Já estamos preparando tudo. 👍',
-  preparing: () => 'Seu pedido está sendo preparado! 👨‍🍳',
-  completed: (order) => order.order_type === 'pickup'
-    ? 'Seu pedido está pronto para retirada! 📦'
-    : 'Seu pedido saiu para entrega! 🛵',
-}
 
 // Classes estáticas (o Tailwind não inclui classes montadas dinamicamente
 // como `bg-${color}-50` no build de produção, então mapeamos aqui).
@@ -376,6 +366,17 @@ export default function PedidosPage() {
                             {paymentMethodLabel(order.payment_method)}
                           </span>
                         )}
+                        {order.payment_method === 'mercadopago_pix' && (
+                          order.payment_status === 'approved' ? (
+                            <span className="text-xs inline-flex items-center gap-1 text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                              ✅ Pago
+                            </span>
+                          ) : (
+                            <span className="text-xs inline-flex items-center gap-1 text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                              ⏳ Aguardando pagamento
+                            </span>
+                          )
+                        )}
                       </div>
                     </button>
                   ))}
@@ -492,7 +493,16 @@ export default function PedidosPage() {
                 {selectedOrder.payment_method && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Pagamento</span>
-                    <span>{paymentMethodLabel(selectedOrder.payment_method)}</span>
+                    <span className="flex items-center gap-1.5">
+                      {paymentMethodLabel(selectedOrder.payment_method)}
+                      {selectedOrder.payment_method === 'mercadopago_pix' && (
+                        selectedOrder.payment_status === 'approved' ? (
+                          <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">✅ Pago</span>
+                        ) : (
+                          <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">⏳ Aguardando</span>
+                        )
+                      )}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-2">
