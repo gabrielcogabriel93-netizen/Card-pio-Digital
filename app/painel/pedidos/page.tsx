@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { playNotificationSound } from '@/lib/sound'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PushNotificationToggle } from '@/components/PushNotificationToggle'
+import { AutoPrintToggle } from '@/components/AutoPrintToggle'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import { STATUS_NOTIFICATION_MESSAGES } from '@/lib/orderStatusMessages'
 import type { Order, OrderItem } from '@/types'
@@ -14,6 +15,10 @@ import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, 
 // Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
 // histórico infinito conforme a loja acumula pedidos.
 const MAX_ORDERS = 200
+
+// Separador em texto (em vez de <hr>) — visual mais "cupom matricial" na
+// impressão, já que a fonte vira monoespaçada só ali (ver globals.css).
+const PRINT_DASH_LINE = '-'.repeat(42)
 
 // Classes estáticas (o Tailwind não inclui classes montadas dinamicamente
 // como `bg-${color}-50` no build de produção, então mapeamos aqui).
@@ -41,6 +46,22 @@ export default function PedidosPage() {
   const [establishmentId, setEstablishmentId] = useState('')
   const [whatsappNotificationsEnabled, setWhatsappNotificationsEnabled] = useState(false)
 
+  // Impressão automática — separado de `selectedOrder` de propósito: um
+  // pedido novo chegando não pode trocar o que está aberto no modal caso
+  // o lojista esteja olhando outro pedido no momento.
+  const [printOrder, setPrintOrder] = useState<Order | null>(null)
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState<boolean | null>(null)
+  const [printerLabel, setPrinterLabel] = useState('')
+  const [firstOrderPrompt, setFirstOrderPrompt] = useState<Order | null>(null)
+  const [firstOrderPrinterDraft, setFirstOrderPrinterDraft] = useState('')
+  // A subscrição realtime é criada uma única vez (useEffect com deps
+  // vazias) — sem essa ref, o callback ficaria preso no valor de
+  // autoPrintEnabled do momento em que a aba abriu (stale closure).
+  const autoPrintEnabledRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    autoPrintEnabledRef.current = autoPrintEnabled
+  }, [autoPrintEnabled])
+
   const allColumns: { status: Order['status']; label: string; icon: any; color: keyof typeof columnStyles }[] = [
     { status: 'pending', label: 'Pendente', icon: Clock, color: 'yellow' },
     { status: 'confirmed', label: 'Confirmado', icon: CheckCircle, color: 'blue' },
@@ -67,7 +88,15 @@ export default function PedidosPage() {
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
           log('painel:pedidos', 'evento realtime recebido', { eventType: payload.eventType })
-          if (payload.eventType === 'INSERT') playNotificationSound()
+          if (payload.eventType === 'INSERT') {
+            playNotificationSound()
+            const newOrder = payload.new as Order
+            if (autoPrintEnabledRef.current === true) {
+              setPrintOrder({ ...newOrder })
+            } else if (autoPrintEnabledRef.current === null) {
+              setFirstOrderPrompt(newOrder)
+            }
+          }
           loadOrders()
         }
       )
@@ -90,6 +119,16 @@ export default function PedidosPage() {
     }
   }, [])
 
+  // Dispara a impressão sempre que `printOrder` muda — tanto pelo clique
+  // manual no botão "Imprimir" quanto pela impressão automática de pedido
+  // novo. O requestAnimationFrame dá tempo do React desenhar o
+  // .print-area com os dados desse pedido antes do window.print() rodar.
+  useEffect(() => {
+    if (!printOrder) return
+    const id = requestAnimationFrame(() => window.print())
+    return () => cancelAnimationFrame(id)
+  }, [printOrder])
+
   const loadOrders = async () => {
     log('painel:pedidos', 'carregando pedidos...')
     try {
@@ -99,7 +138,7 @@ export default function PedidosPage() {
 
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id, order_tracking_enabled, whatsapp_notifications_enabled')
+        .select('id, order_tracking_enabled, whatsapp_notifications_enabled, auto_print_enabled, printer_label')
         .eq('owner_id', user.id)
         .single()
 
@@ -109,6 +148,8 @@ export default function PedidosPage() {
       setTrackingEnabled(est.order_tracking_enabled ?? true)
       setEstablishmentId(est.id)
       setWhatsappNotificationsEnabled(est.whatsapp_notifications_enabled ?? false)
+      setAutoPrintEnabled(est.auto_print_enabled ?? null)
+      setPrinterLabel(est.printer_label || '')
 
       const { data, error } = await supabase
         .from('orders')
@@ -213,6 +254,17 @@ export default function PedidosPage() {
         }).catch((err) => logError('painel:pedidos', 'erro ao enviar notificação WhatsApp', err))
       }
 
+      // Notificação push pro cliente, se ele tiver ativado em
+      // /pedido/[id] — mesmo espírito do WhatsApp acima, nunca trava o
+      // fluxo. A rota deriva a mensagem sozinha a partir do status atual.
+      if (selectedOrder?.source === 'online') {
+        fetch('/api/push/send-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId }),
+        }).catch((err) => logError('painel:pedidos', 'erro ao enviar notificação push do pedido', err))
+      }
+
       log('painel:pedidos', 'status do pedido atualizado com sucesso')
       setShowModal(false)
       setSelectedOrder(null)
@@ -252,6 +304,38 @@ export default function PedidosPage() {
     }
   }
 
+  const handleEnableAutoPrintFromPrompt = async () => {
+    const orderToPrint = firstOrderPrompt
+    setFirstOrderPrompt(null)
+    const label = firstOrderPrinterDraft.trim()
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('establishments')
+        .update({ auto_print_enabled: true, printer_label: label || null })
+        .eq('id', establishmentId)
+      if (error) throw error
+      setAutoPrintEnabled(true)
+      setPrinterLabel(label)
+      if (orderToPrint) setPrintOrder({ ...orderToPrint })
+    } catch (error) {
+      logError('painel:pedidos', 'erro ao ativar impressão automática', error)
+      alert('Erro ao ativar a impressão automática.')
+    }
+  }
+
+  const handleDismissFirstOrderPrompt = async () => {
+    setFirstOrderPrompt(null)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('establishments').update({ auto_print_enabled: false }).eq('id', establishmentId)
+      if (error) throw error
+      setAutoPrintEnabled(false)
+    } catch (error) {
+      logError('painel:pedidos', 'erro ao registrar recusa de impressão automática', error)
+    }
+  }
+
   const filteredOrders = orders.filter((o) => {
     if (!search.trim()) return true
     const term = search.trim().toLowerCase()
@@ -286,6 +370,17 @@ export default function PedidosPage() {
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {establishmentId && <PushNotificationToggle establishmentId={establishmentId} />}
+          {establishmentId && (
+            <AutoPrintToggle
+              establishmentId={establishmentId}
+              autoPrintEnabled={autoPrintEnabled}
+              printerLabel={printerLabel}
+              onChange={({ autoPrintEnabled: next, printerLabel: nextLabel }) => {
+                setAutoPrintEnabled(next)
+                setPrinterLabel(nextLabel)
+              }}
+            />
+          )}
           <div className="relative sm:w-72">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -298,6 +393,38 @@ export default function PedidosPage() {
           </div>
         </div>
       </div>
+
+      {firstOrderPrompt && (
+        <div className="card bg-primary-50 border border-primary-100 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <div className="flex items-start gap-2">
+            <Printer size={18} className="text-primary-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Chegou um pedido novo — quer que a comanda saia impressa sozinha da próxima vez?
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Só funciona com esta aba aberta no computador ligado à impressora. Dá pra mudar isso
+                quando quiser, ali em cima.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <input
+              type="text"
+              value={firstOrderPrinterDraft}
+              onChange={(e) => setFirstOrderPrinterDraft(e.target.value)}
+              placeholder="Apelido da impressora (opcional)"
+              className="input-field text-sm py-1.5 w-48"
+            />
+            <button onClick={handleEnableAutoPrintFromPrompt} className="btn-primary text-sm py-1.5 px-3 whitespace-nowrap">
+              Ativar
+            </button>
+            <button onClick={handleDismissFirstOrderPrompt} className="btn-secondary text-sm py-1.5 px-3 whitespace-nowrap">
+              Agora não
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 overflow-x-auto pb-4">
@@ -406,7 +533,7 @@ export default function PedidosPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => setPrintOrder({ ...selectedOrder })}
                   className="btn-secondary text-sm"
                   title="Imprimir comanda"
                 >
@@ -602,29 +729,33 @@ export default function PedidosPage() {
         </div>
       )}
 
-      {/* Comanda para impressão — só aparece no modo de impressão (Ctrl+P) */}
-      {selectedOrder && (
+      {/* Comanda para impressão — via botão manual (setPrintOrder) ou
+          sozinha em pedido novo, se a impressão automática estiver
+          ligada (ver useEffect de printOrder acima). Nunca usa
+          selectedOrder aqui, de propósito: senão um pedido novo chegando
+          trocaria o que está aberto no modal de detalhe na tela. */}
+      {printOrder && (
         <div className="print-area hidden print:block p-6">
-          <h2 className="text-lg font-bold mb-1">Pedido #{selectedOrder.id.slice(0, 8)}</h2>
-          <p className="text-sm mb-1">Cliente: {selectedOrder.customer_name}</p>
-          <p className="text-sm mb-1">Telefone: {selectedOrder.customer_phone}</p>
-          {selectedOrder.source === 'online' && (
+          <h2 className="text-lg font-bold mb-1">Pedido #{printOrder.id.slice(0, 8)}</h2>
+          <p className="text-sm mb-1">Cliente: {printOrder.customer_name}</p>
+          <p className="text-sm mb-1">Telefone: {printOrder.customer_phone}</p>
+          {printOrder.source === 'online' && (
             <p className="text-sm mb-1">
-              {selectedOrder.order_type === 'pickup' ? 'Retirada no local' : 'Entrega'}
-              {selectedOrder.order_type === 'delivery' && selectedOrder.delivery_address && (
+              {printOrder.order_type === 'pickup' ? 'Retirada no local' : 'Entrega'}
+              {printOrder.order_type === 'delivery' && printOrder.delivery_address && (
                 <>
-                  {' — '}{selectedOrder.delivery_address.street}, {selectedOrder.delivery_address.number}
-                  {selectedOrder.delivery_address.complement && ` - ${selectedOrder.delivery_address.complement}`}
-                  {' — '}{selectedOrder.delivery_address.neighborhood}
+                  {' — '}{printOrder.delivery_address.street}, {printOrder.delivery_address.number}
+                  {printOrder.delivery_address.complement && ` - ${printOrder.delivery_address.complement}`}
+                  {' — '}{printOrder.delivery_address.neighborhood}
                 </>
               )}
             </p>
           )}
           <p className="text-sm mb-4">
-            {new Date(selectedOrder.created_at).toLocaleString('pt-BR')}
+            {new Date(printOrder.created_at).toLocaleString('pt-BR')}
           </p>
-          <hr className="my-3" />
-          {selectedOrder.items.map((item: OrderItem, index: number) => (
+          <div className="my-2">{PRINT_DASH_LINE}</div>
+          {printOrder.items.map((item: OrderItem, index: number) => (
             <div key={index} className="mb-2 text-sm">
               <div className="flex justify-between font-medium">
                 <span>{item.quantity}x {item.product_name}</span>
@@ -635,30 +766,30 @@ export default function PedidosPage() {
               ))}
             </div>
           ))}
-          <hr className="my-3" />
+          <div className="my-2">{PRINT_DASH_LINE}</div>
           <div className="flex justify-between text-sm">
             <span>Subtotal</span>
-            <span>{formatCurrency(selectedOrder.subtotal)}</span>
+            <span>{formatCurrency(printOrder.subtotal)}</span>
           </div>
-          {!!selectedOrder.discount && selectedOrder.discount > 0 && (
+          {!!printOrder.discount && printOrder.discount > 0 && (
             <div className="flex justify-between text-sm">
-              <span>Desconto {selectedOrder.coupon_code ? `(${selectedOrder.coupon_code})` : ''}</span>
-              <span>-{formatCurrency(selectedOrder.discount)}</span>
+              <span>Desconto {printOrder.coupon_code ? `(${printOrder.coupon_code})` : ''}</span>
+              <span>-{formatCurrency(printOrder.discount)}</span>
             </div>
           )}
           <div className="flex justify-between text-sm">
             <span>Frete</span>
-            <span>{formatCurrency(selectedOrder.shipping_fee || 0)}</span>
+            <span>{formatCurrency(printOrder.shipping_fee || 0)}</span>
           </div>
           <div className="flex justify-between font-bold text-base mt-1">
             <span>Total</span>
-            <span>{formatCurrency(selectedOrder.total)}</span>
+            <span>{formatCurrency(printOrder.total)}</span>
           </div>
-          {selectedOrder.payment_method && (
-            <p className="text-sm mt-1">Pagamento: {paymentMethodLabel(selectedOrder.payment_method)}</p>
+          {printOrder.payment_method && (
+            <p className="text-sm mt-1">Pagamento: {paymentMethodLabel(printOrder.payment_method)}</p>
           )}
-          {selectedOrder.notes && (
-            <p className="text-sm mt-3">Obs: {selectedOrder.notes}</p>
+          {printOrder.notes && (
+            <p className="text-sm mt-3">Obs: {printOrder.notes}</p>
           )}
         </div>
       )}

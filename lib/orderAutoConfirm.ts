@@ -86,4 +86,19 @@ export async function applyAutomaticOrderConfirmation(
       }
     }
   }
+
+  // Notificação push pro cliente, se ele tiver ativado em /pedido/[id] —
+  // mesmo espírito do WhatsApp acima, independente dele estar ligado ou
+  // não (é um canal separado que o cliente escolheu por conta própria).
+  if (order.source === 'online') {
+    try {
+      await fetch(`${getBaseUrl()}/api/push/send-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: order.id }),
+      })
+    } catch (err) {
+      logError('mercadopago:webhook', 'erro ao notificar push do pedido', err)
+    }
+  }
 }

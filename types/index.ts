@@ -46,6 +46,12 @@ export interface Establishment {
   mercadopago_pix_enabled?: boolean
   plan?: string
   created_at?: string
+  // Impressão automática de comanda (migration 027). NULL = lojista ainda
+  // não decidiu (dispara o banner de primeira vez em Painel > Pedidos).
+  // `printer_label` é só um apelido/lembrete em texto — a impressora usada
+  // de verdade é sempre a padrão do Windows daquele computador.
+  auto_print_enabled?: boolean | null
+  printer_label?: string | null
 }
 
 // Estabelecimento como visto pelo cardápio público — vem da view

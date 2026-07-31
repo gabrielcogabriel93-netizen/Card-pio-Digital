@@ -119,7 +119,11 @@
 }
 
 /* Impressão de comanda: esconde tudo (inclusive o menu do painel, que
-   fica em outro arquivo) exceto o bloco marcado como .print-area. */
+   fica em outro arquivo) exceto o bloco marcado como .print-area.
+   Estilo pensado pra impressora matricial: fonte monoespaçada, preto e
+   branco, sem sombra/cor de fundo — não fixamos um tamanho de página
+   (@page) porque não sabemos a largura física da impressora do lojista;
+   o driver do Windows já configurado cuida disso. */
 @media print {
   body * {
     visibility: hidden;
@@ -133,5 +137,14 @@
     top: 0;
     left: 0;
     width: 100%;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .print-area * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-color: #000 !important;
   }
 }

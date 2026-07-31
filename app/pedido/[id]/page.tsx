@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { paymentMethodLabel } from '@/lib/paymentMethods'
+import { OrderPushNotificationToggle } from '@/components/OrderPushNotificationToggle'
 import type { OrderItem, OrderStatus, DeliveryAddress } from '@/types'
 import { Loader2, Clock, CheckCircle, ChefHat, XCircle, Store, Bike, MapPin, Wallet } from 'lucide-react'
 
@@ -151,6 +152,8 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
             )}
           </div>
         )}
+
+        <OrderPushNotificationToggle orderId={order.id} />
 
         {/* Status timeline */}
         <div className="card mb-4">
