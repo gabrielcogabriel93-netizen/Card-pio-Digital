@@ -69,6 +69,10 @@ function startSession(id) {
       headless: true,
       puppeteerOptions: {
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        // Em VPS ARM (ex: Oracle Cloud Ampere A1), o Chromium que o
+        // WPPConnect baixa sozinho não existe pra essa arquitetura —
+        // usa o Chromium instalado via apt e apontado aqui.
+        ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
       },
     })
     .then((client) => {

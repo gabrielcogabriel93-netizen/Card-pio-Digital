@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { logError } from '@/lib/logger'
+import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle, Loader2, Clock, ShieldCheck } from 'lucide-react'
 
 // Contato pra quem quiser saber mais sobre os planos pagos que ainda
 // estão em preparação — nenhum checkout de verdade acontece aqui, só
@@ -22,15 +24,58 @@ const INCLUDED_FEATURES = [
   'Cor de marca personalizada no cardápio',
 ]
 
+interface SubscriptionInfo {
+  blocked: boolean
+  status: 'trial' | 'active' | 'exempt'
+  trialEndsAt: string | null
+  currentPeriodEnd: string | null
+  monthlyPrice: number
+  billingEnabled: boolean
+}
+
 export default function PlanosPage() {
   const [showDonateModal, setShowDonateModal] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
+  const [loadingSub, setLoadingSub] = useState(true)
+
+  useEffect(() => {
+    const loadSubscription = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase.rpc('get_my_subscription_status')
+        if (error) throw error
+        const row = data?.[0]
+        if (row) {
+          setSubscription({
+            blocked: !!row.blocked,
+            status: row.status,
+            trialEndsAt: row.trial_ends_at,
+            currentPeriodEnd: row.current_period_end,
+            monthlyPrice: Number(row.monthly_price),
+            billingEnabled: !!row.billing_enabled,
+          })
+        }
+      } catch (err) {
+        logError('painel:planos', 'erro ao carregar status da assinatura', err)
+      } finally {
+        setLoadingSub(false)
+      }
+    }
+    loadSubscription()
+  }, [])
 
   const handleCopyPix = () => {
     navigator.clipboard.writeText(PIX_PHONE_KEY)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
+  const formatDate = (value: string | null) =>
+    value ? new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -46,13 +91,48 @@ export default function PlanosPage() {
             <Sparkles size={20} className="text-primary-500" />
             <h2 className="text-lg font-semibold text-gray-900">Seu plano</h2>
           </div>
-          <span className="badge bg-primary-100 text-primary-700">Gratuito</span>
+          {loadingSub ? (
+            <Loader2 size={16} className="animate-spin text-gray-400" />
+          ) : !subscription || !subscription.billingEnabled ? (
+            <span className="badge bg-primary-100 text-primary-700">Gratuito</span>
+          ) : subscription.status === 'exempt' ? (
+            <span className="badge bg-purple-100 text-purple-700">Isento</span>
+          ) : subscription.status === 'active' ? (
+            <span className="badge bg-green-100 text-green-700">Assinante</span>
+          ) : (
+            <span className="badge bg-blue-100 text-blue-700">Período de teste</span>
+          )}
         </div>
 
-        <p className="text-gray-600 text-sm mb-4">
-          Este sistema está 100% gratuito no momento — sem taxas, sem limite de produtos e sem
-          cartão de crédito. Todas as funcionalidades abaixo já estão liberadas para você.
-        </p>
+        {!loadingSub && subscription && (
+          !subscription.billingEnabled ? (
+            <p className="text-gray-600 text-sm mb-4">
+              Este sistema está 100% gratuito no momento — sem taxas de assinatura, sem limite de produtos e
+              sem cartão de crédito. Todas as funcionalidades abaixo já estão liberadas para você.
+            </p>
+          ) : subscription.status === 'exempt' ? (
+            <p className="text-gray-600 text-sm mb-4">
+              Sua conta tem acesso liberado por cortesia, sem cobrança da mensalidade.
+            </p>
+          ) : subscription.status === 'active' ? (
+            <p className="text-gray-600 text-sm mb-4">
+              Assinatura mensal de {formatCurrency(subscription.monthlyPrice)}
+              {formatDate(subscription.currentPeriodEnd) && (
+                <> — renova em {formatDate(subscription.currentPeriodEnd)}.</>
+              )}
+            </p>
+          ) : (
+            <p className="text-gray-600 text-sm mb-4">
+              {formatDate(subscription.trialEndsAt) ? (
+                <>Seu período de teste grátis termina em {formatDate(subscription.trialEndsAt)}. Depois disso, a
+                assinatura mensal de {formatCurrency(subscription.monthlyPrice)} é cobrada via Pix pra continuar
+                usando o painel.</>
+              ) : (
+                <>Você ainda está no período de teste, sem prazo definido.</>
+              )}
+            </p>
+          )
+        )}
 
         <div className="space-y-2">
           {INCLUDED_FEATURES.map((feature) => (
@@ -64,18 +144,24 @@ export default function PlanosPage() {
         </div>
       </div>
 
-      {/* Planos pagos em breve */}
+      {/* Mensalidade da plataforma */}
       <div className="card">
         <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={20} className="text-primary-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Planos pagos em breve</h2>
+          <ShieldCheck size={20} className="text-primary-500" />
+          <h2 className="text-lg font-semibold text-gray-900">Mensalidade da plataforma</h2>
         </div>
-        <p className="text-gray-600 text-sm mb-4">
-          Estamos preparando planos pagos com recursos extras. Por enquanto tudo continua liberado
-          gratuitamente. Se quiser saber mais ou entrar na lista de interessados, fale com a gente.
+        <p className="text-gray-600 text-sm mb-2">
+          A partir de {formatCurrency(subscription?.monthlyPrice || 49.9)}/mês, cobrado via Pix (o mesmo Pix
+          automático já usado nos pedidos dos seus clientes) — sem contrato de fidelidade, cancelável quando
+          quiser.
+        </p>
+        <p className="text-gray-600 text-sm mb-4 flex items-center gap-1.5">
+          <Clock size={14} className="text-gray-400 flex-shrink-0" />
+          Essa cobrança é separada da comissão de {formatCurrency(1)} por pedido pago automaticamente pelo
+          Mercado Pago no seu cardápio, que continua valendo do mesmo jeito.
         </p>
         <a
-          href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Quero saber mais sobre os planos pagos do Cardápio Digital.')}`}
+          href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do CatalogAI.')}`}
           target="_blank"
           rel="noopener noreferrer"
           className="btn-secondary inline-flex"

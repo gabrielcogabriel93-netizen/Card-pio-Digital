@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
+import { SubscriptionPaywall } from '@/components/SubscriptionPaywall'
 import {
   LayoutDashboard,
   Package,
@@ -25,6 +26,7 @@ import {
   TrendingUp,
   MessageCircle,
   Pizza,
+  ShieldCheck,
 } from 'lucide-react'
 
 const navigation = [
@@ -55,6 +57,17 @@ export default function PainelLayout({
   const [userName, setUserName] = useState<string>('')
   const [establishmentName, setEstablishmentName] = useState<string>('')
   const [themeColor, setThemeColor] = useState<string | null>(null)
+  // null = ainda checando; depois disso, sempre um objeto (mesmo que
+  // blocked: false) — só assim dá pra distinguir "ainda carregando" de
+  // "confirmado que está liberado", evitando um flash do paywall.
+  const [subscription, setSubscription] = useState<{
+    blocked: boolean
+    reason: 'trial_expired' | 'subscription_expired' | null
+    monthlyPrice: number
+  } | null>(null)
+  // Só true pro e-mail do dono da plataforma (PLATFORM_ADMIN_EMAILS) —
+  // checado no servidor, aqui só decide se mostra o atalho no menu.
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
 
   // Mesma cor de marca escolhida em Configurações, agora aplicada no
   // painel inteiro — não só no cardápio público e em /pedido/[id]. As
@@ -82,6 +95,10 @@ export default function PainelLayout({
 
         setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário')
 
+        fetch('/api/admin/check')
+          .then((res) => setIsPlatformAdmin(res.ok))
+          .catch(() => setIsPlatformAdmin(false))
+
         // Buscar nome do estabelecimento
         const { data: est, error: estError } = await supabase
           .from('establishments')
@@ -100,6 +117,19 @@ export default function PainelLayout({
           log('painel:layout', 'estabelecimento carregado', { name: est.name })
           setEstablishmentName(est.name)
           setThemeColor(est.theme_color || null)
+
+          const { data: subStatus, error: subError } = await supabase.rpc('get_my_subscription_status')
+          if (subError) {
+            logError('painel:layout', 'erro ao checar assinatura', subError)
+            setSubscription({ blocked: false, reason: null, monthlyPrice: 49.9 })
+          } else {
+            const row = subStatus?.[0]
+            setSubscription({
+              blocked: !!row?.blocked,
+              reason: row?.status === 'active' ? 'subscription_expired' : 'trial_expired',
+              monthlyPrice: Number(row?.monthly_price ?? 49.9),
+            })
+          }
         } else {
           // Conta criada mas a loja ainda não foi configurada
           // (ex: confirmação de e-mail estava ativada no cadastro).
@@ -125,6 +155,16 @@ export default function PainelLayout({
       router.push('/login')
       router.refresh()
     }
+  }
+
+  if (subscription?.blocked) {
+    return (
+      <SubscriptionPaywall
+        reason={subscription.reason || 'trial_expired'}
+        monthlyPrice={subscription.monthlyPrice}
+        onUnlocked={() => setSubscription({ ...subscription, blocked: false })}
+      />
+    )
   }
 
   return (
@@ -187,6 +227,16 @@ export default function PainelLayout({
                 </Link>
               )
             })}
+            {isPlatformAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <ShieldCheck size={20} />
+                Painel admin
+              </Link>
+            )}
           </nav>
 
           {/* User info & logout */}

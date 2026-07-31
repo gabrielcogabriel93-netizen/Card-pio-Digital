@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createPixPayment, getPayment, getValidAccessToken } from '@/lib/mercadoPago'
+import { validateOrderPricingFloor } from '@/lib/orderPricing'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
 
@@ -43,6 +44,30 @@ export async function POST(request: NextRequest) {
     }
     if (order.status !== 'pending') {
       return NextResponse.json({ error: 'Esse pedido já foi processado' }, { status: 400 })
+    }
+
+    // Piso de preço: o carrinho é montado inteiramente no navegador do
+    // cliente, então nada impede alguém de mandar um total manipulado
+    // direto pro banco antes de chegar aqui. Confere um piso mínimo antes
+    // de gerar uma cobrança de verdade no Mercado Pago — ver
+    // lib/orderPricing.ts pro que exatamente é (e não é) validado.
+    const pricingCheck = await validateOrderPricingFloor(admin, order)
+    if (!pricingCheck.valid) {
+      logError('api:mercadopago:create-payment', 'pedido rejeitado por preço inconsistente', {
+        orderId: order.id,
+        reason: pricingCheck.reason,
+      })
+      try {
+        await admin.from('error_logs').insert({
+          establishment_id: order.establishment_id,
+          scope: 'api:mercadopago:create-payment',
+          message: 'Pedido rejeitado por preço inconsistente com o cardápio',
+          detail: { orderId: order.id, reason: pricingCheck.reason, subtotal: order.subtotal, discount: order.discount, total: order.total },
+        })
+      } catch {
+        // best-effort
+      }
+      return NextResponse.json({ error: 'Não foi possível confirmar o valor do pedido. Atualize a página e monte o pedido de novo.' }, { status: 400 })
     }
 
     const accessToken = await getValidAccessToken(admin, order.establishment_id)

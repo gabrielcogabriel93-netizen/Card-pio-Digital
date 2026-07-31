@@ -18,6 +18,13 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Selo de saúde: grava que essa execução aconteceu, não importa se
+  // encontrou pedido pra avançar ou não — é o que o banner de automação
+  // em Pedidos usa pra avisar se o cron parou de rodar.
+  await admin
+    .from('cron_health')
+    .upsert({ job_name: 'advance-automatic-orders', last_run_at: new Date().toISOString() }, { onConflict: 'job_name' })
+
   try {
     const { data: establishments, error: estError } = await admin
       .from('establishments')

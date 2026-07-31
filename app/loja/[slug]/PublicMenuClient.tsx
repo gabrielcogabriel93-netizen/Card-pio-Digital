@@ -28,7 +28,7 @@ import {
 import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy } from 'lucide-react'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle } from 'lucide-react'
 
 export default function PublicMenuClient({
   establishment,
@@ -51,6 +51,12 @@ export default function PublicMenuClient({
   const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null)
   const [pixCopied, setPixCopied] = useState(false)
   const [mpCheckout, setMpCheckout] = useState<{ orderId: string; amount: number; qrCode: string; qrCodeBase64: string } | null>(null)
+  // Pedido já foi salvo, mas gerar a cobrança falhou — mostra um jeito de
+  // tentar de novo pro MESMO pedido, em vez de um alert() sem saída (que
+  // deixava o pedido "órfão": salvo, mas invisível pro cliente, e uma
+  // nova tentativa criaria outro pedido consumindo o cupom de novo).
+  const [mpCheckoutFailure, setMpCheckoutFailure] = useState<{ orderId: string; amount: number; message: string } | null>(null)
+  const [mpRetrying, setMpRetrying] = useState(false)
   const [birthDate, setBirthDate] = useState('')
   const offersDelivery = establishment.offers_delivery ?? true
   const offersPickup = establishment.offers_pickup ?? true
@@ -445,6 +451,28 @@ export default function PublicMenuClient({
     }
   }
 
+  // Tenta gerar a cobrança Pix pro pedido já salvo (`orderId`) — reaproveitada
+  // tanto no envio inicial quanto no botão "Tentar novamente", sempre pro
+  // MESMO pedido (nunca cria um pedido novo nem reconsome cupom).
+  const tryCreateMercadoPagoPayment = async (targetOrderId: string, amount: number): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/mercadopago/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: targetOrderId }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Erro ao gerar o Pix')
+      setMpCheckoutFailure(null)
+      setMpCheckout({ orderId: targetOrderId, amount, qrCode: data.qrCode, qrCodeBase64: data.qrCodeBase64 })
+      return true
+    } catch (mpErr: any) {
+      logError('loja', 'erro ao gerar pagamento Mercado Pago', mpErr)
+      setMpCheckoutFailure({ orderId: targetOrderId, amount, message: mpErr.message || 'Erro ao gerar o Pix' })
+      return false
+    }
+  }
+
   const handleSendOrder = async () => {
     if (!customerName.trim() || !customerPhone.trim() || !isAddressValid) return
 
@@ -483,7 +511,8 @@ export default function PublicMenuClient({
 
     try {
       const subtotal = cartSubtotal
-      const total = cartTotal
+      let total = cartTotal
+      let finalDiscount = discountAmount
 
       const supabase = createClient()
 
@@ -507,6 +536,17 @@ export default function PublicMenuClient({
           alert(recheckResult?.message || 'Esse cupom não é mais válido. Removemos ele do pedido — confira o total e envie novamente.')
           return // o `finally` abaixo cuida de setSaving(false)
         }
+
+        // Usa o desconto que o servidor acabou de confirmar, não o que
+        // estava em memória desde que o cupom foi aplicado no carrinho —
+        // evita gravar um desconto desatualizado se o lojista tiver
+        // editado o cupom no meio da sessão do cliente.
+        finalDiscount = recheckResult.discount_type === 'percent'
+          ? subtotal * (Number(recheckResult.discount_value) / 100)
+          : recheckResult.discount_type === 'fixed'
+            ? Math.min(Number(recheckResult.discount_value), subtotal)
+            : 0 // free_shipping não desconta o subtotal
+        total = Math.max(0, subtotal - finalDiscount + effectiveDeliveryFee)
       }
 
       // Gera o id no client em vez de pedir de volta com .select(): o
@@ -530,7 +570,7 @@ export default function PublicMenuClient({
         })),
         subtotal,
         shipping_fee: effectiveDeliveryFee,
-        discount: discountAmount,
+        discount: finalDiscount,
         coupon_code: appliedCoupon?.code || (isBirthdayDiscountActive ? 'ANIVERSARIO' : null),
         total,
         status: 'pending',
@@ -602,20 +642,16 @@ export default function PublicMenuClient({
       // cobrança no Mercado Pago e mostra o QR — a confirmação acontece
       // sozinha (webhook), sem o cliente precisar fazer mais nada.
       if (isMpAutomatic) {
-        try {
-          const response = await fetch('/api/mercadopago/create-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId }),
-          })
-          const data = await response.json()
-          if (!response.ok) throw new Error(data.error || 'Erro ao gerar o Pix')
+        // Salva a referência do pedido ANTES de tentar gerar o Pix — se a
+        // geração falhar, o cliente ainda assim tem como achar esse
+        // pedido depois (link de acompanhamento, "Meus Pedidos"), em vez
+        // de ficar com um pedido órfão que só existe no banco.
+        saveCustomer({ name: customerName.trim(), phone: customerPhone.trim() })
+        setLastOrderId(orderId)
+        saveLastOrder(establishment.id, orderId)
 
-          saveCustomer({ name: customerName.trim(), phone: customerPhone.trim() })
-          setLastOrderId(orderId)
-          saveLastOrder(establishment.id, orderId)
-          setMpCheckout({ orderId, amount: total, qrCode: data.qrCode, qrCodeBase64: data.qrCodeBase64 })
-
+        const created = await tryCreateMercadoPagoPayment(orderId, total)
+        if (created) {
           setCart([])
           setShowCustomerModal(false)
           setCustomerName('')
@@ -628,12 +664,10 @@ export default function PublicMenuClient({
           setAddressMode('new')
           setShowCart(false)
           removeCoupon()
-        } catch (mpErr: any) {
-          logError('loja', 'erro ao gerar pagamento Mercado Pago', mpErr)
-          alert('Erro ao gerar o Pix: ' + mpErr.message + '. Tente novamente ou escolha outra forma de pagamento.')
-        } finally {
-          setSaving(false)
         }
+        // Se falhou, `mpCheckoutFailure` já foi setado dentro da função —
+        // o modal de retry cuida do resto, sem fechar o carrinho/form.
+        setSaving(false)
         return
       }
 
@@ -1195,6 +1229,40 @@ export default function PublicMenuClient({
         />
       )}
 
+      {/* Falha ao gerar o Pix — pedido já foi salvo, oferece tentar de
+          novo pro MESMO pedido em vez de deixar o cliente sem saída. */}
+      {mpCheckoutFailure && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-fade-in">
+            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <AlertCircle size={26} className="text-amber-600" />
+            </div>
+            <p className="font-semibold text-gray-900 mb-1">Não deu pra gerar o Pix agora</p>
+            <p className="text-sm text-gray-600 mb-1">
+              Seu pedido já foi salvo — {formatCurrency(mpCheckoutFailure.amount)}. É só tentar de novo.
+            </p>
+            <p className="text-xs text-gray-400 mb-4">{mpCheckoutFailure.message}</p>
+            <button
+              onClick={() => {
+                setMpRetrying(true)
+                tryCreateMercadoPagoPayment(mpCheckoutFailure.orderId, mpCheckoutFailure.amount).finally(() => setMpRetrying(false))
+              }}
+              disabled={mpRetrying}
+              className="btn-primary w-full mb-2"
+            >
+              {mpRetrying ? <Loader2 size={18} className="animate-spin" /> : 'Tentar novamente'}
+            </button>
+            <a
+              href={`/pedido/${mpCheckoutFailure.orderId}`}
+              className="text-xs text-gray-500 underline"
+            >
+              Ou acompanhe esse pedido por aqui
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Pizza Order Modal */}
       {showPizzaOrder && showPizzaOrder.pizza_flavor_id && (
         <PizzaOrderModal
@@ -1547,9 +1615,9 @@ export default function PublicMenuClient({
                       Depois de pagar, envie o pedido pelo WhatsApp normalmente para a loja confirmar.
                     </p>
                   </div>
-                ) : (
+                ) : (!establishment.pix_key || !establishment.pix_city) && (
                   <p className="text-xs text-gray-500 -mt-2">
-                    Essa loja ainda não configurou Pix automático — combine o pagamento pelo WhatsApp.
+                    Essa loja ainda não configurou a chave Pix — combine o pagamento pelo WhatsApp.
                   </p>
                 )
               )}

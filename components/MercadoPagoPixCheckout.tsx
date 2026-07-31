@@ -95,13 +95,11 @@ export function MercadoPagoPixCheckout({ orderId, amount, qrCode, qrCodeBase64, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" />
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto animate-fade-in">
-        {state !== 'waiting' && (
-          <button onClick={onClose} className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded" aria-label="Fechar">
-            <X size={20} />
-          </button>
-        )}
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded z-10" aria-label="Fechar">
+          <X size={20} />
+        </button>
 
         {state === 'waiting' && (
           <div className="p-6 text-center">

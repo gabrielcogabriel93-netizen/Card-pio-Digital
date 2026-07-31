@@ -56,6 +56,7 @@ export default function PedidosPage() {
   const [firstOrderPrompt, setFirstOrderPrompt] = useState<Order | null>(null)
   const [firstOrderPrinterDraft, setFirstOrderPrinterDraft] = useState('')
   const [orderAutomationMode, setOrderAutomationMode] = useState<OrderAutomationMode>('manual')
+  const [cronLastRunAt, setCronLastRunAt] = useState<string | null>(null)
   // A subscrição realtime é criada uma única vez (useEffect com deps
   // vazias) — sem essa ref, o callback ficaria preso no valor de
   // autoPrintEnabled do momento em que a aba abriu (stale closure).
@@ -154,6 +155,15 @@ export default function PedidosPage() {
       setPrinterLabel(est.printer_label || '')
       setOrderAutomationMode(est.order_automation_mode || 'manual')
 
+      if ((est.order_automation_mode || 'manual') === 'automatic') {
+        const { data: health } = await supabase
+          .from('cron_health')
+          .select('last_run_at')
+          .eq('job_name', 'advance-automatic-orders')
+          .maybeSingle()
+        setCronLastRunAt(health?.last_run_at ?? null)
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select('*')
@@ -180,21 +190,49 @@ export default function PedidosPage() {
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     setSaving(true)
-    log('painel:pedidos', 'atualizando status do pedido', { orderId, newStatus, statusAnterior: selectedOrder?.status })
+    log('painel:pedidos', 'atualizando status do pedido', { orderId, newStatus, statusNaTela: selectedOrder?.status })
     try {
       const supabase = createClient()
-      const wasStockAlreadyDeducted =
-        selectedOrder?.status === 'confirmed' || selectedOrder?.status === 'preparing'
 
-      const updateData: any = { status: newStatus }
+      // Nunca confia no status que já estava carregado na tela — o
+      // pedido pode ter avançado sozinho (webhook do Mercado Pago,
+      // automação por tempo) enquanto esse modal estava aberto. Lê o
+      // estado atual do banco antes de decidir qualquer coisa.
+      const { data: currentOrder, error: currentOrderError } = await supabase
+        .from('orders')
+        .select('status, payment_method, payment_status')
+        .eq('id', orderId)
+        .single()
+      if (currentOrderError || !currentOrder) throw currentOrderError || new Error('Pedido não encontrado')
+
+      const currentStatus = currentOrder.status as Order['status']
+      const wasStockAlreadyDeducted = currentStatus !== 'pending' && currentStatus !== 'cancelled'
 
       // Lojas com acompanhamento desligado pulam direto de Pendente para
       // Concluído (sem passar por Confirmado/Em Preparo) — mas ainda
       // precisam do mesmo lançamento financeiro e baixa de estoque que
       // normalmente aconteceriam na confirmação.
       const isFirstAcceptance = newStatus === 'confirmed' ||
-        (newStatus === 'completed' && selectedOrder?.status === 'pending')
+        (newStatus === 'completed' && currentStatus === 'pending')
 
+      // Nunca libera pra cozinha um Pix automático que ainda não foi
+      // pago — só a confirmação de pagamento de verdade (webhook do
+      // Mercado Pago) pode tirar esse pedido de "pendente".
+      if (isFirstAcceptance && currentOrder.payment_method === 'mercadopago_pix' && currentOrder.payment_status !== 'approved') {
+        alert('Esse pedido ainda não teve o pagamento confirmado pelo Mercado Pago. Aguarde a confirmação automática antes de aceitar.')
+        return
+      }
+
+      // Cancelar um pedido já pago via Pix automático não estorna o
+      // cliente sozinho — isso só acontece de verdade no painel do
+      // Mercado Pago.
+      if (newStatus === 'cancelled' && currentOrder.payment_method === 'mercadopago_pix' && currentOrder.payment_status === 'approved') {
+        if (!confirm('Esse pedido já foi pago via Pix automático. Cancelar aqui NÃO estorna o cliente — você precisa reembolsar manualmente pelo painel do Mercado Pago. Quer continuar mesmo assim?')) {
+          return
+        }
+      }
+
+      const updateData: any = { status: newStatus }
       if (isFirstAcceptance) {
         // O frete só é definido na confirmação — o total precisa ser
         // recalculado aqui, senão a entrada financeira e o pedido ficam
@@ -202,32 +240,53 @@ export default function PedidosPage() {
         // houver, precisa continuar sendo descontado).
         const finalShippingFee = parseFloat(shippingFee) || 0
         const finalTotal = (selectedOrder?.subtotal || 0) - (selectedOrder?.discount || 0) + finalShippingFee
-
         updateData.payment_method = paymentMethod
         updateData.shipping_fee = finalShippingFee
         updateData.total = finalTotal
+      }
 
-        // Confirmar pedido - criar entrada financeira
-        log('painel:pedidos', 'criando entrada financeira da confirmação', { finalTotal })
+      // Trava de idempotência: só grava se o status no banco ainda for o
+      // que acabamos de ler — se o webhook do Mercado Pago ou a
+      // automação por tempo mudou isso nesse meio tempo, essa atualização
+      // não "pega" e evita lançar financeiro/baixar estoque em dobro.
+      const { data: updatedOrder, error: updateError } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId)
+        .eq('status', currentStatus)
+        .select()
+        .maybeSingle()
+      if (updateError) throw updateError
+
+      if (!updatedOrder) {
+        alert('Esse pedido acabou de ser atualizado em outro lugar (talvez pelo pagamento automático) — recarregando com os dados mais recentes.')
+        setShowModal(false)
+        setSelectedOrder(null)
+        await loadOrders()
+        return
+      }
+
+      if (isFirstAcceptance) {
+        log('painel:pedidos', 'criando entrada financeira da confirmação', { finalTotal: updateData.total })
         const { error: financeError } = await supabase.from('financial_entries').insert({
-          establishment_id: selectedOrder?.establishment_id,
+          establishment_id: updatedOrder.establishment_id,
           order_id: orderId,
           type: 'income',
-          amount: finalTotal,
-          description: `Pedido #${orderId.slice(0, 8)} - ${selectedOrder?.customer_name}`,
+          amount: updateData.total,
+          description: `Pedido #${orderId.slice(0, 8)} - ${updatedOrder.customer_name}`,
         })
         if (financeError) throw financeError
 
-        // Baixar estoque
         log('painel:pedidos', 'baixando estoque dos itens do pedido')
-        await adjustStockForItems(selectedOrder?.items || [], 'decrement')
+        await adjustStockForItems(updatedOrder.items || [], 'decrement')
       }
 
-      // Cancelamento após a baixa de estoque já ter ocorrido: estorna o
-      // estoque e remove a entrada financeira lançada na confirmação.
+      // Cancelamento após a baixa de estoque já ter ocorrido (inclusive
+      // pedidos já concluídos): estorna o estoque e remove a entrada
+      // financeira lançada na confirmação.
       if (newStatus === 'cancelled' && wasStockAlreadyDeducted) {
         log('painel:pedidos', 'estornando estoque e removendo entrada financeira (cancelamento)')
-        await adjustStockForItems(selectedOrder?.items || [], 'increment')
+        await adjustStockForItems(updatedOrder.items || [], 'increment')
         const { error: deleteFinanceError } = await supabase
           .from('financial_entries')
           .delete()
@@ -235,23 +294,17 @@ export default function PedidosPage() {
         if (deleteFinanceError) throw deleteFinanceError
       }
 
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId)
-      if (updateError) throw updateError
-
       // Notificação 1 pra 1 pro cliente via WhatsApp — nunca trava o fluxo
       // de atualização do pedido; se o servidor WhatsApp estiver fora do
       // ar, o lojista continua trabalhando normalmente no Kanban.
-      const notificationMessage = STATUS_NOTIFICATION_MESSAGES[newStatus]?.(selectedOrder!)
-      if (whatsappNotificationsEnabled && selectedOrder?.source === 'online' && notificationMessage && selectedOrder?.customer_phone) {
+      const notificationMessage = STATUS_NOTIFICATION_MESSAGES[newStatus]?.(updatedOrder)
+      if (whatsappNotificationsEnabled && updatedOrder.source === 'online' && notificationMessage && updatedOrder.customer_phone) {
         fetch('/api/whatsapp/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            establishment_id: selectedOrder.establishment_id,
-            phone: selectedOrder.customer_phone,
+            establishment_id: updatedOrder.establishment_id,
+            phone: updatedOrder.customer_phone,
             message: notificationMessage,
           }),
         }).catch((err) => logError('painel:pedidos', 'erro ao enviar notificação WhatsApp', err))
@@ -260,7 +313,7 @@ export default function PedidosPage() {
       // Notificação push pro cliente, se ele tiver ativado em
       // /pedido/[id] — mesmo espírito do WhatsApp acima, nunca trava o
       // fluxo. A rota deriva a mensagem sozinha a partir do status atual.
-      if (selectedOrder?.source === 'online') {
+      if (updatedOrder.source === 'online') {
         fetch('/api/push/send-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -398,14 +451,26 @@ export default function PedidosPage() {
       </div>
 
       {orderAutomationMode === 'automatic' && (
-        <div className="card bg-primary-50 border border-primary-100 flex items-center gap-2 py-3">
-          <Bot size={18} className="text-primary-600 flex-shrink-0" />
-          <p className="text-sm text-gray-700">
-            <strong>Automação ligada</strong> — os pedidos avançam sozinhos pelos status, nos tempos
-            configurados em <Link href="/painel/configuracoes" className="underline">Configurações</Link>.
-            Você ainda pode mudar o status manualmente ou cancelar a qualquer momento.
-          </p>
-        </div>
+        cronLastRunAt && Date.now() - new Date(cronLastRunAt).getTime() <= 5 * 60 * 1000 ? (
+          <div className="card bg-primary-50 border border-primary-100 flex items-center gap-2 py-3">
+            <Bot size={18} className="text-primary-600 flex-shrink-0" />
+            <p className="text-sm text-gray-700">
+              <strong>Automação ligada</strong> — os pedidos avançam sozinhos pelos status, nos tempos
+              configurados em <Link href="/painel/configuracoes" className="underline">Configurações</Link>.
+              Você ainda pode mudar o status manualmente ou cancelar a qualquer momento.
+            </p>
+          </div>
+        ) : (
+          <div className="card bg-amber-50 border border-amber-200 flex items-center gap-2 py-3">
+            <Bot size={18} className="text-amber-600 flex-shrink-0" />
+            <p className="text-sm text-gray-700">
+              <strong>Automação ligada, mas pode estar parada</strong> — {cronLastRunAt
+                ? `a última execução foi há mais de 5 minutos (${new Date(cronLastRunAt).toLocaleTimeString('pt-BR')}).`
+                : 'ainda não vimos nenhuma execução dela.'}{' '}
+              Fique de olho e avance os pedidos manualmente se notar atraso.
+            </p>
+          </div>
+        )
       )}
 
       {firstOrderPrompt && (
@@ -675,7 +740,7 @@ export default function PedidosPage() {
                         onChange={(e) => setPaymentMethod(e.target.value)}
                       >
                         <option value="">Selecione</option>
-                        {PAYMENT_METHODS.map((p) => (
+                        {PAYMENT_METHODS.filter((p) => p.value !== 'mercadopago_pix').map((p) => (
                           <option key={p.value} value={p.value}>{p.label}</option>
                         ))}
                       </select>
@@ -689,7 +754,9 @@ export default function PedidosPage() {
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => handleUpdateStatus(selectedOrder.id, 'cancelled')}
+                      onClick={() => {
+                        if (confirm('Cancelar este pedido?')) handleUpdateStatus(selectedOrder.id, 'cancelled')
+                      }}
                       className="btn-danger flex-1"
                       disabled={saving}
                     >
@@ -735,6 +802,24 @@ export default function PedidosPage() {
                     ) : (
                       'Concluir Pedido'
                     )}
+                  </button>
+                </div>
+              )}
+
+              {/* Estornar um pedido já concluído (inclusive balcão) — antes
+                  não existia jeito nenhum de reverter isso pela tela. */}
+              {selectedOrder.status === 'completed' && (
+                <div className="border-t border-gray-200 pt-4">
+                  <button
+                    onClick={() => {
+                      if (confirm('Cancelar/estornar este pedido já concluído? O estoque baixado será devolvido e o lançamento financeiro removido.')) {
+                        handleUpdateStatus(selectedOrder.id, 'cancelled')
+                      }
+                    }}
+                    className="btn-danger w-full"
+                    disabled={saving}
+                  >
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : 'Cancelar / Estornar Pedido'}
                   </button>
                 </div>
               )}

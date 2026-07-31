@@ -190,7 +190,7 @@ export default function BalcaoPage() {
       const total = subtotal
 
       const supabase = createClient()
-      const { error } = await supabase.from('orders').insert({
+      const { data: createdOrder, error } = await supabase.from('orders').insert({
         establishment_id: establishmentId,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
@@ -210,7 +210,7 @@ export default function BalcaoPage() {
         source: 'balcao',
         order_type: 'pickup', // venda presencial — não é "entrega" nem tem endereço
         payment_method: paymentMethod,
-      })
+      }).select('id').single()
 
       if (error) throw error
       log('painel:balcao', 'pedido de balcão criado, baixando estoque...')
@@ -229,6 +229,7 @@ export default function BalcaoPage() {
       // Criar entrada financeira
       const { error: financeError } = await supabase.from('financial_entries').insert({
         establishment_id: establishmentId,
+        order_id: createdOrder?.id ?? null,
         type: 'income',
         amount: total,
         description: `Venda balcão - ${customerName.trim()}`,
@@ -477,7 +478,7 @@ export default function BalcaoPage() {
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 >
-                  {PAYMENT_METHODS.map((p) => (
+                  {PAYMENT_METHODS.filter((p) => p.value !== 'mercadopago_pix').map((p) => (
                     <option key={p.value} value={p.value}>{p.label}</option>
                   ))}
                 </select>

@@ -7,6 +7,7 @@ import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { paymentMethodLabel } from '@/lib/paymentMethods'
 import { OrderPushNotificationToggle } from '@/components/OrderPushNotificationToggle'
+import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import type { OrderItem, OrderStatus, DeliveryAddress } from '@/types'
 import { Loader2, Clock, CheckCircle, ChefHat, XCircle, Store, Bike, MapPin, Wallet } from 'lucide-react'
 
@@ -50,6 +51,9 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
   const [order, setOrder] = useState<OrderStatusData | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [retryCheckout, setRetryCheckout] = useState<{ qrCode: string; qrCodeBase64: string } | null>(null)
+  const [retryLoading, setRetryLoading] = useState(false)
+  const [retryError, setRetryError] = useState<string | null>(null)
 
   // Mesma cor de marca da loja, aplicada aqui também — sem isso a página
   // de acompanhamento ficava sempre verde, mesmo pra lojas com outra cor.
@@ -106,6 +110,27 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  }
+
+  const handleGenerateNewPix = async () => {
+    if (!order) return
+    setRetryLoading(true)
+    setRetryError(null)
+    try {
+      const response = await fetch('/api/mercadopago/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Erro ao gerar o Pix')
+      setRetryCheckout({ qrCode: data.qrCode, qrCodeBase64: data.qrCodeBase64 })
+    } catch (err: any) {
+      logError('pedido', 'erro ao gerar novo Pix', err)
+      setRetryError(err.message || 'Erro ao gerar o Pix')
+    } finally {
+      setRetryLoading(false)
+    }
   }
 
   if (loading) {
@@ -232,6 +257,8 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
                   {order.payment_method === 'mercadopago_pix' && (
                     order.payment_status === 'approved' ? (
                       <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">✅ Pago</span>
+                    ) : order.payment_status === 'rejected' || order.payment_status === 'cancelled' ? (
+                      <span className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">❌ Não aprovado</span>
                     ) : (
                       <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">⏳ Aguardando</span>
                     )
@@ -241,6 +268,31 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
             )}
           </div>
         </div>
+
+        {order.payment_method === 'mercadopago_pix' && order.status === 'pending' && order.payment_status !== 'approved' && (
+          <div className="card mb-4">
+            <p className="text-sm text-gray-700 mb-3">
+              {order.payment_status === 'rejected' || order.payment_status === 'cancelled'
+                ? 'O pagamento desse pedido não foi aprovado. Gere um novo Pix pra tentar de novo.'
+                : 'Ainda não identificamos o pagamento desse pedido. Se preferir, gere um novo Pix.'}
+            </p>
+            <button onClick={handleGenerateNewPix} disabled={retryLoading} className="btn-primary w-full">
+              {retryLoading ? <Loader2 size={18} className="animate-spin" /> : 'Gerar Pix pra pagar'}
+            </button>
+            {retryError && <p className="text-xs text-red-500 mt-2">{retryError}</p>}
+          </div>
+        )}
+
+        {retryCheckout && order && (
+          <MercadoPagoPixCheckout
+            orderId={order.id}
+            amount={order.total}
+            qrCode={retryCheckout.qrCode}
+            qrCodeBase64={retryCheckout.qrCodeBase64}
+            trackingUrl={typeof window !== 'undefined' ? window.location.href : ''}
+            onClose={() => setRetryCheckout(null)}
+          />
+        )}
 
         {order.notes && (
           <div className="card mb-4">
