@@ -8,8 +8,8 @@ import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
 import { formatPhoneNumber } from '@/lib/phone'
 import { PIX_KEY_TYPES } from '@/lib/pix'
-import type { Establishment, BusinessType, BillingMode } from '@/types'
-import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink } from 'lucide-react'
+import type { Establishment, BusinessType, BillingMode, OrderAutomationMode } from '@/types'
+import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink, Hand, Bot } from 'lucide-react'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   { value: 'preparo', title: 'Tem preparo', description: 'Comida, lanches, bebidas montadas na hora.', icon: ChefHat },
@@ -27,6 +27,7 @@ export default function ConfiguracoesPage() {
     slug: '',
     whatsapp_number: '',
     address: '',
+    description: '',
     theme_color: '#22c55e',
     logo_url: '',
     is_open: true,
@@ -42,6 +43,11 @@ export default function ConfiguracoesPage() {
     pix_city: '',
     custom_domain: '',
     billing_mode: 'comissao' as BillingMode,
+    order_automation_mode: 'manual' as OrderAutomationMode,
+    auto_confirm_minutes: '2',
+    auto_preparing_minutes: '5',
+    auto_completed_minutes_pickup: '15',
+    auto_completed_minutes_delivery: '30',
   })
   const [mpStatus, setMpStatus] = useState<{ connected: boolean; email: string | null } | null>(null)
   const [mpStatusLoading, setMpStatusLoading] = useState(true)
@@ -146,6 +152,7 @@ export default function ConfiguracoesPage() {
           slug: data.slug,
           whatsapp_number: data.whatsapp_number,
           address: data.address || '',
+          description: data.description || '',
           theme_color: data.theme_color || '#22c55e',
           logo_url: data.logo_url || '',
           is_open: data.is_open ?? true,
@@ -161,6 +168,11 @@ export default function ConfiguracoesPage() {
           pix_city: data.pix_city || '',
           custom_domain: data.custom_domain || '',
           billing_mode: (data.billing_mode as BillingMode) || 'comissao',
+          order_automation_mode: (data.order_automation_mode as OrderAutomationMode) || 'manual',
+          auto_confirm_minutes: String(data.auto_confirm_minutes ?? 2),
+          auto_preparing_minutes: String(data.auto_preparing_minutes ?? 5),
+          auto_completed_minutes_pickup: String(data.auto_completed_minutes_pickup ?? 15),
+          auto_completed_minutes_delivery: String(data.auto_completed_minutes_delivery ?? 30),
         })
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
@@ -195,6 +207,7 @@ export default function ConfiguracoesPage() {
           name: formData.name,
           whatsapp_number: formData.whatsapp_number,
           address: formData.address || null,
+          description: formData.description.trim() || null,
           theme_color: formData.theme_color,
           logo_url: formData.logo_url || null,
           is_open: formData.is_open,
@@ -211,6 +224,11 @@ export default function ConfiguracoesPage() {
           pix_city: formData.pix_city.trim() || null,
           custom_domain: formData.custom_domain.trim().toLowerCase() || null,
           billing_mode: formData.billing_mode,
+          order_automation_mode: formData.order_automation_mode,
+          auto_confirm_minutes: parseInt(formData.auto_confirm_minutes) || 0,
+          auto_preparing_minutes: parseInt(formData.auto_preparing_minutes) || 0,
+          auto_completed_minutes_pickup: parseInt(formData.auto_completed_minutes_pickup) || 0,
+          auto_completed_minutes_delivery: parseInt(formData.auto_completed_minutes_delivery) || 0,
         })
         .eq('owner_id', user.id)
 
@@ -403,6 +421,22 @@ export default function ConfiguracoesPage() {
                 </div>
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição da loja</label>
+              <textarea
+                className="input-field"
+                rows={2}
+                maxLength={200}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Ex: Pizzaria artesanal com massa de fermentação natural, no forno a lenha desde 2010."
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Aparece junto com sua logo quando alguém compartilha o link do seu cardápio (WhatsApp,
+                Instagram etc.). Deixe em branco para usar uma descrição padrão.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -506,6 +540,118 @@ export default function ConfiguracoesPage() {
                 Se o cliente comprar esse valor ou mais, a taxa de entrega é isentada sozinha — e o
                 carrinho mostra uma barra "faltam R$X pra frete grátis" incentivando a compra. Deixe em
                 branco para não usar.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Automação de pedidos */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Automação de pedidos</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Escolha se você mesmo muda o status de cada pedido conforme ele evolui, ou se prefere que o
+            sistema avance sozinho — pensado pra quem não tem ninguém disponível pra ficar
+            acompanhando o Kanban o tempo todo.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, order_automation_mode: 'manual' })}
+              className={`text-left flex items-start gap-2 p-3 rounded-lg border-2 transition-colors ${
+                formData.order_automation_mode === 'manual' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <Hand size={18} className={formData.order_automation_mode === 'manual' ? 'text-primary-600 flex-shrink-0 mt-0.5' : 'text-gray-400 flex-shrink-0 mt-0.5'} />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">Manual</p>
+                <p className="text-xs text-gray-500">Você muda o status conforme o pedido evolui — como já funciona hoje.</p>
+              </div>
+              {formData.order_automation_mode === 'manual' && <CheckCircle2 size={16} className="text-primary-500 flex-shrink-0" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, order_automation_mode: 'automatic' })}
+              className={`text-left flex items-start gap-2 p-3 rounded-lg border-2 transition-colors ${
+                formData.order_automation_mode === 'automatic' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <Bot size={18} className={formData.order_automation_mode === 'automatic' ? 'text-primary-600 flex-shrink-0 mt-0.5' : 'text-gray-400 flex-shrink-0 mt-0.5'} />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">Automático</p>
+                <p className="text-xs text-gray-500">O pedido avança sozinho, nos tempos que você configurar abaixo.</p>
+              </div>
+              {formData.order_automation_mode === 'automatic' && <CheckCircle2 size={16} className="text-primary-500 flex-shrink-0" />}
+            </button>
+          </div>
+
+          {formData.order_automation_mode === 'automatic' && (
+            <div className="space-y-4 bg-gray-50 rounded-lg p-4">
+              {formData.order_tracking_enabled ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Confirmar pedido novo sozinho em (minutos)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input-field max-w-[140px]"
+                      value={formData.auto_confirm_minutes}
+                      onChange={(e) => setFormData({ ...formData, auto_confirm_minutes: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Passar para "Em preparo" em (minutos)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="input-field max-w-[140px]"
+                      value={formData.auto_preparing_minutes}
+                      onChange={(e) => setFormData({ ...formData, auto_preparing_minutes: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Sua loja está com "Acompanhamento detalhado do pedido" desligado — o pedido pula
+                  direto de Pendente para Concluído, sem os passos intermediários.
+                </p>
+              )}
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                    <StoreIcon size={14} /> Concluir retirada em (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input-field max-w-[140px]"
+                    value={formData.auto_completed_minutes_pickup}
+                    onChange={(e) => setFormData({ ...formData, auto_completed_minutes_pickup: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                    <Bike size={14} /> Concluir entrega em (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input-field max-w-[140px]"
+                    value={formData.auto_completed_minutes_delivery}
+                    onChange={(e) => setFormData({ ...formData, auto_completed_minutes_delivery: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Os tempos contam a partir de quando o pedido entrou em cada etapa. Pedido pago por Pix
+                automático (Mercado Pago) nunca é confirmado sozinho antes do pagamento cair — só depois
+                disso ele passa a avançar pelos tempos acima. Cancelar continua sendo sempre manual.
               </p>
             </div>
           )}

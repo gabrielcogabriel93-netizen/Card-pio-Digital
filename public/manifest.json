@@ -1,6 +1,6 @@
 {
-  "name": "Cardápio SaaS - Cardápio Digital",
-  "short_name": "CardápioSaaS",
+  "name": "CatalogAI - Cardápio Digital",
+  "short_name": "CatalogAI",
   "description": "Cardápio digital com pedidos direto no WhatsApp.",
   "start_url": "/",
   "display": "standalone",

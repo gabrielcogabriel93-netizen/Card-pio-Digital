@@ -118,7 +118,7 @@ export default function LoginPage() {
             <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-lg">C</span>
             </div>
-            <span className="font-bold text-2xl text-gray-900">Cardápio<span className="text-primary-500">SaaS</span></span>
+            <span className="font-bold text-2xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
           </Link>
         </div>
 

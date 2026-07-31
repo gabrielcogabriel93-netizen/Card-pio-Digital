@@ -1,4 +1,4 @@
-# Cardápio SaaS - TODO List
+# CatalogAI - TODO List
 
 ## FASE 1: Configuração Inicial e Banco de Dados
 - [x] 1.1 - Inicializar projeto Next.js com TypeScript + Tailwind

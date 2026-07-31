@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { playNotificationSound } from '@/lib/sound'
@@ -9,8 +10,8 @@ import { PushNotificationToggle } from '@/components/PushNotificationToggle'
 import { AutoPrintToggle } from '@/components/AutoPrintToggle'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import { STATUS_NOTIFICATION_MESSAGES } from '@/lib/orderStatusMessages'
-import type { Order, OrderItem } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin, Wallet } from 'lucide-react'
+import type { Order, OrderItem, OrderAutomationMode } from '@/types'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin, Wallet, Bot } from 'lucide-react'
 
 // Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
 // histórico infinito conforme a loja acumula pedidos.
@@ -54,6 +55,7 @@ export default function PedidosPage() {
   const [printerLabel, setPrinterLabel] = useState('')
   const [firstOrderPrompt, setFirstOrderPrompt] = useState<Order | null>(null)
   const [firstOrderPrinterDraft, setFirstOrderPrinterDraft] = useState('')
+  const [orderAutomationMode, setOrderAutomationMode] = useState<OrderAutomationMode>('manual')
   // A subscrição realtime é criada uma única vez (useEffect com deps
   // vazias) — sem essa ref, o callback ficaria preso no valor de
   // autoPrintEnabled do momento em que a aba abriu (stale closure).
@@ -138,7 +140,7 @@ export default function PedidosPage() {
 
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id, order_tracking_enabled, whatsapp_notifications_enabled, auto_print_enabled, printer_label')
+        .select('id, order_tracking_enabled, whatsapp_notifications_enabled, auto_print_enabled, printer_label, order_automation_mode')
         .eq('owner_id', user.id)
         .single()
 
@@ -150,6 +152,7 @@ export default function PedidosPage() {
       setWhatsappNotificationsEnabled(est.whatsapp_notifications_enabled ?? false)
       setAutoPrintEnabled(est.auto_print_enabled ?? null)
       setPrinterLabel(est.printer_label || '')
+      setOrderAutomationMode(est.order_automation_mode || 'manual')
 
       const { data, error } = await supabase
         .from('orders')
@@ -393,6 +396,17 @@ export default function PedidosPage() {
           </div>
         </div>
       </div>
+
+      {orderAutomationMode === 'automatic' && (
+        <div className="card bg-primary-50 border border-primary-100 flex items-center gap-2 py-3">
+          <Bot size={18} className="text-primary-600 flex-shrink-0" />
+          <p className="text-sm text-gray-700">
+            <strong>Automação ligada</strong> — os pedidos avançam sozinhos pelos status, nos tempos
+            configurados em <Link href="/painel/configuracoes" className="underline">Configurações</Link>.
+            Você ainda pode mudar o status manualmente ou cancelar a qualquer momento.
+          </p>
+        </div>
+      )}
 
       {firstOrderPrompt && (
         <div className="card bg-primary-50 border border-primary-100 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">

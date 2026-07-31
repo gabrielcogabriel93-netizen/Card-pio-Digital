@@ -50,7 +50,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     return { title: 'Cardápio não encontrado' }
   }
 
-  const description = `Confira o cardápio de ${establishment.name} e faça seu pedido direto pelo WhatsApp.`
+  // Descrição configurada pelo lojista (Configurações > Dados do
+  // Estabelecimento) tem prioridade — é o que ele quer que apareça
+  // quando compartilha o link. Sem ela, cai numa descrição genérica.
+  const description = establishment.description?.trim()
+    || `Confira o cardápio de ${establishment.name} e faça seu pedido direto pelo WhatsApp.`
 
   return {
     title: establishment.name,
@@ -98,6 +102,7 @@ export default async function PublicMenuPage({ params }: { params: { slug: strin
     name: establishment.name,
     url: `${baseUrl}/loja/${establishment.slug}`,
     ...(establishment.logo_url && { image: establishment.logo_url }),
+    ...(establishment.description && { description: establishment.description }),
     ...(establishment.address && { address: establishment.address }),
     ...(establishment.whatsapp_number && { telephone: establishment.whatsapp_number }),
   }

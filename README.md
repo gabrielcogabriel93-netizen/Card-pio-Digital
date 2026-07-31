@@ -1,4 +1,4 @@
-# Cardápio SaaS
+# CatalogAI
 
 Plataforma multi-tenant de cardápio digital: cada lojista cria sua conta, monta o
 cardápio (categorias, produtos e variações), recebe pedidos online com envio

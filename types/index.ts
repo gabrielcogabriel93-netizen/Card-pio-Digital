@@ -1,5 +1,5 @@
 // ============================================================
-// Tipos TypeScript para o Cardápio SaaS
+// Tipos TypeScript para o CatalogAI
 // ============================================================
 
 // Tipo de negócio, definido no quiz de onboarding (ou depois em
@@ -13,6 +13,11 @@ export type BusinessType = 'preparo' | 'pronto' | 'hibrido'
 // não tem cobrança recorrente implementada — fica "em breve" na UI.
 export type BillingMode = 'comissao' | 'mensalidade'
 
+// Automação do Kanban de pedidos (migration 029). 'manual' (padrão) é o
+// comportamento de sempre — o lojista muda o status na mão. 'automatic'
+// faz o pedido avançar sozinho, nos tempos configurados abaixo.
+export type OrderAutomationMode = 'manual' | 'automatic'
+
 // Estabelecimento (Tenant)
 export interface Establishment {
   id: string
@@ -23,6 +28,10 @@ export interface Establishment {
   logo_url?: string
   theme_color?: string
   address?: string
+  // Usada no preview de link (Open Graph/Twitter Card) quando o cliente
+  // compartilha o cardápio — ver migration 030 e generateMetadata em
+  // app/loja/[slug]/page.tsx.
+  description?: string | null
   opening_hours?: Record<string, { open: string; close: string }>
   is_open?: boolean
   delivery_fee?: number
@@ -52,6 +61,12 @@ export interface Establishment {
   // de verdade é sempre a padrão do Windows daquele computador.
   auto_print_enabled?: boolean | null
   printer_label?: string | null
+  // Automação do Kanban por tempo (migration 029) — ver OrderAutomationMode.
+  order_automation_mode?: OrderAutomationMode
+  auto_confirm_minutes?: number
+  auto_preparing_minutes?: number
+  auto_completed_minutes_pickup?: number
+  auto_completed_minutes_delivery?: number
 }
 
 // Estabelecimento como visto pelo cardápio público — vem da view
@@ -290,6 +305,10 @@ export interface Order {
   notes?: string
   created_at: string
   updated_at: string
+  // Desde quando o pedido está no `status` atual — setado sozinho por
+  // trigger (migration 029), usado pela automação por tempo pra saber
+  // se já passou do prazo configurado pra avançar de etapa.
+  status_changed_at?: string
 }
 
 // Cupom de desconto

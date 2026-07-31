@@ -1,10 +1,10 @@
-// Service worker do Cardápio SaaS.
+// Service worker do CatalogAI.
 // Estratégia: cache-first apenas para assets estáticos versionados pelo Next
 // (JS/CSS/ícones); tudo mais (páginas, dados do Supabase) vai sempre para a
 // rede, já que cardápio, pedidos e painel mudam a todo momento e não podem
 // ficar desatualizados por causa de cache.
 
-const CACHE_NAME = 'cardapio-saas-v1'
+const CACHE_NAME = 'catalogai-v1'
 const STATIC_ASSET_PATTERN = /\/_next\/static\/|\/icons\//
 
 self.addEventListener('install', (event) => {

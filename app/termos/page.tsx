@@ -19,9 +19,9 @@ export default function TermosPage() {
 
         <div className="prose prose-gray max-w-none space-y-6 text-gray-700 leading-relaxed">
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">1. O que é o Cardápio SaaS</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">1. O que é o CatalogAI</h2>
             <p>
-              O Cardápio SaaS é uma plataforma que permite a lojistas criarem um cardápio digital,
+              O CatalogAI é uma plataforma que permite a lojistas criarem um cardápio digital,
               gerenciarem produtos, pedidos, estoque e financeiro do seu negócio, e receberem pedidos de
               clientes via WhatsApp.
             </p>
@@ -39,7 +39,7 @@ export default function TermosPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Uso da plataforma</h2>
             <p>
-              Você concorda em não usar o Cardápio SaaS para fins ilegais, para publicar conteúdo
+              Você concorda em não usar o CatalogAI para fins ilegais, para publicar conteúdo
               enganoso, ofensivo ou que viole direitos de terceiros, nem para tentar acessar dados de
               outras lojas sem autorização.
             </p>
@@ -48,23 +48,41 @@ export default function TermosPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">4. Pedidos e relação com os clientes</h2>
             <p>
-              O Cardápio SaaS é uma ferramenta de gestão e comunicação — o contrato de compra e venda é
-              feito diretamente entre o lojista e o cliente final (via WhatsApp). Não somos parte dessa
-              relação comercial nem processamos pagamentos.
+              O CatalogAI é uma ferramenta de gestão e comunicação — o contrato de compra e venda é
+              feito diretamente entre o lojista e o cliente final. Não somos parte dessa relação
+              comercial: não garantimos a entrega, a qualidade dos produtos ou o cumprimento do pedido
+              pelo lojista.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">5. Disponibilidade do serviço</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">5. Pagamento automático via Mercado Pago</h2>
+            <p>
+              O lojista pode, opcionalmente, conectar sua própria conta do Mercado Pago para aceitar Pix
+              automático no cardápio. Nesse caso, o pagamento do cliente vai direto para a conta do
+              lojista no Mercado Pago — o CatalogAI não recebe, não guarda e não tem acesso ao dinheiro do
+              cliente em nenhum momento. Por facilitar essa integração, o CatalogAI recebe uma comissão
+              fixa por pedido pago dessa forma, descontada automaticamente pelo próprio Mercado Pago no
+              momento do pagamento (split).
+            </p>
+            <p className="mt-2">
+              Disputas sobre o pagamento em si (estorno, contestação, falha na cobrança) são resolvidas
+              entre o lojista, o cliente e o Mercado Pago, conforme os termos de uso do Mercado Pago — o
+              CatalogAI não é parte dessa relação de pagamento, só disponibiliza a integração técnica.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">6. Disponibilidade do serviço</h2>
             <p>
               Fazemos o possível para manter a plataforma disponível, mas não garantimos operação
-              ininterrupta. Manutenções, falhas de terceiros (ex: Supabase, Vercel) ou casos fortuitos
-              podem causar indisponibilidade temporária.
+              ininterrupta. Manutenções, falhas de terceiros (ex: Supabase, Vercel, Mercado Pago) ou casos
+              fortuitos podem causar indisponibilidade temporária.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">6. Cancelamento</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">7. Cancelamento</h2>
             <p>
               Você pode encerrar sua conta a qualquer momento. Reservamo-nos o direito de suspender contas
               que violem estes termos.
@@ -72,7 +90,7 @@ export default function TermosPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">7. Alterações</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">8. Alterações</h2>
             <p>
               Estes termos podem ser atualizados. Mudanças relevantes serão comunicadas pelos canais da
               plataforma.
@@ -80,7 +98,7 @@ export default function TermosPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">8. Contato</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">9. Contato</h2>
             <p>Dúvidas sobre estes termos podem ser enviadas para o suporte da plataforma.</p>
           </section>
         </div>

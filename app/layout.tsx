@@ -7,8 +7,8 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: {
-    default: 'Cardápio SaaS - Cardápio Digital Grátis',
-    template: '%s | Cardápio SaaS',
+    default: 'CatalogAI - Cardápio Digital Grátis',
+    template: '%s | CatalogAI',
   },
   description:
     'Crie seu cardápio digital grátis e receba pedidos direto no WhatsApp. Ideal para restaurantes, pizzarias, lanchonetes e muito mais.',
@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     'saas cardápio',
     'menu digital',
   ],
-  authors: [{ name: 'Cardápio SaaS' }],
-  creator: 'Cardápio SaaS',
+  authors: [{ name: 'CatalogAI' }],
+  creator: 'CatalogAI',
   manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192x192.png',
@@ -46,7 +46,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Cardápio SaaS" />
+        <meta name="apple-mobile-web-app-title" content="CatalogAI" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={inter.className}>

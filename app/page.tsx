@@ -22,7 +22,7 @@ export default function LandingPage() {
               <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">C</span>
               </div>
-              <span className="font-bold text-xl text-gray-900">Cardápio<span className="text-primary-500">SaaS</span></span>
+              <span className="font-bold text-xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
             </div>
 
             {/* Desktop Nav */}
@@ -198,7 +198,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Para quem é o Cardápio SaaS?
+              Para quem é o CatalogAI?
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Ideal para qualquer negócio que queira vender mais com um catálogo digital profissional.
@@ -287,7 +287,7 @@ export default function LandingPage() {
                 <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">C</span>
                 </div>
-                <span className="font-bold text-xl text-white">Cardápio<span className="text-primary-500">SaaS</span></span>
+                <span className="font-bold text-xl text-white">Catalog<span className="text-primary-500">AI</span></span>
               </div>
               <p className="text-sm">
                 Plataforma completa para criar e gerenciar seu cardápio digital. 
@@ -311,7 +311,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p>&copy; {new Date().getFullYear()} Cardápio SaaS. Todos os direitos reservados.</p>
+            <p>&copy; {new Date().getFullYear()} CatalogAI. Todos os direitos reservados.</p>
             <div className="flex gap-4">
               <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
               <Link href="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>

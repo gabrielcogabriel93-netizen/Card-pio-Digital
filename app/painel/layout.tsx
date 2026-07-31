@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
+import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import {
   LayoutDashboard,
   Package,
@@ -53,6 +54,17 @@ export default function PainelLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userName, setUserName] = useState<string>('')
   const [establishmentName, setEstablishmentName] = useState<string>('')
+  const [themeColor, setThemeColor] = useState<string | null>(null)
+
+  // Mesma cor de marca escolhida em Configurações, agora aplicada no
+  // painel inteiro — não só no cardápio público e em /pedido/[id]. As
+  // classes bg-primary-*/text-primary-* já usadas em todo o painel
+  // resolvem essas variáveis (ver tailwind.config.ts), então não precisa
+  // mexer em mais nada além de setar isso no elemento raiz.
+  const themeStyle = useMemo(
+    () => themeShadesToCssVars(generateColorShades(themeColor)) as React.CSSProperties,
+    [themeColor]
+  )
 
   useEffect(() => {
     const getUser = async () => {
@@ -73,7 +85,7 @@ export default function PainelLayout({
         // Buscar nome do estabelecimento
         const { data: est, error: estError } = await supabase
           .from('establishments')
-          .select('name, onboarding_completed')
+          .select('name, onboarding_completed, theme_color')
           .eq('owner_id', user.id)
           .maybeSingle()
 
@@ -87,6 +99,7 @@ export default function PainelLayout({
           }
           log('painel:layout', 'estabelecimento carregado', { name: est.name })
           setEstablishmentName(est.name)
+          setThemeColor(est.theme_color || null)
         } else {
           // Conta criada mas a loja ainda não foi configurada
           // (ex: confirmação de e-mail estava ativada no cadastro).
@@ -115,7 +128,7 @@ export default function PainelLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={themeStyle}>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -138,7 +151,7 @@ export default function PainelLayout({
                 <span className="text-white font-bold text-sm">C</span>
               </div>
               <div>
-                <span className="font-bold text-gray-900">CardápioSaaS</span>
+                <span className="font-bold text-gray-900">CatalogAI</span>
                 {establishmentName && (
                   <p className="text-xs text-gray-500 truncate max-w-[140px]">{establishmentName}</p>
                 )}
@@ -215,7 +228,7 @@ export default function PainelLayout({
               <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">C</span>
               </div>
-              <span className="font-bold text-gray-900">CardápioSaaS</span>
+              <span className="font-bold text-gray-900">CatalogAI</span>
             </div>
             <div className="w-10" /> {/* Spacer */}
           </div>
