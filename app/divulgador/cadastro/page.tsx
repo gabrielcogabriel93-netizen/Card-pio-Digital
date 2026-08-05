@@ -18,6 +18,7 @@ export default function DivulgadorCadastroPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false)
+  const [accountExists, setAccountExists] = useState(false)
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,6 +44,27 @@ export default function DivulgadorCadastroPage() {
         password: formData.password,
         options: { data: { nome: formData.nome, divulgador: true } },
       })
+
+      // E-mail já usado (por uma loja cadastrada antes, ou por outro
+      // cadastro de divulgador) -- Supabase sinaliza isso de dois jeitos
+      // diferentes dependendo de "Confirmar e-mail" estar ligado ou não
+      // no projeto: (1) erro explícito "User already registered", ou (2)
+      // sem erro nenhum, mas `identities` vem vazio (pra não revelar se
+      // o e-mail existe, o Supabase finge sucesso). Nos dois casos é a
+      // MESMA conta que já existe -- não precisa criar outra: a pessoa só
+      // precisa entrar com a senha que já tem, e a gente vincula o perfil
+      // de divulgador a essa conta (ver /divulgador/completar-cadastro,
+      // que já cobre "autenticado sem perfil ainda").
+      const emailJaExiste =
+        (authError && /already registered|already exists/i.test(authError.message)) ||
+        (!authError && authData?.user && authData.user.identities?.length === 0)
+
+      if (emailJaExiste) {
+        setAccountExists(true)
+        setLoading(false)
+        return
+      }
+
       if (authError) throw new Error(authError.message)
       if (!authData.user) throw new Error('Erro ao criar usuário.')
 
@@ -86,7 +108,22 @@ export default function DivulgadorCadastroPage() {
           <p className="text-sm text-gray-500 mt-2">Seja um divulgador</p>
         </div>
 
-        {awaitingConfirmation ? (
+        {accountExists ? (
+          <div className="card text-center">
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail size={28} className="text-amber-500" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Esse e-mail já tem conta</h1>
+            <p className="text-gray-600 mb-6">
+              Já existe uma conta com <strong>{formData.email}</strong> (pode ser até uma loja sua já
+              cadastrada no CatalogAI). Você não precisa de outro e-mail: é só entrar com a senha dessa
+              conta que a gente vincula o cadastro de divulgador a ela.
+            </p>
+            <Link href="/divulgador/login" className="btn-primary w-full">
+              Entrar com essa conta
+            </Link>
+          </div>
+        ) : awaitingConfirmation ? (
           <div className="card text-center">
             <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Mail size={28} className="text-primary-500" />

@@ -7,11 +7,11 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: {
-    default: 'CatalogAI - Cardápio Digital Grátis',
+    default: 'CatalogAI - Cardápio Digital com 7 Dias Grátis',
     template: '%s | CatalogAI',
   },
   description:
-    'Crie seu cardápio digital grátis e receba pedidos direto no WhatsApp. Ideal para restaurantes, pizzarias, lanchonetes e muito mais.',
+    'Crie seu cardápio digital e receba pedidos direto no WhatsApp. 7 dias grátis, com todas as funções liberadas. Ideal para restaurantes, pizzarias, lanchonetes e muito mais.',
   keywords: [
     'cardápio digital',
     'cardápio online',

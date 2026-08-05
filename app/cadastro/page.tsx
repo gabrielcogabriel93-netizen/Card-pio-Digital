@@ -317,7 +317,7 @@ export default function CadastroPage() {
                     {loading ? (
                       <Loader2 size={20} className="animate-spin" />
                     ) : (
-                      'Criar conta grátis'
+                      'Testar 7 dias grátis'
                     )}
                   </button>
                 </div>

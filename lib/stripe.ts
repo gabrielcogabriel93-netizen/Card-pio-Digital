@@ -43,6 +43,13 @@ export interface DivulgadorForConnect {
  * Cria a conta conectada Express do divulgador — dados bancários e KYC
  * ficam só na Stripe, nunca no nosso banco. Chamada uma única vez, no
  * cadastro (app/api/divulgador/cadastro).
+ *
+ * card_payments é pedida junto com transfers porque, pra contas no
+ * Brasil, a Stripe exige as duas capacidades juntas (erro "You cannot
+ * request the `transfers` capability without the `card_payments`
+ * capability for accounts in BR" se pedir só transfers). O divulgador
+ * nunca processa cobrança nenhuma -- é só um requisito de habilitação da
+ * conta nesse país, não muda nada do fluxo de comissão.
  */
 export async function createConnectedAccount(divulgador: DivulgadorForConnect): Promise<string> {
   const stripe = getStripeClient()
@@ -52,6 +59,7 @@ export async function createConnectedAccount(divulgador: DivulgadorForConnect): 
     business_type: 'individual',
     capabilities: {
       transfers: { requested: true },
+      card_payments: { requested: true },
     },
     metadata: { divulgadorId: divulgador.id },
   })

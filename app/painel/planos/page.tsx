@@ -111,7 +111,7 @@ export default function PlanosPage() {
           {loadingSub ? (
             <Loader2 size={16} className="animate-spin text-gray-400" />
           ) : !subscription || !subscription.billingEnabled ? (
-            <span className="badge bg-primary-100 text-primary-700">Gratuito</span>
+            <span className="badge bg-primary-100 text-primary-700">7 dias grátis</span>
           ) : subscription.status === 'exempt' ? (
             <span className="badge bg-purple-100 text-purple-700">Isento</span>
           ) : subscription.status === 'active' ? (
@@ -124,8 +124,8 @@ export default function PlanosPage() {
         {!loadingSub && subscription && (
           !subscription.billingEnabled ? (
             <p className="text-gray-600 text-sm mb-4">
-              Este sistema está 100% gratuito no momento — sem taxas de assinatura, sem limite de produtos e
-              sem cartão de crédito. Todas as funcionalidades abaixo já estão liberadas para você.
+              Você tem 7 dias grátis, com todas as funcionalidades abaixo já liberadas — sem limite de
+              produtos e sem precisar de cartão de crédito.
             </p>
           ) : subscription.status === 'exempt' ? (
             <p className="text-gray-600 text-sm mb-4">
@@ -215,7 +215,7 @@ export default function PlanosPage() {
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Gostou do sistema?</h2>
             <p className="text-gray-600 text-sm mb-4">
-              Esse sistema está de forma totalmente gratuita no momento. Se ele está te ajudando a
+              Você tem 7 dias grátis com tudo liberado pra testar o sistema. Se ele está te ajudando a
               vender mais, uma doação (de qualquer valor) nos incentiva a continuar trazendo
               melhorias — e até outros sistemas — para você.
             </p>

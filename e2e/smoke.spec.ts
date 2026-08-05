@@ -4,12 +4,12 @@ test.describe('Smoke tests', () => {
   test('landing page carrega e mostra o CTA principal', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByRole('link', { name: /criar meu cardápio grátis/i }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: /testar 7 dias grátis/i }).first()).toBeVisible()
   })
 
-  test('link "Criar meu cardápio grátis" leva para /cadastro', async ({ page }) => {
+  test('link "Testar 7 dias grátis" leva para /cadastro', async ({ page }) => {
     await page.goto('/')
-    await page.getByRole('link', { name: /criar meu cardápio grátis/i }).first().click()
+    await page.getByRole('link', { name: /testar 7 dias grátis/i }).first().click()
     await expect(page).toHaveURL(/\/cadastro/)
   })
 

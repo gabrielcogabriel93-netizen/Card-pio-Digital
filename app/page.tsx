@@ -32,7 +32,7 @@ export default function LandingPage() {
               <a href="#como-funciona" className="text-gray-600 hover:text-gray-900 transition-colors">Como funciona</a>
               <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">Acessar</Link>
               <Link href="/cadastro" className="btn-primary">
-                Criar meu cardápio grátis
+                Testar 7 dias grátis
               </Link>
             </nav>
 
@@ -56,7 +56,7 @@ export default function LandingPage() {
               <a href="#como-funciona" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Como funciona</a>
               <Link href="/login" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Acessar</Link>
               <Link href="/cadastro" className="btn-primary w-full text-center" onClick={() => setIsMenuOpen(false)}>
-                Criar meu cardápio grátis
+                Testar 7 dias grátis
               </Link>
             </div>
           </div>
@@ -72,22 +72,22 @@ export default function LandingPage() {
         <div className={`relative max-w-4xl mx-auto text-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
             <CheckCircle size={16} />
-            <span>100% gratuito • Sem taxas • Multi-empresa</span>
+            <span>7 dias grátis, tudo liberado • Sem taxas • Multi-empresa</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
             Crie seu{' '}
             <span className="text-primary-500">cardápio digital</span>
-            {' '}grátis e receba pedidos direto no{' '}
+            {' '}e receba pedidos direto no{' '}
             <span className="text-green-500">WhatsApp</span>
           </h1>
           <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
-            Transforme seu negócio com um cardápio online profissional. 
-            Seus clientes visualizam produtos, escolhem variações e enviam o pedido 
+            Transforme seu negócio com um cardápio online profissional.
+            Seus clientes visualizam produtos, escolhem variações e enviam o pedido
             completo para você pelo WhatsApp em segundos.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
-              Criar meu cardápio grátis
+              Testar 7 dias grátis
               <ChevronRight size={20} />
             </Link>
             <Link href="#como-funciona" className="btn-secondary text-lg px-8 py-4">
@@ -237,7 +237,7 @@ export default function LandingPage() {
               Comece em 3 passos
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Rápido, simples e gratuito. Você começa a receber pedidos hoje mesmo.
+              Rápido e simples. Você começa a receber pedidos hoje mesmo, com 7 dias grátis e tudo liberado.
             </p>
           </div>
 
@@ -246,7 +246,7 @@ export default function LandingPage() {
               {
                 step: '1',
                 title: 'Crie sua conta',
-                description: 'Cadastre-se gratuitamente e responda um quiz rápido — o painel já nasce ajustado ao seu tipo de negócio.'
+                description: 'Cadastre-se (7 dias grátis, com tudo liberado) e responda um quiz rápido — o painel já nasce ajustado ao seu tipo de negócio.'
               },
               {
                 step: '2',
@@ -271,7 +271,7 @@ export default function LandingPage() {
 
           <div className="text-center mt-12">
             <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
-              Criar meu cardápio grátis agora
+              Testar 7 dias grátis agora
               <ChevronRight size={20} />
             </Link>
           </div>
