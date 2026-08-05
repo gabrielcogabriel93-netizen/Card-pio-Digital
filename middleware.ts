@@ -70,10 +70,36 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Painel do divulgador (comissões, migration 034) tem login próprio,
+  // separado do lojista/admin -- por isso não entra em isProtectedRoute
+  // acima (que redireciona pra /login) e ganha o redirecionamento dele.
+  if (pathname.startsWith('/divulgador/dashboard') && !user) {
+    console.log(`[middleware] ${pathname} protegida, sem usuário -> redirecionando para /divulgador/login`)
+    const redirectUrl = new URL('/divulgador/login', request.url)
+    redirectUrl.searchParams.set('redirect', pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
   // Redirecionar usuário logado para o painel se tentar acessar login/cadastro
   if (user && (pathname === '/login' || pathname === '/cadastro')) {
     console.log(`[middleware] usuário já logado em ${pathname} -> redirecionando para /painel`)
     return NextResponse.redirect(new URL('/painel', request.url))
+  }
+
+  // Rastreio de indicação de divulgador (migration 034): o link que o
+  // divulgador compartilha é /cadastro?ref=CODIGO -- guarda o código num
+  // cookie de 60 dias pra app/cadastro/page.tsx (e
+  // app/completar-cadastro/page.tsx, no caso de confirmação de e-mail)
+  // conseguirem vincular a indicação depois que o estabelecimento for
+  // criado, via /api/indicacao/vincular. Não sobrescreve um cookie já
+  // existente -- o primeiro link clicado é o que vale.
+  const ref = request.nextUrl.searchParams.get('ref')
+  if (pathname === '/cadastro' && ref && !request.cookies.get('divulgador_ref')) {
+    supabaseResponse.cookies.set('divulgador_ref', ref, {
+      maxAge: 60 * 24 * 60 * 60,
+      path: '/',
+      sameSite: 'lax',
+    })
   }
 
   return supabaseResponse

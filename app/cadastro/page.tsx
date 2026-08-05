@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { vincularIndicacaoSeHouver } from '@/lib/indicacao'
 import { formatPhoneNumber } from '@/lib/phone'
 import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
@@ -95,6 +96,8 @@ export default function CadastroPage() {
         whatsappNumber: formData.whatsapp,
       })
       log('cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
+
+      await vincularIndicacaoSeHouver()
 
       log('cadastro', 'redirecionando para /onboarding...')
       router.push('/onboarding')

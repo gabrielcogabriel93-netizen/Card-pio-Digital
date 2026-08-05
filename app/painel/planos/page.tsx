@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logError } from '@/lib/logger'
-import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle, Loader2, Clock, ShieldCheck } from 'lucide-react'
+import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle, Loader2, Clock, ShieldCheck, CreditCard } from 'lucide-react'
 
 // Contato pra quem quiser saber mais sobre os planos pagos que ainda
 // estão em preparação — nenhum checkout de verdade acontece aqui, só
@@ -38,6 +38,8 @@ export default function PlanosPage() {
   const [copied, setCopied] = useState(false)
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
   const [loadingSub, setLoadingSub] = useState(true)
+  const [startingCheckout, setStartingCheckout] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadSubscription = async () => {
@@ -64,6 +66,21 @@ export default function PlanosPage() {
     }
     loadSubscription()
   }, [])
+
+  const handleAssinar = async () => {
+    setStartingCheckout(true)
+    setCheckoutError(null)
+    try {
+      const response = await fetch('/api/subscription/create-payment', { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Erro ao iniciar assinatura')
+      window.location.href = data.url
+    } catch (err: any) {
+      logError('painel:planos', 'erro ao iniciar checkout da assinatura', err)
+      setCheckoutError(err.message || 'Erro ao iniciar assinatura')
+      setStartingCheckout(false)
+    }
+  }
 
   const handleCopyPix = () => {
     navigator.clipboard.writeText(PIX_PHONE_KEY)
@@ -151,24 +168,42 @@ export default function PlanosPage() {
           <h2 className="text-lg font-semibold text-gray-900">Mensalidade da plataforma</h2>
         </div>
         <p className="text-gray-600 text-sm mb-2">
-          A partir de {formatCurrency(subscription?.monthlyPrice || 49.9)}/mês, cobrado via Pix (o mesmo Pix
-          automático já usado nos pedidos dos seus clientes) — sem contrato de fidelidade, cancelável quando
-          quiser.
+          A partir de {formatCurrency(subscription?.monthlyPrice || 49.9)}/mês, via cartão (checkout
+          seguro da Stripe) — sem contrato de fidelidade, cancelável quando quiser.
         </p>
         <p className="text-gray-600 text-sm mb-4 flex items-center gap-1.5">
           <Clock size={14} className="text-gray-400 flex-shrink-0" />
           Essa cobrança é separada da comissão de {formatCurrency(1)} por pedido pago automaticamente pelo
           Mercado Pago no seu cardápio, que continua valendo do mesmo jeito.
         </p>
-        <a
-          href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do CatalogAI.')}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-secondary inline-flex"
-        >
-          <MessageCircle size={18} />
-          Falar no WhatsApp
-        </a>
+
+        {checkoutError && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{checkoutError}</div>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          {subscription?.billingEnabled && subscription.status !== 'exempt' && (
+            <button onClick={handleAssinar} className="btn-primary inline-flex" disabled={startingCheckout}>
+              {startingCheckout ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <>
+                  <CreditCard size={18} />
+                  {subscription.status === 'active' ? 'Atualizar forma de pagamento' : 'Assinar agora'}
+                </>
+              )}
+            </button>
+          )}
+          <a
+            href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do CatalogAI.')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary inline-flex"
+          >
+            <MessageCircle size={18} />
+            Falar no WhatsApp
+          </a>
+        </div>
       </div>
 
       {/* Doação */}

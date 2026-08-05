@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { vincularIndicacaoSeHouver } from '@/lib/indicacao'
 import { log, logError } from '@/lib/logger'
 import { Loader2, AlertCircle, Store } from 'lucide-react'
 
@@ -86,6 +87,8 @@ export default function CompletarCadastroPage() {
         whatsappNumber: whatsapp,
       })
       log('completar-cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
+
+      await vincularIndicacaoSeHouver()
 
       router.push('/onboarding')
       router.refresh()

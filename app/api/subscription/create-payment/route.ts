@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createPlatformPixPayment, getPlatformAccessToken } from '@/lib/mercadoPago'
+import { createSubscriptionCheckoutSession } from '@/lib/stripe'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 
 // Chamada pelo lojista logado (nunca pública, diferente de
-// /api/mercadopago/create-payment) pra pagar a própria mensalidade da
+// /api/mercadopago/create-payment) pra assinar a mensalidade da
 // plataforma. A sessão identifica o dono, então nem precisa de
-// establishmentId no corpo — sempre a loja de quem está logado.
+// establishmentId no corpo -- sempre a loja de quem está logado.
+//
+// Antes cobrava via Pix/Mercado Pago (migration 032); agora cria um
+// Stripe Checkout Session de assinatura e devolve a URL pra
+// redirecionar o lojista -- é ali que a Stripe já aplica o split
+// automático pro divulgador, se houver indicação vinculada com
+// onboarding completo (ver lib/stripe.ts). Pagamento que cada
+// estabelecimento recebe dos PRÓPRIOS clientes continua em
+// /api/mercadopago/create-payment, sem relação nenhuma com esta rota.
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
@@ -23,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const { data: establishment, error: estError } = await admin
       .from('establishments')
-      .select('id, name, subscription_status')
+      .select('id, name, stripe_customer_id')
       .eq('owner_id', user.id)
       .maybeSingle()
 
@@ -42,41 +52,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A cobrança da plataforma não está ativa no momento.' }, { status: 400 })
     }
 
-    const amount = Number(settings.monthly_price)
+    // Indicação vinculada (se houver) -- só entra o split se o
+    // divulgador já concluiu o onboarding Stripe, senão a assinatura é
+    // criada normal, 100% pra plataforma.
+    const { data: indicacao } = await admin
+      .from('indicacoes')
+      .select('divulgador_id, divulgadores!inner(stripe_account_id, stripe_onboarding_completo, percentual_comissao)')
+      .eq('estabelecimento_id', establishment.id)
+      .maybeSingle()
 
-    const { data: payment, error: insertError } = await admin
-      .from('subscription_payments')
-      .insert({ establishment_id: establishment.id, amount, status: 'pending' })
-      .select('id')
-      .single()
-    if (insertError) throw insertError
+    const divulgador = (indicacao as any)?.divulgadores
+    const divulgadorConnect =
+      divulgador?.stripe_onboarding_completo && divulgador?.stripe_account_id
+        ? {
+            stripeAccountId: divulgador.stripe_account_id as string,
+            percentualComissao: Number(divulgador.percentual_comissao),
+          }
+        : null
 
-    const accessToken = await getPlatformAccessToken(admin)
-
-    const checkoutHost = new URL(getBaseUrl()).hostname
-    const mpPayment = await createPlatformPixPayment({
-      accessToken,
-      amount,
-      description: `Assinatura CatalogAI - ${establishment.name}`,
-      payerEmail: `assinatura-${establishment.id}@checkout.${checkoutHost}`,
-      payerFirstName: establishment.name || 'Estabelecimento',
-      externalReference: payment.id,
-      notificationUrl: `${getBaseUrl()}/api/mercadopago/webhook`,
-      idempotencyKey: payment.id,
+    const baseUrl = getBaseUrl()
+    const { url } = await createSubscriptionCheckoutSession({
+      establishmentId: establishment.id,
+      establishmentName: establishment.name,
+      ownerEmail: user.email || '',
+      amount: Number(settings.monthly_price),
+      successUrl: `${baseUrl}/painel/planos?assinatura=sucesso`,
+      cancelUrl: `${baseUrl}/painel/planos?assinatura=cancelada`,
+      stripeCustomerId: establishment.stripe_customer_id,
+      divulgadorConnect,
     })
 
-    const { error: updateError } = await admin
-      .from('subscription_payments')
-      .update({ mercadopago_payment_id: mpPayment.paymentId })
-      .eq('id', payment.id)
-    if (updateError) throw updateError
-
-    await admin
-      .from('establishments')
-      .update({ subscription_pix_payment_id: mpPayment.paymentId })
-      .eq('id', establishment.id)
-
-    return NextResponse.json({ qrCode: mpPayment.qrCode, qrCodeBase64: mpPayment.qrCodeBase64 })
+    return NextResponse.json({ url })
   } catch (err: any) {
     logError('api:subscription:create-payment', 'erro ao criar cobrança de assinatura', err)
     return NextResponse.json({ error: err.message || 'Erro ao criar cobrança de assinatura' }, { status: 500 })
