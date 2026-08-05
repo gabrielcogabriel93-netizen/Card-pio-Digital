@@ -6,11 +6,16 @@
 -- antes só mostrava "Pedido cancelado" sem explicação nenhuma.
 -- ============================================================
 
-ALTER TABLE orders ADD COLUMN cancellation_reason TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
 
 -- get_order_status (migration 026) precisa devolver o motivo pro cliente
--- ver na tela de acompanhamento.
-CREATE OR REPLACE FUNCTION get_order_status(p_order_id UUID)
+-- ver na tela de acompanhamento. CREATE OR REPLACE sozinho não serve
+-- aqui: o Postgres recusa mudar a lista de colunas de retorno (OUT
+-- parameters) de uma função existente com REPLACE, exige DROP antes
+-- (erro 42P13 "cannot change return type of existing function").
+DROP FUNCTION IF EXISTS get_order_status(UUID);
+
+CREATE FUNCTION get_order_status(p_order_id UUID)
 RETURNS TABLE(
   id UUID,
   status TEXT,
