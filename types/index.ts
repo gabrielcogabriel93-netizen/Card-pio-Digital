@@ -302,6 +302,9 @@ export interface Order {
   // `status` do Kanban, que o lojista controla manualmente.
   payment_status?: 'pending' | 'approved' | 'rejected' | 'cancelled' | null
   mercadopago_payment_id?: string | null
+  // Preenchido pelo estabelecimento ao cancelar (obrigatório na tela) —
+  // exibido pro cliente na página de acompanhamento.
+  cancellation_reason?: string | null
   notes?: string
   created_at: string
   updated_at: string

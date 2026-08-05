@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createPixPayment, getPayment, getValidAccessToken } from '@/lib/mercadoPago'
 import { validateOrderPricingFloor } from '@/lib/orderPricing'
+import { MERCADOPAGO_MIN_ORDER_TOTAL } from '@/lib/paymentMethods'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
 
@@ -44,6 +45,16 @@ export async function POST(request: NextRequest) {
     }
     if (order.status !== 'pending') {
       return NextResponse.json({ error: 'Esse pedido já foi processado' }, { status: 400 })
+    }
+    // Abaixo do mínimo, a comissão fixa da plataforma (application_fee)
+    // fica igual ou maior que o total, e o Mercado Pago recusa a
+    // cobrança — o cardápio já esconde essa opção nesse caso (ver
+    // MERCADOPAGO_MIN_ORDER_TOTAL), isso aqui é só a segunda camada.
+    if (Number(order.total) < MERCADOPAGO_MIN_ORDER_TOTAL) {
+      return NextResponse.json(
+        { error: `Pix automático exige pedido de no mínimo ${MERCADOPAGO_MIN_ORDER_TOTAL.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` },
+        { status: 400 }
+      )
     }
 
     // Piso de preço: o carrinho é montado inteiramente no navegador do

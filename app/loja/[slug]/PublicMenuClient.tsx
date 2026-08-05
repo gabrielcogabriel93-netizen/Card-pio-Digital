@@ -10,7 +10,7 @@ import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { lookupCep, formatCep } from '@/lib/cep'
-import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
+import { PAYMENT_METHODS, paymentMethodLabel, MERCADOPAGO_MIN_ORDER_TOTAL } from '@/lib/paymentMethods'
 import { generatePixPayload } from '@/lib/pix'
 import QRCode from 'qrcode'
 import {
@@ -778,9 +778,25 @@ export default function PublicMenuClient({
   // Quando a loja tem Pix automático (Mercado Pago) ativo, esconde a opção
   // de Pix manual pra não confundir o cliente com duas variantes — e
   // vice-versa, só mostra a automática se a loja realmente tiver conectado.
-  const visiblePaymentMethods = PAYMENT_METHODS.filter((p) =>
-    establishment.mercadopago_pix_enabled ? p.value !== 'pix' : p.value !== 'mercadopago_pix'
-  )
+  // Abaixo do pedido mínimo, esconde a automática também: a comissão fixa
+  // da plataforma ficaria igual/maior que o total e o Mercado Pago recusa
+  // a cobrança (ver MERCADOPAGO_MIN_ORDER_TOTAL).
+  const belowMpMinimum = cartTotal < MERCADOPAGO_MIN_ORDER_TOTAL
+  const visiblePaymentMethods = PAYMENT_METHODS.filter((p) => {
+    if (p.value === 'mercadopago_pix') return establishment.mercadopago_pix_enabled && !belowMpMinimum
+    if (p.value === 'pix') return !establishment.mercadopago_pix_enabled
+    return true
+  })
+
+  // Se o carrinho mudou (item removido, cupom aplicado etc.) e o total caiu
+  // abaixo do mínimo enquanto "Pix automático" já estava selecionado, volta
+  // pra "combinar pelo WhatsApp" em vez de deixar uma opção escondida
+  // selecionada por baixo dos panos.
+  useEffect(() => {
+    if (paymentMethod === 'mercadopago_pix' && belowMpMinimum) {
+      setPaymentMethod('')
+    }
+  }, [paymentMethod, belowMpMinimum])
 
   const canShowPixQr = paymentMethod === 'pix' && !!establishment.pix_key && !!establishment.pix_city && cartTotal > 0
 
@@ -1597,6 +1613,11 @@ export default function PublicMenuClient({
                     ? 'Confirmação automática — assim que você pagar, a loja já recebe o pedido liberado pra preparar.'
                     : 'A loja confirma com você pelo WhatsApp — isso só adianta a informação.'}
                 </p>
+                {establishment.mercadopago_pix_enabled && belowMpMinimum && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Pix automático disponível a partir de {formatCurrency(MERCADOPAGO_MIN_ORDER_TOTAL)} em pedidos.
+                  </p>
+                )}
               </div>
 
               {paymentMethod === 'pix' && (

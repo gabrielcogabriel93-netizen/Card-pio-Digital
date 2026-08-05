@@ -31,6 +31,7 @@ interface OrderStatusData {
   establishment_theme_color: string | null
   order_tracking_enabled: boolean
   payment_status: 'pending' | 'approved' | 'rejected' | 'cancelled' | null
+  cancellation_reason: string | null
 }
 
 const FULL_STEPS: { status: OrderStatus; label: string; icon: any }[] = [
@@ -183,11 +184,17 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
         {/* Status timeline */}
         <div className="card mb-4">
           {isCancelled ? (
-            <div className="flex items-center gap-3 text-red-600">
-              <XCircle size={24} />
+            <div className="flex items-start gap-3 text-red-600">
+              <XCircle size={24} className="flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold">Pedido cancelado</p>
-                <p className="text-sm text-gray-500">Fale com a loja se tiver dúvidas.</p>
+                {order.cancellation_reason ? (
+                  <p className="text-sm text-gray-600 mt-1">
+                    <span className="font-medium text-gray-700">Motivo:</span> {order.cancellation_reason}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">Fale com a loja se tiver dúvidas.</p>
+                )}
               </div>
             </div>
           ) : (

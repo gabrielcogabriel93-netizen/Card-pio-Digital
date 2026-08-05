@@ -57,6 +57,12 @@ export default function PedidosPage() {
   const [firstOrderPrinterDraft, setFirstOrderPrinterDraft] = useState('')
   const [orderAutomationMode, setOrderAutomationMode] = useState<OrderAutomationMode>('manual')
   const [cronLastRunAt, setCronLastRunAt] = useState<string | null>(null)
+  // Motivo do cancelamento agora é obrigatório — em vez do confirm() nativo
+  // de antes, abre esse pedido de motivo (texto livre) antes de cancelar
+  // de verdade. `warning` carrega o aviso específico de cada caso (pedido
+  // pendente/em andamento/já concluído), igual ao confirm() que existia.
+  const [cancelPrompt, setCancelPrompt] = useState<{ orderId: string; warning: string } | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
   // A subscrição realtime é criada uma única vez (useEffect com deps
   // vazias) — sem essa ref, o callback ficaria preso no valor de
   // autoPrintEnabled do momento em que a aba abriu (stale closure).
@@ -78,6 +84,7 @@ export default function PedidosPage() {
     : allColumns.filter((c) => c.status === 'pending' || c.status === 'completed' || c.status === 'cancelled')
 
   useEscapeKey(() => setShowModal(false), showModal)
+  useEscapeKey(() => setCancelPrompt(null), !!cancelPrompt)
 
   useEffect(() => {
     loadOrders()
@@ -188,7 +195,7 @@ export default function PedidosPage() {
     setShowModal(true)
   }
 
-  const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+  const handleUpdateStatus = async (orderId: string, newStatus: Order['status'], cancellationReason?: string) => {
     setSaving(true)
     log('painel:pedidos', 'atualizando status do pedido', { orderId, newStatus, statusNaTela: selectedOrder?.status })
     try {
@@ -233,6 +240,9 @@ export default function PedidosPage() {
       }
 
       const updateData: any = { status: newStatus }
+      if (newStatus === 'cancelled') {
+        updateData.cancellation_reason = cancellationReason?.trim() || null
+      }
       if (isFirstAcceptance) {
         // O frete só é definido na confirmação — o total precisa ser
         // recalculado aqui, senão a entrada financeira e o pedido ficam
@@ -332,6 +342,18 @@ export default function PedidosPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const openCancelPrompt = (orderId: string, warning: string) => {
+    setCancelReason('')
+    setCancelPrompt({ orderId, warning })
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancelPrompt || !cancelReason.trim()) return
+    const { orderId } = cancelPrompt
+    setCancelPrompt(null)
+    await handleUpdateStatus(orderId, 'cancelled', cancelReason.trim())
   }
 
   const adjustStockForItems = async (items: OrderItem[], direction: 'decrement' | 'increment') => {
@@ -717,6 +739,13 @@ export default function PedidosPage() {
                 </div>
               </div>
 
+              {selectedOrder.status === 'cancelled' && selectedOrder.cancellation_reason && (
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm">
+                  <p className="font-medium text-red-700 flex items-center gap-1.5"><XCircle size={14} /> Motivo do cancelamento</p>
+                  <p className="text-red-600 mt-1">{selectedOrder.cancellation_reason}</p>
+                </div>
+              )}
+
               {/* Actions for pending orders */}
               {selectedOrder.status === 'pending' && (
                 <div className="border-t border-gray-200 pt-4 space-y-4">
@@ -754,9 +783,7 @@ export default function PedidosPage() {
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => {
-                        if (confirm('Cancelar este pedido?')) handleUpdateStatus(selectedOrder.id, 'cancelled')
-                      }}
+                      onClick={() => openCancelPrompt(selectedOrder.id, 'Cancelar este pedido?')}
                       className="btn-danger flex-1"
                       disabled={saving}
                     >
@@ -777,11 +804,7 @@ export default function PedidosPage() {
               {(selectedOrder.status === 'confirmed' || selectedOrder.status === 'preparing') && (
                 <div className="border-t border-gray-200 pt-4 flex gap-3">
                   <button
-                    onClick={() => {
-                      if (confirm('Cancelar este pedido? O estoque baixado será estornado.')) {
-                        handleUpdateStatus(selectedOrder.id, 'cancelled')
-                      }
-                    }}
+                    onClick={() => openCancelPrompt(selectedOrder.id, 'Cancelar este pedido? O estoque baixado será estornado.')}
                     className="btn-danger flex-1"
                     disabled={saving}
                   >
@@ -811,11 +834,7 @@ export default function PedidosPage() {
               {selectedOrder.status === 'completed' && (
                 <div className="border-t border-gray-200 pt-4">
                   <button
-                    onClick={() => {
-                      if (confirm('Cancelar/estornar este pedido já concluído? O estoque baixado será devolvido e o lançamento financeiro removido.')) {
-                        handleUpdateStatus(selectedOrder.id, 'cancelled')
-                      }
-                    }}
+                    onClick={() => openCancelPrompt(selectedOrder.id, 'Cancelar/estornar este pedido já concluído? O estoque baixado será devolvido e o lançamento financeiro removido.')}
                     className="btn-danger w-full"
                     disabled={saving}
                   >
@@ -823,6 +842,43 @@ export default function PedidosPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Motivo do cancelamento — obrigatório, aparece por cima do modal de
+          detalhe do pedido. Sem motivo preenchido não dá pra confirmar; é
+          esse texto que o cliente vê depois na página de acompanhamento. */}
+      {cancelPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setCancelPrompt(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-fade-in">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Cancelar pedido</h2>
+            <p className="text-sm text-gray-600 mb-4">{cancelPrompt.warning}</p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Motivo do cancelamento
+            </label>
+            <textarea
+              className="input-field"
+              rows={3}
+              autoFocus
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Ex: produto em falta, loja fechou mais cedo, endereço fora da área de entrega..."
+            />
+            <p className="text-xs text-gray-500 mt-1">O cliente vai ver esse motivo na página de acompanhamento do pedido.</p>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setCancelPrompt(null)} className="btn-secondary flex-1" disabled={saving}>
+                Voltar
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                className="btn-danger flex-1"
+                disabled={saving || !cancelReason.trim()}
+              >
+                {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar cancelamento'}
+              </button>
             </div>
           </div>
         </div>

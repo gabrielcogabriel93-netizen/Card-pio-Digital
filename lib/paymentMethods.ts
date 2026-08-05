@@ -12,6 +12,15 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value']
 
+// Pedido mínimo pra liberar Pix automático (Mercado Pago): abaixo disso a
+// cobrança de application_fee (comissão fixa da plataforma, ver
+// MERCADOPAGO_COMMISSION_AMOUNT em lib/mercadoPago.ts) pode chegar perto
+// ou igual ao total do pedido, e o Mercado Pago recusa a cobrança nesse
+// caso. Checado nos dois lados: escondido do cliente aqui no cardápio
+// (PublicMenuClient) e validado de novo no servidor
+// (api/mercadopago/create-payment) como segunda camada.
+export const MERCADOPAGO_MIN_ORDER_TOTAL = 5
+
 export function paymentMethodLabel(value?: string | null): string {
   if (!value) return 'Não informado'
   return PAYMENT_METHODS.find((p) => p.value === value)?.label || value
