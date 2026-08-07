@@ -18,7 +18,7 @@ export async function updateSession(request: NextRequest) {
       'Supabase env vars ausentes (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY). ' +
       'Configure-as nas Environment Variables do projeto e refaça o deploy.'
     )
-    return { supabaseResponse, user: null }
+    return { supabaseResponse, user: null, supabase: null }
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -45,13 +45,20 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
 
+    // Devolve o client também — deixa quem chamou (ex: middleware.ts
+    // decidindo pra onde mandar um usuário logado na landing page) fazer
+    // mais consultas reaproveitando a MESMA sessão, sem montar um client
+    // novo. Importante que seja este client (não um com a anon key crua):
+    // é o que carrega o JWT do usuário, então RLS baseada em auth.uid()
+    // funciona certo.
     return {
       supabaseResponse,
       user,
+      supabase,
     }
   } catch (err) {
     // Falha de rede/Supabase fora do ar não pode derrubar o site inteiro.
     console.error('Erro ao verificar sessão no middleware:', err)
-    return { supabaseResponse, user: null }
+    return { supabaseResponse, user: null, supabase: null }
   }
 }

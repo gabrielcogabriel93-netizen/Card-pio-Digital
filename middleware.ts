@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { updateSession } from '@/lib/supabase/middleware'
+import { isPlatformAdminEmail } from '@/lib/platformAdmin'
 
 // Domínio próprio (migration 024): se o lojista apontou um domínio dele
 // pro app (CNAME + cadastro manual na Vercel, ver README), qualquer
@@ -29,6 +31,38 @@ async function resolveCustomDomainSlug(hostname: string): Promise<string | null>
   }
 }
 
+// PWA instalado abre direto em "/" (start_url do manifest.json) — sem
+// isso, quem já está logado cai na landing page todo santo dia e precisa
+// clicar em "Acessar" pra só então ir pro painel de verdade. Resolve pra
+// onde cada tipo de login vai: dono da plataforma > lojista > divulgador.
+// Nenhuma consulta acontece pra visitante anônimo (o caso mais comum de
+// tráfego em "/") — só entra aqui quando `user` já existe.
+async function resolveLoggedInHomeRoute(
+  supabase: SupabaseClient,
+  user: { id: string; email?: string | null }
+): Promise<string | null> {
+  if (isPlatformAdminEmail(user.email)) return '/admin'
+
+  const { data: establishment } = await supabase
+    .from('establishments')
+    .select('id')
+    .eq('owner_id', user.id)
+    .maybeSingle()
+  if (establishment) return '/painel'
+
+  const { data: divulgador } = await supabase
+    .from('divulgadores')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (divulgador) return '/divulgador/dashboard'
+
+  // Usuário autenticado sem nenhum papel reconhecido (ex: cadastro
+  // iniciado mas não terminou de criar a loja) — deixa ver a landing
+  // normalmente em vez de mandar pra um /painel que ainda não existe.
+  return null
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const hostname = request.headers.get('host')?.split(':')[0] || ''
@@ -52,7 +86,19 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const { supabaseResponse, user } = await updateSession(request)
+  const { supabaseResponse, user, supabase } = await updateSession(request)
+
+  // Usuário logado abrindo a landing page (instala o PWA e abre, ou só
+  // digitou o domínio de novo) -- manda direto pro destino dele em vez de
+  // obrigar a clicar em "Acessar" toda vez. Só roda pra "/" exata (não
+  // pega /termos, /privacidade etc.) e só quando há usuário + client de
+  // sessão válidos.
+  if (pathname === '/' && user && supabase) {
+    const target = await resolveLoggedInHomeRoute(supabase, user)
+    if (target) {
+      return NextResponse.redirect(new URL(target, request.url))
+    }
+  }
 
   // Rotas protegidas do painel
   const isProtectedRoute =
