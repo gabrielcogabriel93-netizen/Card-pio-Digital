@@ -20,11 +20,22 @@ const remotePatterns = supabaseHost
   ? [{ protocol: 'https', hostname: supabaseHost, pathname: '/storage/v1/object/public/**' }]
   : []
 
-// CSP + demais headers de segurança, aplicados a TODAS as páginas exceto
+// CSP + demais headers de segurança, aplicados a todas as páginas exceto
 // /api/** (rotas de API não renderizam HTML — a única exceção,
-// /api/mercadopago/oauth/start, seta o próprio CSP com nonce, ver o
-// comentário nesse arquivo). Mantido num objeto por diretiva pra ficar
-// fácil de auditar/ajustar sem reescrever a string toda.
+// /api/mercadopago/oauth/start, monta o próprio CSP isolado com nonce
+// próprio pra aquele <script> específico).
+//
+// script-src leva 'unsafe-inline' de propósito, depois de testar ao vivo:
+// tentamos um CSP com nonce por request (gerado no middleware) seguindo o
+// padrão oficial do Next para App Router, mas nessa versão (14.2.35) os
+// scripts inline que o PRÓPRIO Next injeta pra streaming de Server
+// Components (`self.__next_f.push(...)`) não recebem esse nonce de forma
+// confiável em modo produção — resultado: a hidratação inteira quebrava
+// (login, formulários, tudo que depende de JS parava de funcionar).
+// 'self' continua bloqueando script de QUALQUER outra origem, que é a
+// parte que importa contra XSS via terceiros; o app não tem nenhum ponto
+// que renderiza HTML não-escapado vindo de usuário (o único
+// dangerouslySetInnerHTML é o JSON-LD, JSON.stringify'd, não executável).
 const connectSrcHosts = [
   "'self'",
   supabaseHost ? `https://${supabaseHost}` : '',
@@ -36,11 +47,7 @@ const imgSrcHosts = ["'self'", 'data:', supabaseHost ? `https://${supabaseHost}`
 
 const CSP_DIRECTIVES = [
   `default-src 'self'`,
-  `script-src 'self'`,
-  // 'unsafe-inline' aqui é necessário: a cor de marca por loja (lib/theme.ts)
-  // é aplicada via CSS custom properties no atributo `style` do React —
-  // não dá pra usar nonce num valor que muda por render sem reescrever
-  // esse mecanismo. Não enfraquece script-src (continua estrito).
+  `script-src 'self' 'unsafe-inline'`,
   `style-src 'self' 'unsafe-inline'`,
   `img-src ${imgSrcHosts}`,
   `font-src 'self' data:`,
@@ -76,11 +83,6 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Todas as páginas, exceto /api/** — a única rota de API que serve
-        // HTML de verdade (app/api/mercadopago/oauth/start) define o
-        // próprio CSP com nonce por request; duplicar o header aqui faria
-        // o navegador aplicar a INTERSEÇÃO das duas políticas e quebrar o
-        // script inline dela (o nonce de uma nunca bate com o da outra).
         source: '/((?!api/).*)',
         headers: securityHeaders,
       },
