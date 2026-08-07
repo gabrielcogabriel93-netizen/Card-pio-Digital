@@ -202,7 +202,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="page-title">Dashboard</h1>
           <p className="text-gray-600 mt-1">Visão geral do seu negócio hoje.</p>
         </div>
         <Link
@@ -269,7 +269,7 @@ export default function Dashboard() {
               <ShoppingCart size={20} className="text-yellow-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.pending_orders}</p>
+          <p className="stat-value">{stats.pending_orders}</p>
           <p className="text-sm text-gray-600">Pedidos pendentes</p>
         </div>
 
@@ -279,7 +279,7 @@ export default function Dashboard() {
               <DollarSign size={20} className="text-green-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="stat-value">
             {formatCurrency(stats.today_revenue)}
           </p>
           <p className="text-sm text-gray-600">Faturamento hoje</p>
@@ -291,7 +291,7 @@ export default function Dashboard() {
               <TrendingUp size={20} className="text-blue-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="stat-value">
             {formatCurrency(stats.average_ticket)}
           </p>
           <p className="text-sm text-gray-600">Ticket médio</p>
@@ -305,7 +305,7 @@ export default function Dashboard() {
               <Package size={20} className={stats.low_stock_products > 0 ? 'text-red-600' : 'text-gray-600'} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.low_stock_products}</p>
+          <p className="stat-value">{stats.low_stock_products}</p>
           <p className="text-sm text-gray-600">
             {stats.low_stock_products === 1 ? 'Produto com estoque baixo' : 'Produtos com estoque baixo'}
           </p>

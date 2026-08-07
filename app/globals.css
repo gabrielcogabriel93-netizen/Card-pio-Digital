@@ -79,6 +79,19 @@
   .badge-cancelled {
     @apply badge bg-red-100 text-red-800;
   }
+
+  /* Tokens de tipografia — o <h1> de toda tela do painel e o número
+     grande dos cards de estatística (Dashboard, Relatórios, Admin...) já
+     convergiam pro mesmo par de classes soltas em ~20 arquivos; nomear
+     aqui transforma "mudar o tamanho de todo título de página" numa
+     edição de uma linha em vez de um find-and-replace por arquivo. */
+  .page-title {
+    @apply text-2xl font-bold text-gray-900;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-gray-900;
+  }
 }
 
 /* Scrollbar personalizada */

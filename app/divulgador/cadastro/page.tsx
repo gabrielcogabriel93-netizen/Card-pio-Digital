@@ -139,7 +139,7 @@ export default function DivulgadorCadastroPage() {
           </div>
         ) : (
           <div className="card">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Cadastro de divulgador</h1>
+            <h1 className="page-title mb-2">Cadastro de divulgador</h1>
             <p className="text-gray-600 mb-6">
               Indique estabelecimentos pro CatalogAI e ganhe comissão recorrente enquanto a assinatura
               deles estiver ativa.

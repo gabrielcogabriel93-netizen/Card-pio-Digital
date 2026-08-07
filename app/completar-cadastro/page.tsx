@@ -124,7 +124,7 @@ export default function CompletarCadastroPage() {
           <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mb-4">
             <Store size={26} className="text-primary-500" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Complete seu cadastro</h1>
+          <h1 className="page-title mb-2">Complete seu cadastro</h1>
           <p className="text-gray-600 mb-6">
             Falta só um passo: conte-nos sobre o seu negócio para criar seu cardápio.
           </p>

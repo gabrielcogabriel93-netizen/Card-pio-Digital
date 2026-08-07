@@ -122,7 +122,7 @@ export default function RedefinirSenhaPage() {
               <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mb-4">
                 <KeyRound size={24} className="text-primary-500" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Nova senha</h1>
+              <h1 className="page-title mb-2">Nova senha</h1>
               <p className="text-gray-600 mb-6">Escolha uma nova senha para sua conta.</p>
 
               <form onSubmit={handleSubmit} className="space-y-4">

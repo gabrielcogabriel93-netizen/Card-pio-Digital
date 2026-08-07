@@ -71,6 +71,8 @@ No SQL Editor do Supabase, execute os arquivos da pasta `migrations/` **em ordem
 22. `022_mais_vendido.sql` — cálculo real de produtos mais vendidos (30 dias) pro selo "🔥 Mais vendido" no cardápio
 23. `023_whatsapp_notificacoes.sql` — coluna `whatsapp_notifications_enabled` (liga/desliga notificações automáticas de status via WhatsApp)
 24. `024_dominio_proprio.sql` — coluna `custom_domain` por loja + view pública atualizada
+25. ... `025` a `034` — pizza (tamanhos/sabores/adicionais), pagamento automático via Mercado Pago, impressão automática, automação de pedidos, assinatura da plataforma e comissões de divulgador. Confira o cabeçalho de cada arquivo em `migrations/` pro detalhe — a lista numerada acima ficou parada em 024 e não foi atualizada a cada rodada.
+35. `035_rate_limit_consultas_publicas.sql` — limite de chamadas por estabelecimento nas consultas públicas por telefone (`get_orders_by_phone`, `get_customer_profile`), que antes não tinham nenhum
 
 ### 3. Configure as variáveis de ambiente
 
@@ -221,9 +223,8 @@ public/                    → manifest, ícones e service worker do PWA
 
 ## Limitações conhecidas / próximos passos
 
-- Os ícones em `public/icons/` são placeholders gerados automaticamente — troque por artes reais da marca antes de publicar em lojas de apps ou divulgar o link de instalação.
-- Não há cobrança/gate de uso por plano implementado (campo `plan` existe no banco, mas hoje tudo é liberado gratuitamente) — a aba Planos só tem um CTA de contato pra quem quiser saber mais.
 - Notificações via WhatsApp dependem de infraestrutura própria (VPS rodando `whatsapp-server/`, fora do Vercel) e usam automação não-oficial do WhatsApp (WPPConnect) — leia o aviso em `whatsapp-server/README.md` antes de ativar.
 - Domínio próprio por loja depende de configuração manual de DNS (CNAME) e cadastro do domínio na Vercel, além de `NEXT_PUBLIC_ROOT_DOMAIN` configurado — ver seção 7.
-- Não há paginação em listagens (produtos/pedidos); para catálogos muito grandes, considere adicionar.
-- Uploads de imagem são feitos via URL — não há upload direto de arquivo para storage do Supabase.
+- Paginação (24 por página) só existe em Produtos por enquanto; Categorias/outras listagens continuam sem, mas o volume delas costuma ser pequeno o bastante pra não precisar.
+- Upgrade de major do Next.js (14 → 15/16, corrige CVEs sem patch na 14.x) foi propositalmente deixado de fora desta rodada — é uma mudança de risco maior, ver auditoria.
+- Ambiente de staging separado de produção (segundo projeto Supabase) ainda não existe — depende de criar a infraestrutura, fora do que dá pra fazer só no código.

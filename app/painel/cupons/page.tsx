@@ -174,7 +174,7 @@ export default function CuponsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cupons</h1>
+          <h1 className="page-title">Cupons</h1>
           <p className="text-gray-600 mt-1">Crie cupons de desconto para o seu cardápio online.</p>
         </div>
         <button onClick={openNewCoupon} className="btn-primary">
@@ -189,7 +189,7 @@ export default function CuponsPage() {
             <Tag size={32} className="text-gray-400" />
           </div>
           <p className="text-gray-600 mb-2">Nenhum cupom criado.</p>
-          <p className="text-sm text-gray-500 mb-4">Crie cupons como "10OFF" ou "PRIMEIRACOMPRA" para promoções.</p>
+          <p className="text-sm text-gray-500 mb-4">Crie cupons como &quot;10OFF&quot; ou &quot;PRIMEIRACOMPRA&quot; para promoções.</p>
           <button onClick={openNewCoupon} className="btn-primary">
             <Plus size={18} />
             Criar primeiro cupom
@@ -361,7 +361,7 @@ export default function CuponsPage() {
                   placeholder="Sem limite"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Quantas vezes o MESMO telefone pode usar esse cupom. Deixe em branco pra não limitar. Use "1" em
+                  Quantas vezes o MESMO telefone pode usar esse cupom. Deixe em branco pra não limitar. Use &quot;1&quot; em
                   cupons de primeira compra, por exemplo.
                 </p>
               </div>

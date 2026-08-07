@@ -152,7 +152,7 @@ export default function BairrosPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Taxa de entrega por bairro</h1>
+          <h1 className="page-title">Taxa de entrega por bairro</h1>
           <p className="text-gray-600 mt-1">Cadastre os bairros que você atende e o valor do frete de cada um.</p>
         </div>
         <button onClick={openNew} className="btn-primary">
@@ -167,7 +167,7 @@ export default function BairrosPage() {
           <p className="font-medium text-gray-900">Usar taxa de entrega por bairro</p>
           <p className="text-sm text-gray-500">
             Quando ativo, o cliente escolhe o bairro numa lista (em vez de digitar) e o frete
-            correspondente é aplicado sozinho. A "Taxa de entrega padrão" das Configurações continua
+            correspondente é aplicado sozinho. A &quot;Taxa de entrega padrão&quot; das Configurações continua
             valendo como reserva, caso nenhum bairro esteja cadastrado.
           </p>
         </div>

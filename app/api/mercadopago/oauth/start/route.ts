@@ -24,7 +24,7 @@ function escapeHtml(value: string): string {
 // instalado. No Android, tenta abrir o app direto pelo pacote oficial via
 // intent://, caindo pro navegador (com a mesma URL de autorização) se o app
 // não estiver instalado ou o navegador não suportar intent://.
-function buildRedirectPage(authorizationUrl: string): string {
+function buildRedirectPage(authorizationUrl: string, nonce: string): string {
   const safeUrl = escapeHtml(authorizationUrl)
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -46,7 +46,7 @@ function buildRedirectPage(authorizationUrl: string): string {
   <p>Redirecionando para o Mercado Pago…</p>
   <p><a id="fallback" href="${safeUrl}">Toque aqui se não for redirecionado automaticamente</a></p>
 </div>
-<script>
+<script nonce="${nonce}">
 (function () {
   var authUrl = ${JSON.stringify(authorizationUrl)};
   var fallbackLink = document.getElementById('fallback');
@@ -104,8 +104,24 @@ export async function GET(request: NextRequest) {
 
     const redirectUri = `${getBaseUrl()}/api/mercadopago/oauth/callback`
     const authorizationUrl = buildAuthorizationUrl(redirectUri, state)
-    return new NextResponse(buildRedirectPage(authorizationUrl), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+
+    // Essa página tem um <script> inline de verdade (redireciona pro app do
+    // MP via intent://, ver comentário acima) — precisa de um nonce próprio
+    // porque o CSP global (next.config.js) não libera 'unsafe-inline' em
+    // script-src. Gerado por request, nunca reaproveitado.
+    const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+
+    return new NextResponse(buildRedirectPage(authorizationUrl, nonce), {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        // Sem form-action explícito pra fora: a navegação pro Mercado Pago
+        // acontece via window.location (JS), não um <form> — CSP não tem
+        // diretiva pra restringir isso, então nem faz sentido listar aqui.
+        'Content-Security-Policy': `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`,
+        'X-Frame-Options': 'DENY',
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+      },
     })
   } catch (err: any) {
     logError('api:mercadopago:oauth:start', 'erro ao iniciar conexão com Mercado Pago', err)

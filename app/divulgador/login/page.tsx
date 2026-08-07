@@ -60,7 +60,7 @@ export default function DivulgadorLoginPage() {
         </div>
 
         <div className="card">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Acessar painel</h1>
+          <h1 className="page-title mb-2">Acessar painel</h1>
           <p className="text-gray-600 mb-6">Entre para ver suas indicações e comissões.</p>
 
           <form onSubmit={handleLogin} className="space-y-4">

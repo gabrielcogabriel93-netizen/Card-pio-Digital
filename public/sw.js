@@ -2,13 +2,23 @@
 // Estratégia: cache-first apenas para assets estáticos versionados pelo Next
 // (JS/CSS/ícones); tudo mais (páginas, dados do Supabase) vai sempre para a
 // rede, já que cardápio, pedidos e painel mudam a todo momento e não podem
-// ficar desatualizados por causa de cache.
+// ficar desatualizados por causa de cache. Navegação sem rede cai numa
+// página de fallback offline pré-cacheada (ver /offline).
 
-const CACHE_NAME = 'catalogai-v1'
+const CACHE_NAME = 'catalogai-v2'
 const STATIC_ASSET_PATTERN = /\/_next\/static\/|\/icons\//
+const OFFLINE_URL = '/offline'
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting()
+  // Pré-cacheia a página offline na instalação — precisa estar disponível
+  // ANTES de faltar rede, senão não tem como servi-la offline.
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.add(OFFLINE_URL))
+  )
+  // Sem self.skipWaiting() aqui de propósito: o novo service worker fica
+  // "esperando" até o client mandar SKIP_WAITING (ver listener de message
+  // abaixo) — é o que dá tempo da UI avisar "nova versão disponível" antes
+  // de trocar o SW debaixo do usuário no meio de uma ação.
 })
 
 self.addEventListener('activate', (event) => {
@@ -18,6 +28,14 @@ self.addEventListener('activate', (event) => {
     )
   )
   self.clients.claim()
+})
+
+// PwaRegister.tsx manda essa mensagem quando o usuário clica em "Atualizar"
+// no aviso de nova versão — só aí o SW novo assume de verdade.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('fetch', (event) => {
@@ -37,6 +55,16 @@ self.addEventListener('fetch', (event) => {
         if (response.ok) cache.put(request, response.clone())
         return response
       })
+    )
+    return
+  }
+
+  // Navegação (troca de página): sempre tenta a rede primeiro (conteúdo
+  // sempre fresco); só cai pro fallback offline se a rede falhar de
+  // verdade (sem internet/sem sinal) — nunca serve HTML de cache normal.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(OFFLINE_URL))
     )
   }
 })

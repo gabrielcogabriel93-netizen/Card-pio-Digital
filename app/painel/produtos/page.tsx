@@ -16,6 +16,7 @@ export default function ProdutosPage() {
   const [establishmentId, setEstablishmentId] = useState('')
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -427,6 +428,21 @@ export default function ProdutosPage() {
     return matchesSearch && matchesCategory
   })
 
+  // Paginação só na RENDERIZAÇÃO — a lista completa filtrada continua
+  // existindo (moveProduct precisa dela pra reindexar display_order certo,
+  // ver comentário lá), só a grade de cards é fatiada. Evita catálogo
+  // grande virar milhares de nós de DOM na tela de uma vez.
+  const PAGE_SIZE = 24
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedProducts = filteredProducts
+    .map((product, index) => ({ product, index }))
+    .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, filterCategory])
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -447,7 +463,7 @@ export default function ProdutosPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Produtos</h1>
+          <h1 className="page-title">Produtos</h1>
           <p className="text-gray-600 mt-1">Gerencie seu cardápio.</p>
         </div>
         <button onClick={openNewProduct} className="btn-primary">
@@ -494,7 +510,7 @@ export default function ProdutosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProducts.map((product, index) => {
+          {pagedProducts.map(({ product, index }) => {
             const category = categories.find((c) => c.id === product.category_id)
             return (
               <div key={product.id} className={`card-hover ${!product.is_active ? 'opacity-60' : ''}`}>
@@ -591,6 +607,31 @@ export default function ProdutosPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-gray-500">
+            {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} · página {currentPage} de {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="btn-secondary px-3 py-1.5 disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="btn-secondary px-3 py-1.5 disabled:opacity-40"
+            >
+              Próxima
+            </button>
+          </div>
         </div>
       )}
 
@@ -714,7 +755,7 @@ export default function ProdutosPage() {
                   onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
                   className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                 />
-                <span className="text-sm text-gray-700">Sugerir no carrinho do cliente ("Que tal adicionar também?")</span>
+                <span className="text-sm text-gray-700">Sugerir no carrinho do cliente (&quot;Que tal adicionar também?&quot;)</span>
               </label>
 
               {/* Variações — não se aplica a produtos de pizza, que têm tamanho/
@@ -741,7 +782,7 @@ export default function ProdutosPage() {
 
                 {!editingProduct ? (
                   <p className="text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
-                    Salve o produto primeiro. Depois, clique em "Editar" para adicionar variações.
+                    Salve o produto primeiro. Depois, clique em &quot;Editar&quot; para adicionar variações.
                   </p>
                 ) : loadingVariations ? (
                   <div className="flex justify-center py-4">

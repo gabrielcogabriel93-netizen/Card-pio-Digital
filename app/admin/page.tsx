@@ -210,7 +210,7 @@ export default function AdminPage() {
         <div className="flex items-center gap-2">
           <ShieldCheck size={24} className="text-primary-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Painel administrativo</h1>
+            <h1 className="page-title">Painel administrativo</h1>
             <p className="text-gray-600 text-sm">Controle de assinantes da plataforma CatalogAI.</p>
           </div>
         </div>

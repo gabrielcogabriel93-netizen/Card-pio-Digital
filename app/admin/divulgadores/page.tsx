@@ -131,7 +131,7 @@ export default function AdminDivulgadoresPage() {
         </Link>
         <Megaphone size={24} className="text-primary-600" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Divulgadores</h1>
+          <h1 className="page-title">Divulgadores</h1>
           <p className="text-gray-600 text-sm">Comissões recorrentes sobre a mensalidade da plataforma.</p>
         </div>
       </div>

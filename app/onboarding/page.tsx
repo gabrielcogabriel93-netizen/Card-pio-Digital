@@ -168,7 +168,7 @@ export default function OnboardingPage() {
               <h1 className="text-xl font-bold text-gray-900 mb-1">Como funcionam seus produtos?</h1>
               <p className="text-gray-600 text-sm mb-5">
                 Isso ajusta o painel de pedidos automaticamente — sem preparo, você não precisa de
-                etapas extras de "confirmado" e "em preparo".
+                etapas extras de &quot;confirmado&quot; e &quot;em preparo&quot;.
               </p>
               <div className="space-y-3">
                 {BUSINESS_TYPES.map((type) => (

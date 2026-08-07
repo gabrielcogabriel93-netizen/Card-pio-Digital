@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import PwaRegister from '@/components/PwaRegister'
+import GlobalErrorTracker from '@/components/GlobalErrorTracker'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -23,8 +26,12 @@ export const metadata: Metadata = {
   creator: 'CatalogAI',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icons/icon-192x192.png',
-    apple: '/icons/icon-192x192.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
   },
 }
 
@@ -32,7 +39,9 @@ export const viewport: Viewport = {
   themeColor: '#22c55e',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // Sem maximumScale travado em 1: bloquear o pinch-to-zoom falha WCAG
+  // 1.4.4 (Resize Text) e prejudica quem tem baixa visão — deixa o
+  // navegador decidir o zoom máximo (padrão dele já é generoso).
 }
 
 export default function RootLayout({
@@ -43,7 +52,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="CatalogAI" />
@@ -51,7 +60,10 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <PwaRegister />
+        <GlobalErrorTracker />
         <main className="min-h-screen">{children}</main>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

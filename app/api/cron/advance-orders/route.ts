@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { applyAutomaticOrderConfirmation, applyStatusOnly, resolveNextAutomaticStatus } from '@/lib/orderAutoConfirm'
 import { log, logError } from '@/lib/logger'
+import { safeCompareSecret } from '@/lib/safeCompare'
 import type { Order } from '@/types'
 
 export const runtime = 'nodejs'
@@ -12,7 +13,7 @@ export const runtime = 'nodejs'
 // decidimos quais pedidos avançam sozinhos e aplicamos a mudança.
 export async function POST(request: NextRequest) {
   const secretHeader = request.headers.get('x-cron-secret')
-  if (!secretHeader || !process.env.CRON_TRIGGER_SECRET || secretHeader !== process.env.CRON_TRIGGER_SECRET) {
+  if (!safeCompareSecret(secretHeader, process.env.CRON_TRIGGER_SECRET)) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

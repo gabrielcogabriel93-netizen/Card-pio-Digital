@@ -276,7 +276,7 @@ export default function ConfiguracoesPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
+        <h1 className="page-title">Configurações</h1>
         <p className="text-gray-600 mt-1">Gerencie as configurações do seu estabelecimento.</p>
       </div>
 
@@ -538,7 +538,7 @@ export default function ConfiguracoesPage() {
               />
               <p className="text-xs text-gray-500 mt-1">
                 Se o cliente comprar esse valor ou mais, a taxa de entrega é isentada sozinha — e o
-                carrinho mostra uma barra "faltam R$X pra frete grátis" incentivando a compra. Deixe em
+                carrinho mostra uma barra &quot;faltam R$X pra frete grátis&quot; incentivando a compra. Deixe em
                 branco para não usar.
               </p>
             </div>
@@ -603,7 +603,7 @@ export default function ConfiguracoesPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Passar para "Em preparo" em (minutos)
+                      Passar para &quot;Em preparo&quot; em (minutos)
                     </label>
                     <input
                       type="number"
@@ -616,7 +616,7 @@ export default function ConfiguracoesPage() {
                 </>
               ) : (
                 <p className="text-xs text-gray-500">
-                  Sua loja está com "Acompanhamento detalhado do pedido" desligado — o pedido pula
+                  Sua loja está com &quot;Acompanhamento detalhado do pedido&quot; desligado — o pedido pula
                   direto de Pendente para Concluído, sem os passos intermediários.
                 </p>
               )}
@@ -664,7 +664,7 @@ export default function ConfiguracoesPage() {
             <h2 className="text-lg font-semibold text-gray-900">Pix</h2>
           </div>
           <p className="text-sm text-gray-500 mb-4">
-            Cadastre sua chave Pix pra gerar QR Code e código "copia e cola" automaticamente na hora
+            Cadastre sua chave Pix pra gerar QR Code e código &quot;copia e cola&quot; automaticamente na hora
             do pedido — sem gateway, sem taxa, o valor cai direto na sua conta.
           </p>
           <div className="grid grid-cols-2 gap-4 mb-4">

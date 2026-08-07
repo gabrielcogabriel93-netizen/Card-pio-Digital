@@ -137,7 +137,7 @@ export default function TutorialPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Tutorial</h1>
+        <h1 className="page-title">Tutorial</h1>
         <p className="text-gray-600 mt-1">Como cada funcionalidade do painel funciona, passo a passo.</p>
       </div>
 

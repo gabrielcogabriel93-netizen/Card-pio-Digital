@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { downloadCsv } from '@/lib/csv'
@@ -22,10 +22,6 @@ export default function FinanceiroPage() {
   const [entryType, setEntryType] = useState<'income' | 'expense'>('expense')
   const [entryAmount, setEntryAmount] = useState('')
   const [entryDescription, setEntryDescription] = useState('')
-
-  useEffect(() => {
-    loadEntries()
-  }, [period, customStart, customEnd])
 
   useEscapeKey(() => setShowModal(false), showModal)
 
@@ -79,7 +75,11 @@ export default function FinanceiroPage() {
     }
   }
 
-  const getDateRange = (): { start: Date; end: Date } => {
+  // Memoizados (useCallback) porque loadEntries é chamado tanto pelo efeito
+  // reativo a período/data quanto depois de salvar/excluir um lançamento —
+  // sem isso o efeito precisaria escolher entre um array de deps
+  // incompleto (bug de closure obsoleta) ou recarregar a cada render.
+  const getDateRange = useCallback((): { start: Date; end: Date } => {
     const now = new Date()
     const end = new Date(now)
     end.setHours(23, 59, 59, 999)
@@ -115,9 +115,9 @@ export default function FinanceiroPage() {
     }
 
     return { start, end }
-  }
+  }, [period, customStart, customEnd])
 
-  const loadEntries = async () => {
+  const loadEntries = useCallback(async () => {
     log('painel:financeiro', 'carregando lançamentos...', { period })
     try {
       const supabase = createClient()
@@ -152,7 +152,11 @@ export default function FinanceiroPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [getDateRange, period])
+
+  useEffect(() => {
+    loadEntries()
+  }, [loadEntries])
 
   const totalIncome = entries
     .filter(e => e.type === 'income')
@@ -205,7 +209,7 @@ export default function FinanceiroPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Financeiro</h1>
+          <h1 className="page-title">Financeiro</h1>
           <p className="text-gray-600 mt-1">Acompanhe suas movimentações financeiras.</p>
         </div>
         <div className="flex gap-2">

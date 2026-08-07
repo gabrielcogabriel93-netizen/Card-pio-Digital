@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { SmartImage } from '@/components/SmartImage'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { isWithinOpeningHours } from '@/lib/hours'
@@ -854,7 +854,7 @@ export default function PublicMenuClient({
           <div className="flex items-center gap-3">
             {establishment.logo_url && (
               <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
-                <Image
+                <SmartImage
                   src={establishment.logo_url}
                   alt={establishment.name}
                   fill
@@ -1012,7 +1012,7 @@ export default function PublicMenuClient({
                 >
                   {product.image_url && (
                     <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
-                      <Image
+                      <SmartImage
                         src={product.image_url}
                         alt={product.name}
                         fill
@@ -1133,7 +1133,7 @@ export default function PublicMenuClient({
                     >
                       {product.image_url && (
                         <div className="relative w-full h-16 rounded-md overflow-hidden mb-1">
-                          <Image src={product.image_url} alt={product.name} fill sizes="112px" className="object-cover" />
+                          <SmartImage src={product.image_url} alt={product.name} fill sizes="112px" className="object-cover" />
                         </div>
                       )}
                       <p className="text-xs font-medium text-gray-900 truncate">{product.name}</p>

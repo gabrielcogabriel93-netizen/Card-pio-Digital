@@ -97,7 +97,7 @@ export default function PlanosPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Planos</h1>
+        <h1 className="page-title">Planos</h1>
         <p className="text-gray-600 mt-1">Sua assinatura e como apoiar o projeto.</p>
       </div>
 
@@ -254,7 +254,7 @@ export default function PlanosPage() {
             </button>
 
             <p className="text-xs text-gray-400 text-center">
-              Abra o app do seu banco, escolha "Pix" → "Chave celular" e cole a chave copiada.
+              Abra o app do seu banco, escolha &quot;Pix&quot; → &quot;Chave celular&quot; e cole a chave copiada.
             </p>
           </div>
         </div>

@@ -43,6 +43,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
   const [orders, setOrders] = useState<OrderSummary[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [deletingData, setDeletingData] = useState(false)
 
   const themeStyle = useMemo(
@@ -87,6 +88,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
     if (!establishment || !phone.trim()) return
     setSearching(true)
     setSearched(true)
+    setSearchError(null)
     log('loja:meus-pedidos', 'buscando pedidos por telefone...')
     try {
       const supabase = createClient()
@@ -96,9 +98,16 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
       })
       if (error) throw error
       setOrders((data || []) as OrderSummary[])
-    } catch (err) {
+    } catch (err: any) {
       logError('loja:meus-pedidos', 'erro ao buscar pedidos', err)
-      setOrders([])
+      setOrders(null)
+      // A exceção de rate limit (migration 035) vem com mensagem já
+      // pensada pra usuário final — as demais falhas caem num genérico.
+      setSearchError(
+        err?.message?.includes('Muitas consultas')
+          ? err.message
+          : 'Não foi possível buscar seus pedidos agora. Tente novamente em instantes.'
+      )
     } finally {
       setSearching(false)
     }
@@ -182,7 +191,13 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
           </div>
         </div>
 
-        {searched && !searching && orders && (
+        {searchError && (
+          <div className="text-center py-8 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4">
+            <p className="text-sm">{searchError}</p>
+          </div>
+        )}
+
+        {searched && !searching && !searchError && orders && (
           orders.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <ShoppingBag size={40} className="mx-auto mb-3" />

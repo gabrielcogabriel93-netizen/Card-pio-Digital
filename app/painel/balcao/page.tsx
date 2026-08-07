@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { SmartImage } from '@/components/SmartImage'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { formatPhoneNumber } from '@/lib/phone'
@@ -277,7 +277,7 @@ export default function BalcaoPage() {
       {/* Products Area */}
       <div className="flex-1 flex flex-col">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Balcão / PDV</h1>
+          <h1 className="page-title">Balcão / PDV</h1>
           <p className="text-gray-600 mt-1">Venda presencial rápida.</p>
         </div>
 
@@ -319,7 +319,7 @@ export default function BalcaoPage() {
             >
               {product.image_url && (
                 <div className="relative w-full h-24 rounded-lg overflow-hidden mb-2">
-                  <Image
+                  <SmartImage
                     src={product.image_url}
                     alt={product.name}
                     fill
@@ -564,28 +564,33 @@ function VariationModal({
   useEscapeKey(onClose, true)
 
   useEffect(() => {
-    loadVariations()
-  }, [])
+    // Definida dentro do efeito (em vez de uma função à parte referenciada
+    // por nome) só pra deixar explícito de que `product.id` é a única
+    // dependência real — evita o dilema de recriar a função a cada render
+    // (entraria em loop se viesse do escopo do componente) vs. memoizar
+    // com useCallback só por causa de um único uso.
+    async function loadVariations() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('variation_groups')
+        .select('*, options:variation_options(*)')
+        .eq('product_id', product.id)
+        .order('display_order')
 
-  const loadVariations = async () => {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('variation_groups')
-      .select('*, options:variation_options(*)')
-      .eq('product_id', product.id)
-      .order('display_order')
-
-    if (data) {
-      setGroups(data)
-      // Initialize selections
-      const initial: Record<string, string[]> = {}
-      data.forEach(g => {
-        initial[g.id] = []
-      })
-      setSelected(initial)
+      if (data) {
+        setGroups(data)
+        // Initialize selections
+        const initial: Record<string, string[]> = {}
+        data.forEach(g => {
+          initial[g.id] = []
+        })
+        setSelected(initial)
+      }
+      setLoading(false)
     }
-    setLoading(false)
-  }
+
+    loadVariations()
+  }, [product.id])
 
   const toggleOption = (groupId: string, optionId: string, allowMultiple: boolean) => {
     setSelected(prev => {

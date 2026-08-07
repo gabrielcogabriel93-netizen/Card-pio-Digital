@@ -36,3 +36,47 @@ test.describe('Smoke tests', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 })
+
+// Cobertura do PWA: manifest, service worker e fallback offline não
+// dependem de dados do Supabase (diferente do fluxo de carrinho/checkout,
+// que precisa de uma loja e produtos reais num projeto de teste — fora do
+// alcance deste CI, que roda com credenciais placeholder de propósito).
+test.describe('PWA', () => {
+  test('manifest.json é servido com os ícones any + maskable', async ({ request }) => {
+    const response = await request.get('/manifest.json')
+    expect(response.ok()).toBeTruthy()
+    const manifest = await response.json()
+    expect(manifest.name).toBe('CatalogAI - Cardápio Digital')
+    expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'any')).toBe(true)
+    expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'maskable')).toBe(true)
+  })
+
+  test('service worker é servido em /sw.js', async ({ request }) => {
+    const response = await request.get('/sw.js')
+    expect(response.ok()).toBeTruthy()
+    expect(response.headers()['content-type']).toContain('javascript')
+  })
+
+  test('página /offline (fallback do service worker) carrega e mostra CTA', async ({ page }) => {
+    await page.goto('/offline')
+    await expect(page.getByRole('heading', { name: /sem conexão/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /tentar novamente/i })).toBeVisible()
+  })
+})
+
+// Headers de segurança (next.config.js) — cobre a regressão mais fácil de
+// derrubar sem perceber: alguém mexe no headers() e esquece de validar.
+test.describe('Headers de segurança', () => {
+  test('página pública vem com CSP, X-Frame-Options e HSTS', async ({ request }) => {
+    const response = await request.get('/')
+    const headers = response.headers()
+    expect(headers['content-security-policy']).toContain("frame-ancestors 'none'")
+    expect(headers['x-frame-options']).toBe('DENY')
+    expect(headers['strict-transport-security']).toContain('max-age=')
+  })
+
+  test('rota de API não recebe o CSP global (evita header duplicado)', async ({ request }) => {
+    const response = await request.get('/api/admin/overview')
+    expect(response.headers()['content-security-policy']).toBeUndefined()
+  })
+})

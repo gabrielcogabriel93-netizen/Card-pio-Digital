@@ -93,7 +93,7 @@ export default function DivulgadorDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Olá, {data.nome.split(' ')[0]}</h1>
+        <h1 className="page-title">Olá, {data.nome.split(' ')[0]}</h1>
         <p className="text-gray-600 mt-1">
           Você ganha {data.percentualComissao}% de comissão, todo mês, de forma recorrente, enquanto o
           estabelecimento que você indicou continuar assinando o CatalogAI. Quanto mais estabelecimentos
@@ -135,14 +135,14 @@ export default function DivulgadorDashboardPage() {
             <TrendingUp size={16} />
             Comissão este mês
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.comissaoMesAtual)}</p>
+          <p className="stat-value">{formatCurrency(data.comissaoMesAtual)}</p>
         </div>
         <div className="card">
           <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
             <Users size={16} />
             Estabelecimentos ativos
           </div>
-          <p className="text-2xl font-bold text-gray-900">{data.indicacoes.filter((i) => i.ativo).length}</p>
+          <p className="stat-value">{data.indicacoes.filter((i) => i.ativo).length}</p>
         </div>
       </div>
 

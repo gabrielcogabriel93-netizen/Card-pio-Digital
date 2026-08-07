@@ -123,7 +123,7 @@ export default function LoginPage() {
         </div>
 
         <div className="card">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Acessar painel</h1>
+          <h1 className="page-title mb-2">Acessar painel</h1>
           <p className="text-gray-600 mb-6">Entre com suas credenciais para gerenciar seu cardápio.</p>
 
           <form onSubmit={handleLogin} className="space-y-4">

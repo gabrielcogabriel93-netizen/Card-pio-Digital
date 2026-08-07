@@ -157,7 +157,7 @@ export default function CadastroPage() {
         <div className="card">
           {step === 1 ? (
             <>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Criar conta</h1>
+              <h1 className="page-title mb-2">Criar conta</h1>
               <p className="text-gray-600 mb-6">Informe seus dados pessoais para começar.</p>
 
               <form onSubmit={(e) => { e.preventDefault(); setStep(2) }} className="space-y-4">
@@ -239,7 +239,7 @@ export default function CadastroPage() {
             </>
           ) : (
             <>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Seu estabelecimento</h1>
+              <h1 className="page-title mb-2">Seu estabelecimento</h1>
               <p className="text-gray-600 mb-6">Agora, conte-nos sobre seu negócio.</p>
 
               <form onSubmit={handleRegister} className="space-y-4">

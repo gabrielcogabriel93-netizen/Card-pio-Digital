@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { compressImage } from '@/lib/image'
 import { log, logError } from '@/lib/logger'
+import { SmartImage } from '@/components/SmartImage'
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB (antes da compressão)
@@ -88,11 +89,9 @@ export function ImageUpload({
 
       {value ? (
         <div className="relative inline-block">
-          <img
-            src={value}
-            alt="Preview"
-            className={`${aspectClassName} rounded-lg object-cover border border-gray-200`}
-          />
+          <div className={`relative ${aspectClassName} rounded-lg overflow-hidden border border-gray-200`}>
+            <SmartImage src={value} alt="Preview" fill sizes="320px" className="object-cover" />
+          </div>
           <button
             type="button"
             onClick={() => onChange('')}

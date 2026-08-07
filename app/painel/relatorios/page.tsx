@@ -143,7 +143,7 @@ export default function RelatoriosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
+        <h1 className="page-title">Relatórios</h1>
         <p className="text-gray-600 mt-1">Mais vendidos, horário de pico e ticket médio do período.</p>
       </div>
 
@@ -177,28 +177,28 @@ export default function RelatoriosPage() {
           <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-2">
             <DollarSign size={20} className="text-green-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</p>
+          <p className="stat-value">{formatCurrency(totalRevenue)}</p>
           <p className="text-sm text-gray-600">Faturamento no período</p>
         </div>
         <div className="card">
           <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
             <TrendingUp size={20} className="text-blue-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(averageTicket)}</p>
+          <p className="stat-value">{formatCurrency(averageTicket)}</p>
           <p className="text-sm text-gray-600">Ticket médio</p>
         </div>
         <div className="card">
           <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
             <ShoppingBag size={20} className="text-purple-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
+          <p className="stat-value">{orders.length}</p>
           <p className="text-sm text-gray-600">Pedidos no período</p>
         </div>
         <div className="card">
           <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center mb-2">
             <Clock size={20} className="text-amber-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="stat-value">
             {orders.length > 0 ? `${String(peakHour).padStart(2, '0')}h` : '—'}
           </p>
           <p className="text-sm text-gray-600">Horário de pico</p>

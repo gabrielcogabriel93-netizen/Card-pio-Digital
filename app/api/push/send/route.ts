@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerSupabaseClient } from '@/lib/supabase/server'
 import { getWebPush } from '@/lib/webpush'
 import { logError } from '@/lib/logger'
+import { safeCompareSecret } from '@/lib/safeCompare'
 
 export const runtime = 'nodejs'
 
@@ -20,7 +21,7 @@ interface SendPushBody {
 // notificação pra qualquer loja.
 async function isAuthorized(request: NextRequest, establishmentId: string): Promise<boolean> {
   const secretHeader = request.headers.get('x-push-secret')
-  if (secretHeader && process.env.PUSH_TRIGGER_SECRET && secretHeader === process.env.PUSH_TRIGGER_SECRET) {
+  if (safeCompareSecret(secretHeader, process.env.PUSH_TRIGGER_SECRET)) {
     return true
   }
 

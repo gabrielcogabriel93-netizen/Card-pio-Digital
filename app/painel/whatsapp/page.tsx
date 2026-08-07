@@ -125,7 +125,7 @@ export default function WhatsappPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">WhatsApp</h1>
+        <h1 className="page-title">WhatsApp</h1>
         <p className="text-gray-600 mt-1">Conecte o WhatsApp da loja pra notificar clientes sobre o status do pedido.</p>
       </div>
 
