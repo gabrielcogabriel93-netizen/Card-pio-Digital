@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, CheckCircle, Palette, Bike, ClipboardList, Sparkles } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -19,9 +20,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
+              <Logo size={32} className="text-primary-500" />
               <span className="font-bold text-xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
             </div>
 
@@ -284,9 +283,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">C</span>
-                </div>
+                <Logo size={32} className="text-primary-500" />
                 <span className="font-bold text-xl text-white">Catalog<span className="text-primary-500">AI</span></span>
               </div>
               <p className="text-sm">

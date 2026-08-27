@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { SubscriptionPaywall } from '@/components/SubscriptionPaywall'
+import { Logo } from '@/components/Logo'
 import {
   LayoutDashboard,
   Package,
@@ -27,6 +28,7 @@ import {
   MessageCircle,
   Pizza,
   ShieldCheck,
+  Gift,
 } from 'lucide-react'
 
 const navigation = [
@@ -35,6 +37,7 @@ const navigation = [
   { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
   { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
   { name: 'Cupons', href: '/painel/cupons', icon: Tag },
+  { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift },
   { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
   { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
   { name: 'Bairros', href: '/painel/bairros', icon: MapPin },
@@ -187,9 +190,7 @@ export default function PainelLayout({
           {/* Logo */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <Link href="/painel" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
+              <Logo size={32} className="text-primary-500" />
               <div>
                 <span className="font-bold text-gray-900">CatalogAI</span>
                 {establishmentName && (
@@ -275,9 +276,7 @@ export default function PainelLayout({
               <Menu size={24} />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
+              <Logo size={32} className="text-primary-500" />
               <span className="font-bold text-gray-900">CatalogAI</span>
             </div>
             <div className="w-10" /> {/* Spacer */}

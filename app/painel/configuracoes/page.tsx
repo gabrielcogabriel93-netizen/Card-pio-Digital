@@ -7,9 +7,10 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
 import { formatPhoneNumber } from '@/lib/phone'
+import { normalizeInstagramInput } from '@/lib/instagram'
 import { PIX_KEY_TYPES } from '@/lib/pix'
 import type { Establishment, BusinessType, BillingMode, OrderAutomationMode } from '@/types'
-import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink, Hand, Bot } from 'lucide-react'
+import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink, Hand, Bot, Gift } from 'lucide-react'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   { value: 'preparo', title: 'Tem preparo', description: 'Comida, lanches, bebidas montadas na hora.', icon: ChefHat },
@@ -27,6 +28,7 @@ export default function ConfiguracoesPage() {
     slug: '',
     whatsapp_number: '',
     address: '',
+    instagram_url: '',
     description: '',
     theme_color: '#22c55e',
     logo_url: '',
@@ -152,6 +154,7 @@ export default function ConfiguracoesPage() {
           slug: data.slug,
           whatsapp_number: data.whatsapp_number,
           address: data.address || '',
+          instagram_url: data.instagram_url || '',
           description: data.description || '',
           theme_color: data.theme_color || '#22c55e',
           logo_url: data.logo_url || '',
@@ -207,6 +210,7 @@ export default function ConfiguracoesPage() {
           name: formData.name,
           whatsapp_number: formData.whatsapp_number,
           address: formData.address || null,
+          instagram_url: normalizeInstagramInput(formData.instagram_url),
           description: formData.description.trim() || null,
           theme_color: formData.theme_color,
           logo_url: formData.logo_url || null,
@@ -376,6 +380,20 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Rua, número, bairro - Cidade"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
+              <input
+                type="text"
+                className="input-field"
+                value={formData.instagram_url}
+                onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                placeholder="@minhaloja"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Aparece como link no perfil da loja que o cliente vê no cardápio. Pode colar o @, o nome de usuário ou o link completo.
+              </p>
             </div>
 
             {formData.offers_delivery && (
@@ -795,6 +813,18 @@ export default function ConfiguracoesPage() {
             />
             <p className="text-xs text-gray-500 mt-1">
               Deixe em branco para não oferecer desconto de aniversário.
+            </p>
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <Link
+              href="/painel/fidelidade"
+              className="btn-secondary inline-flex items-center gap-1.5 text-sm"
+            >
+              <Gift size={16} />
+              Configurar Programa de Pontos
+            </Link>
+            <p className="text-xs text-gray-500 mt-2">
+              Cliente ganha pontos a cada compra e troca por descontos — configure a regra e as recompensas.
             </p>
           </div>
         </div>

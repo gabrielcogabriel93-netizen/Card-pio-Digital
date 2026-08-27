@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { SmartImage } from '@/components/SmartImage'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
-import { isWithinOpeningHours } from '@/lib/hours'
+import { isWithinOpeningHours, getWeeklyHours } from '@/lib/hours'
 import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
@@ -25,10 +25,11 @@ import {
   saveAddress,
   type SavedAddress,
 } from '@/lib/customerStorage'
-import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress } from '@/types'
+import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress, PublicLoyaltySettings, PublicLoyaltyReward, LoyaltyBenefitType } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle } from 'lucide-react'
+import { Logo } from '@/components/Logo'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift } from 'lucide-react'
 
 export default function PublicMenuClient({
   establishment,
@@ -83,6 +84,18 @@ export default function PublicMenuClient({
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountType: 'percent' | 'fixed' | 'free_shipping'; discountValue: number } | null>(null)
   const [couponError, setCouponError] = useState<string | null>(null)
   const [couponLoading, setCouponLoading] = useState(false)
+  // Programa de fidelidade (pontos) — migrations 037/038. Carregado uma
+  // vez via views públicas; a seção de resgate só aparece se is_active e
+  // sem cupom aplicado (mutuamente exclusivos, ver constraint no banco).
+  const [loyaltySettings, setLoyaltySettings] = useState<PublicLoyaltySettings | null>(null)
+  const [loyaltyRewards, setLoyaltyRewards] = useState<PublicLoyaltyReward[]>([])
+  const [selectedRewardId, setSelectedRewardId] = useState('')
+  const [appliedReward, setAppliedReward] = useState<{ id: string; name: string; benefitType: LoyaltyBenefitType; benefitValue: number | null; pointsCost: number } | null>(null)
+  const [rewardError, setRewardError] = useState<string | null>(null)
+  const [rewardLoading, setRewardLoading] = useState(false)
+  // Drawer "Sobre a loja" (perfil do estabelecimento) — aberto ao tocar
+  // no nome/logo no header.
+  const [showEstablishmentProfile, setShowEstablishmentProfile] = useState(false)
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
   const [blockedWhatsAppUrl, setBlockedWhatsAppUrl] = useState<string | null>(null)
 
@@ -107,26 +120,31 @@ export default function PublicMenuClient({
         : Number(establishment.delivery_fee) || 0)
     : 0
   const isFreeShippingCoupon = appliedCoupon?.discountType === 'free_shipping'
+  // Resgate de pontos de fidelidade — mutuamente exclusivo com cupom
+  // (constraint no banco, migration 038). "Frete grátis" como benefício
+  // de recompensa funciona igual ao de cupom: zera o frete, não desconta
+  // o subtotal.
+  const isFreeShippingReward = appliedReward?.benefitType === 'free_shipping'
   // Frete grátis progressivo: valor mínimo configurado pelo lojista —
   // conta real em cima do carrinho atual, não é sugestão nem estimativa.
   const freeShippingThreshold = Number(establishment.free_shipping_threshold) || 0
   const qualifiesForFreeShippingThreshold =
     orderType === 'delivery' && freeShippingThreshold > 0 && cartSubtotal >= freeShippingThreshold
-  // Taxa realmente cobrada — zerada quando o cupom aplicado é de frete
-  // grátis OU quando o carrinho já bateu o valor mínimo configurado.
-  const effectiveDeliveryFee = (isFreeShippingCoupon || qualifiesForFreeShippingThreshold) ? 0 : deliveryFee
+  // Taxa realmente cobrada — zerada quando o cupom/recompensa aplicado é
+  // de frete grátis OU quando o carrinho já bateu o valor mínimo configurado.
+  const effectiveDeliveryFee = (isFreeShippingCoupon || isFreeShippingReward || qualifiesForFreeShippingThreshold) ? 0 : deliveryFee
 
   // Desconto de aniversário: 100% automático, sem nenhuma mensagem
   // enviada — só compara mês/dia (string, evita fuso horário bagunçar a
   // comparação) com a data salva no perfil. Não acumula com cupom
-  // manual, pra não complicar a conta.
+  // manual nem resgate de pontos, pra não complicar a conta.
   const todayMonthDay = useMemo(() => {
     const now = new Date()
     return `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   }, [])
   const isBirthdayToday = !!birthDate && birthDate.slice(5, 10) === todayMonthDay
   const birthdayDiscountPercent = Number(establishment.birthday_discount_percent) || 0
-  const isBirthdayDiscountActive = isBirthdayToday && birthdayDiscountPercent > 0 && !appliedCoupon
+  const isBirthdayDiscountActive = isBirthdayToday && birthdayDiscountPercent > 0 && !appliedCoupon && !appliedReward
 
   // Aplica a cor de marca da loja (Configurações > Cor do tema) como CSS
   // custom properties só dentro desta árvore — todas as classes
@@ -139,6 +157,7 @@ export default function PublicMenuClient({
 
   useEscapeKey(() => setShowCart(false), showCart)
   useEscapeKey(() => setShowCustomerModal(false), showCustomerModal)
+  useEscapeKey(() => setShowEstablishmentProfile(false), showEstablishmentProfile)
 
   // Recupera carrinho, dados do cliente e último pedido salvos neste
   // navegador. Roda só no client (após hidratar) para não gerar
@@ -181,6 +200,22 @@ export default function PublicMenuClient({
     }
     loadNeighborhoods()
   }, [useNeighborhoodFee, establishment.id])
+
+  // Programa de fidelidade: carrega config + recompensas uma vez (views
+  // públicas, leve). Sem erro pro usuário se falhar — a seção de pontos
+  // simplesmente não aparece, o resto do cardápio funciona normal.
+  useEffect(() => {
+    const loadLoyalty = async () => {
+      const supabase = createClient()
+      const [{ data: settingsData }, { data: rewardsData }] = await Promise.all([
+        supabase.from('public_loyalty_settings').select('*').eq('establishment_id', establishment.id).maybeSingle(),
+        supabase.from('public_loyalty_rewards').select('*').eq('establishment_id', establishment.id).order('points_cost', { ascending: true }),
+      ])
+      if (settingsData) setLoyaltySettings(settingsData as PublicLoyaltySettings)
+      if (rewardsData) setLoyaltyRewards(rewardsData as PublicLoyaltyReward[])
+    }
+    loadLoyalty()
+  }, [establishment.id])
 
   // Mantém o carrinho salvo a cada mudança, para sobreviver a um refresh
   // acidental da página (fraqueza comum de navegador mobile).
@@ -236,7 +271,7 @@ export default function PublicMenuClient({
         if (!customerName.trim()) setCustomerName(result.name)
         if (result.birth_date && !birthDate) setBirthDate(result.birth_date)
         const addresses = (result.addresses || []) as CustomerAddress[]
-        setCustomerProfile({ customer_id: result.customer_id, name: result.name, birth_date: result.birth_date, addresses })
+        setCustomerProfile({ customer_id: result.customer_id, name: result.name, birth_date: result.birth_date, loyalty_points_balance: result.loyalty_points_balance ?? 0, addresses })
         if (orderType === 'delivery' && addresses.length > 0 && addressMode === 'new' && !address.street.trim()) {
           selectSavedAddress(addresses[0])
         }
@@ -416,6 +451,53 @@ export default function PublicMenuClient({
     setCouponError(null)
   }
 
+  // Resgate de pontos — mesmo formato de handleApplyCoupon, mas exige
+  // telefone (não dá pra saber o saldo de ninguém sem ele).
+  const handleApplyReward = async (rewardId: string) => {
+    if (!rewardId || !customerPhone.trim()) return
+    setRewardLoading(true)
+    setRewardError(null)
+    log('loja', 'validando resgate de pontos...', { rewardId })
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.rpc('validate_loyalty_redemption', {
+        p_establishment_id: establishment.id,
+        p_reward_id: rewardId,
+        p_customer_phone: customerPhone.trim(),
+      })
+
+      if (error) throw error
+      const result = data?.[0]
+
+      if (!result?.valid) {
+        setRewardError(result?.message || 'Não foi possível resgatar essa recompensa.')
+        return
+      }
+
+      const reward = loyaltyRewards.find(r => r.id === rewardId)
+      setAppliedReward({
+        id: rewardId,
+        name: reward?.name || 'Recompensa',
+        benefitType: result.benefit_type,
+        benefitValue: result.benefit_value != null ? Number(result.benefit_value) : null,
+        pointsCost: result.points_cost,
+      })
+      log('loja', 'recompensa de fidelidade aplicada', { rewardId })
+    } catch (err) {
+      logError('loja', 'erro ao validar resgate de pontos', err)
+      setRewardError('Não foi possível resgatar essa recompensa agora. Tente novamente.')
+    } finally {
+      setRewardLoading(false)
+    }
+  }
+
+  const removeReward = () => {
+    setAppliedReward(null)
+    setSelectedRewardId('')
+    setRewardError(null)
+  }
+
   // Quando a loja usa taxa por bairro E já tem bairro cadastrado, o
   // cliente precisa escolher um da lista em vez de só digitar o nome.
   const usingNeighborhoodSelect = useNeighborhoodFee && neighborhoods.length > 0
@@ -513,6 +595,8 @@ export default function PublicMenuClient({
       const subtotal = cartSubtotal
       let total = cartTotal
       let finalDiscount = discountAmount
+      let finalRewardId: string | null = null
+      let finalPointsRedeemed = 0
 
       const supabase = createClient()
 
@@ -547,6 +631,33 @@ export default function PublicMenuClient({
             ? Math.min(Number(recheckResult.discount_value), subtotal)
             : 0 // free_shipping não desconta o subtotal
         total = Math.max(0, subtotal - finalDiscount + effectiveDeliveryFee)
+      } else if (appliedReward) {
+        // Mesmo motivo do recheck de cupom: o saldo de pontos pode ter
+        // mudado desde que a recompensa foi aplicada no carrinho (outro
+        // pedido no meio do caminho, por exemplo) — nunca confia no valor
+        // em memória pra gravar o desconto final.
+        const { data: recheckData, error: recheckError } = await supabase.rpc('validate_loyalty_redemption', {
+          p_establishment_id: establishment.id,
+          p_reward_id: appliedReward.id,
+          p_customer_phone: customerPhone.trim(),
+        })
+        if (recheckError) throw recheckError
+        const recheckResult = recheckData?.[0]
+        if (!recheckResult?.valid) {
+          whatsappWindow?.close()
+          removeReward()
+          alert(recheckResult?.message || 'Essa recompensa não está mais disponível. Removemos ela do pedido — confira o total e envie novamente.')
+          return // o `finally` abaixo cuida de setSaving(false)
+        }
+
+        finalDiscount = recheckResult.benefit_type === 'percent_discount'
+          ? subtotal * (Number(recheckResult.benefit_value) / 100)
+          : recheckResult.benefit_type === 'fixed_discount'
+            ? Math.min(Number(recheckResult.benefit_value), subtotal)
+            : 0 // free_shipping não desconta o subtotal
+        total = Math.max(0, subtotal - finalDiscount + effectiveDeliveryFee)
+        finalRewardId = appliedReward.id
+        finalPointsRedeemed = recheckResult.points_cost
       }
 
       // Gera o id no client em vez de pedir de volta com .select(): o
@@ -572,6 +683,8 @@ export default function PublicMenuClient({
         shipping_fee: effectiveDeliveryFee,
         discount: finalDiscount,
         coupon_code: appliedCoupon?.code || (isBirthdayDiscountActive ? 'ANIVERSARIO' : null),
+        loyalty_reward_id: finalRewardId,
+        loyalty_points_redeemed: finalPointsRedeemed,
         total,
         status: 'pending',
         source: 'online',
@@ -631,7 +744,7 @@ export default function PublicMenuClient({
             }
             setCustomerProfile(prev => prev
               ? { ...prev, addresses: [savedAddr, ...prev.addresses.filter(a => a.id !== savedAddr.id)] }
-              : { customer_id: '', name: customerName.trim(), addresses: [savedAddr] })
+              : { customer_id: '', name: customerName.trim(), loyalty_points_balance: 0, addresses: [savedAddr] })
           }
         }
       } catch (profileErr) {
@@ -664,6 +777,7 @@ export default function PublicMenuClient({
           setAddressMode('new')
           setShowCart(false)
           removeCoupon()
+          removeReward()
         }
         // Se falhou, `mpCheckoutFailure` já foi setado dentro da função —
         // o modal de retry cuida do resto, sem fechar o carrinho/form.
@@ -699,11 +813,15 @@ export default function PublicMenuClient({
 
       if (isFreeShippingCoupon && deliveryFee > 0) {
         message += `\n\n🚚 *Frete grátis* (cupom ${appliedCoupon?.code})`
+      } else if (isFreeShippingReward && deliveryFee > 0) {
+        message += `\n\n🚚 *Frete grátis* (recompensa: ${appliedReward?.name})`
       } else if (effectiveDeliveryFee > 0) {
         message += `\n\n🛵 *Taxa de entrega:* R$ ${effectiveDeliveryFee.toFixed(2)}`
       }
       if (appliedCoupon && (discountAmount > 0 || isFreeShippingCoupon) && !isFreeShippingCoupon) {
         message += `\n🏷️ *Cupom ${appliedCoupon.code}:* -R$ ${discountAmount.toFixed(2)}`
+      } else if (appliedReward && (discountAmount > 0 || isFreeShippingReward) && !isFreeShippingReward) {
+        message += `\n🎁 *Recompensa (${appliedReward.name}):* -R$ ${discountAmount.toFixed(2)}`
       } else if (isBirthdayDiscountActive) {
         message += `\n🎉 *Desconto de aniversário (${birthdayDiscountPercent}%):* -R$ ${discountAmount.toFixed(2)}`
       }
@@ -753,6 +871,7 @@ export default function PublicMenuClient({
       setAddressMode('new')
       setShowCart(false)
       removeCoupon()
+      removeReward()
     } catch (err: any) {
       logError('loja', 'erro ao enviar pedido', err)
       logCritical('loja:enviar-pedido', err.message, err, establishment.id)
@@ -769,9 +888,15 @@ export default function PublicMenuClient({
       : appliedCoupon.discountType === 'fixed'
         ? Math.min(appliedCoupon.discountValue, cartSubtotal)
         : 0 // free_shipping não desconta o subtotal, desconta o frete (effectiveDeliveryFee)
-    : isBirthdayDiscountActive
-      ? cartSubtotal * (birthdayDiscountPercent / 100)
-      : 0
+    : appliedReward
+      ? appliedReward.benefitType === 'percent_discount'
+        ? cartSubtotal * ((appliedReward.benefitValue || 0) / 100)
+        : appliedReward.benefitType === 'fixed_discount'
+          ? Math.min(appliedReward.benefitValue || 0, cartSubtotal)
+          : 0 // free_shipping não desconta o subtotal, desconta o frete (effectiveDeliveryFee)
+      : isBirthdayDiscountActive
+        ? cartSubtotal * (birthdayDiscountPercent / 100)
+        : 0
   const cartTotal = Math.max(0, cartSubtotal - discountAmount + effectiveDeliveryFee)
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -852,36 +977,43 @@ export default function PublicMenuClient({
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
-            {establishment.logo_url && (
-              <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
-                <SmartImage
-                  src={establishment.logo_url}
-                  alt={establishment.name}
-                  fill
-                  sizes="48px"
-                  className="object-cover"
-                />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-lg text-gray-900 truncate">{establishment.name}</h1>
-              <div className="flex items-center gap-2 text-sm flex-wrap">
-                <span className={`flex items-center gap-1 ${
-                  isEffectivelyOpen ? 'text-green-600' : 'text-red-500'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${
-                    isEffectivelyOpen ? 'bg-green-500' : 'bg-red-500'
-                  }`} />
-                  {isEffectivelyOpen ? 'Aberto' : 'Fechado'}
-                </span>
-                {establishment.address && (
-                  <span className="flex items-center gap-1 text-gray-400 truncate">
-                    <MapPin size={12} />
-                    {establishment.address}
+            <button
+              type="button"
+              onClick={() => setShowEstablishmentProfile(true)}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              aria-label="Ver perfil do estabelecimento"
+            >
+              {establishment.logo_url && (
+                <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
+                  <SmartImage
+                    src={establishment.logo_url}
+                    alt={establishment.name}
+                    fill
+                    sizes="48px"
+                    className="object-cover"
+                  />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h1 className="font-bold text-lg text-gray-900 truncate">{establishment.name}</h1>
+                <div className="flex items-center gap-2 text-sm flex-wrap">
+                  <span className={`flex items-center gap-1 ${
+                    isEffectivelyOpen ? 'text-green-600' : 'text-red-500'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      isEffectivelyOpen ? 'bg-green-500' : 'bg-red-500'
+                    }`} />
+                    {isEffectivelyOpen ? 'Aberto' : 'Fechado'}
                   </span>
-                )}
+                  {establishment.address && (
+                    <span className="flex items-center gap-1 text-gray-400 truncate">
+                      <MapPin size={12} />
+                      {establishment.address}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            </button>
             {/* Meus Pedidos */}
             <Link
               href={`/loja/${establishment.slug}/pedidos`}
@@ -940,6 +1072,141 @@ export default function PublicMenuClient({
           </div>
         )}
       </header>
+
+      {/* Perfil do Estabelecimento ("Sobre a loja") */}
+      {showEstablishmentProfile && (
+        <div className="fixed inset-0 z-50">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowEstablishmentProfile(false)} />
+          <div className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-xl animate-slide-in flex flex-col overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-semibold text-gray-900">Sobre a loja</h2>
+              <button onClick={() => setShowEstablishmentProfile(false)} className="p-1 hover:bg-gray-100 rounded" aria-label="Fechar">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-5">
+              {/* Logo + nome + status */}
+              <div className="flex items-center gap-4">
+                {establishment.logo_url ? (
+                  <div className="relative w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
+                    <SmartImage src={establishment.logo_url} alt={establishment.name} fill sizes="80px" className="object-cover" />
+                  </div>
+                ) : (
+                  <Logo size={80} className="text-primary-500 flex-shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-gray-900 truncate">{establishment.name}</h3>
+                  <span className={`inline-flex items-center gap-1 text-sm mt-1 ${isEffectivelyOpen ? 'text-green-600' : 'text-red-500'}`}>
+                    <span className={`w-2 h-2 rounded-full ${isEffectivelyOpen ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {isEffectivelyOpen ? 'Aberto agora' : 'Fechado agora'}
+                  </span>
+                </div>
+              </div>
+
+              {establishment.description && (
+                <p className="text-sm text-gray-600">{establishment.description}</p>
+              )}
+
+              {/* Entrega/Retirada */}
+              <div className="flex gap-2 flex-wrap">
+                {offersDelivery && (
+                  <span className="inline-flex items-center gap-1.5 text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full">
+                    <Bike size={14} /> Entrega
+                  </span>
+                )}
+                {offersPickup && (
+                  <span className="inline-flex items-center gap-1.5 text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full">
+                    <Store size={14} /> Retirada no local
+                  </span>
+                )}
+              </div>
+
+              {/* Endereço */}
+              {establishment.address && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(establishment.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-3 text-sm text-gray-700 hover:text-primary-600"
+                >
+                  <MapPin size={18} className="flex-shrink-0 mt-0.5 text-gray-400" />
+                  <span>
+                    {establishment.address}
+                    <br />
+                    <span className="text-xs text-primary-600">Ver no mapa</span>
+                  </span>
+                </a>
+              )}
+
+              {/* WhatsApp */}
+              <a
+                href={`https://wa.me/${toWhatsAppNumber(establishment.whatsapp_number)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 text-sm text-gray-700 hover:text-primary-600"
+              >
+                <Send size={18} className="flex-shrink-0 text-gray-400" />
+                <span>{formatPhoneNumber(establishment.whatsapp_number)}</span>
+              </a>
+
+              {/* Instagram */}
+              {establishment.instagram_url && (
+                <a
+                  href={establishment.instagram_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 text-sm text-gray-700 hover:text-primary-600"
+                >
+                  <Instagram size={18} className="flex-shrink-0 text-gray-400" />
+                  <span>Instagram</span>
+                </a>
+              )}
+
+              {/* Horário de funcionamento — semana inteira */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
+                  <Clock size={16} className="text-gray-400" /> Horário de funcionamento
+                </h4>
+                <div className="space-y-1">
+                  {getWeeklyHours(establishment.opening_hours).map(day => (
+                    <div key={day.key} className={`flex justify-between text-sm ${day.isToday ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                      <span>{day.label}</span>
+                      <span>{day.hours ? `${day.hours.open} - ${day.hours.close}` : 'Fechado'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Meus pontos */}
+              {loyaltySettings?.is_active && (
+                <div className="bg-primary-50 rounded-xl p-4">
+                  <h4 className="text-sm font-semibold text-primary-700 mb-2 flex items-center gap-1.5">
+                    <Gift size={16} /> Meus pontos
+                  </h4>
+                  {customerProfile ? (
+                    <p className="text-sm text-primary-700">
+                      Você tem <strong>{customerProfile.loyalty_points_balance}</strong> pontos nesta loja.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-primary-700">Informe seu telefone para ver seu saldo de pontos.</p>
+                      <input
+                        type="tel"
+                        className="input-field text-sm py-1.5"
+                        placeholder="(11) 99999-8888"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
+                        onBlur={lookupCustomerProfile}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Products */}
       <main className="max-w-2xl mx-auto px-4 py-6 pb-32">
@@ -1194,17 +1461,71 @@ export default function PublicMenuClient({
                 )}
                 {couponError && <p className="text-xs text-red-500">{couponError}</p>}
 
+                {/* Resgate de pontos — exclusivo com cupom */}
+                {!appliedCoupon && loyaltySettings?.is_active && loyaltyRewards.length > 0 && (
+                  <div>
+                    {appliedReward ? (
+                      <div className="flex items-center justify-between bg-primary-50 text-primary-700 text-sm px-3 py-2 rounded-lg">
+                        <span>Recompensa <strong>{appliedReward.name}</strong> (-{appliedReward.pointsCost} pontos)</span>
+                        <button onClick={removeReward} className="text-primary-500 hover:text-primary-700" aria-label="Remover recompensa">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : !customerPhone.trim() ? (
+                      <input
+                        type="tel"
+                        className="input-field text-sm py-1.5"
+                        placeholder="Seu telefone p/ ver seus pontos"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
+                        onBlur={lookupCustomerProfile}
+                      />
+                    ) : (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-gray-500">
+                          Você tem <strong>{customerProfile?.loyalty_points_balance ?? 0}</strong> pontos
+                        </p>
+                        <div className="flex gap-2">
+                          <select
+                            className="input-field text-sm py-1.5"
+                            value={selectedRewardId}
+                            onChange={(e) => setSelectedRewardId(e.target.value)}
+                          >
+                            <option value="">Escolher recompensa...</option>
+                            {loyaltyRewards.map(r => (
+                              <option key={r.id} value={r.id} disabled={(customerProfile?.loyalty_points_balance ?? 0) < r.points_cost}>
+                                {r.name} — {r.points_cost} pontos
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleApplyReward(selectedRewardId)}
+                            disabled={rewardLoading || !selectedRewardId}
+                            className="btn-secondary text-sm py-1.5 px-3 flex-shrink-0"
+                          >
+                            {rewardLoading ? <Loader2 size={14} className="animate-spin" /> : 'Resgatar'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {rewardError && <p className="text-xs text-red-500 mt-1">{rewardError}</p>}
+                  </div>
+                )}
+
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Subtotal</span>
                   <span>{formatCurrency(cartSubtotal)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-primary-600">
-                    <span>Desconto{isBirthdayDiscountActive && !appliedCoupon ? ' (Aniversário)' : ''}</span>
+                    <span>
+                      Desconto
+                      {appliedReward ? ` (${appliedReward.name})` : isBirthdayDiscountActive && !appliedCoupon ? ' (Aniversário)' : ''}
+                    </span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}
-                {deliveryFee > 0 && isFreeShippingCoupon && (
+                {deliveryFee > 0 && (isFreeShippingCoupon || isFreeShippingReward) && (
                   <div className="flex justify-between text-sm text-primary-600">
                     <span>Taxa de entrega</span>
                     <span>Grátis</span>
@@ -1672,11 +1993,11 @@ export default function PublicMenuClient({
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-primary-600 mt-1">
-                    <span>Desconto ({appliedCoupon?.code || 'Aniversário'})</span>
+                    <span>Desconto ({appliedCoupon?.code || appliedReward?.name || 'Aniversário'})</span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}
-                {deliveryFee > 0 && isFreeShippingCoupon && (
+                {deliveryFee > 0 && (isFreeShippingCoupon || isFreeShippingReward) && (
                   <div className="flex justify-between text-sm text-primary-600 mt-1">
                     <span>Taxa de entrega</span>
                     <span>Grátis</span>

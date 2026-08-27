@@ -32,6 +32,10 @@ export interface Establishment {
   // compartilha o cardápio — ver migration 030 e generateMetadata em
   // app/loja/[slug]/page.tsx.
   description?: string | null
+  // Link do Instagram da loja, exibido no drawer "Sobre a loja" do
+  // cardápio público — sempre normalizado como URL completa antes de
+  // salvar (ver lib/instagram.ts). Migration 036.
+  instagram_url?: string | null
   opening_hours?: Record<string, { open: string; close: string }>
   is_open?: boolean
   delivery_fee?: number
@@ -276,6 +280,10 @@ export interface CustomerProfile {
   customer_id: string
   name: string
   birth_date?: string | null
+  // Saldo de pontos de fidelidade (migration 038). 0 pra quem nunca
+  // ganhou pontos, não confundir com "programa desativado" — essa
+  // checagem é feita por LoyaltySettings.is_active à parte.
+  loyalty_points_balance: number
   addresses: CustomerAddress[]
 }
 
@@ -290,6 +298,11 @@ export interface Order {
   shipping_fee: number
   discount?: number
   coupon_code?: string
+  // Resgate de pontos de fidelidade (migration 038) — mutuamente
+  // exclusivo com coupon_code (CHECK no banco). loyalty_points_redeemed
+  // é o custo em pontos já debitado, não um valor em dinheiro.
+  loyalty_reward_id?: string | null
+  loyalty_points_redeemed?: number
   total: number
   status: OrderStatus
   source: 'online' | 'balcao'
@@ -326,6 +339,58 @@ export interface Coupon {
   max_uses?: number
   max_uses_per_customer?: number | null
   used_count: number
+  created_at?: string
+}
+
+// Programa de fidelidade (pontos) — migrations 037/038.
+export type LoyaltyBenefitType = 'percent_discount' | 'fixed_discount' | 'free_shipping'
+
+// Config de fidelidade da loja, gerenciada em /painel/fidelidade.
+export interface LoyaltySettings {
+  establishment_id: string
+  is_active: boolean
+  points_per_currency: number
+  min_order_value_for_points?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
+// Versão pública de LoyaltySettings (view `public_loyalty_settings`) —
+// só o que o cardápio precisa pra decidir se mostra a seção de pontos.
+export type PublicLoyaltySettings = Pick<
+  LoyaltySettings,
+  'establishment_id' | 'is_active' | 'points_per_currency' | 'min_order_value_for_points'
+>
+
+export interface LoyaltyReward {
+  id: string
+  establishment_id: string
+  name: string
+  description?: string | null
+  points_cost: number
+  benefit_type: LoyaltyBenefitType
+  benefit_value?: number | null
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+// Versão pública de LoyaltyReward (view `public_loyalty_rewards`) — só
+// recompensas ativas, sem is_active/timestamps internos.
+export type PublicLoyaltyReward = Omit<LoyaltyReward, 'is_active' | 'created_at' | 'updated_at'>
+
+// Ledger de crédito/débito de pontos — só leitura pelo lojista (CRM/
+// auditoria futura); nunca escrito pelo client, só pelos triggers da
+// migration 038.
+export interface LoyaltyTransaction {
+  id: string
+  establishment_id: string
+  customer_id: string
+  order_id?: string | null
+  reward_id?: string | null
+  type: 'earn' | 'redeem' | 'revoke_earn' | 'revoke_redeem'
+  points: number
+  description?: string | null
   created_at?: string
 }
 

@@ -28,6 +28,11 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
+      // SVG puro (não ImageResponse/@vercel/og — quebra o build quando o
+      // caminho do projeto tem acento/espaço, ex: "Cartório Tanguá") com
+      // o mesmo desenho de components/Logo.tsx. Navegadores modernos
+      // preferem o SVG; o .ico acima é o fallback pra quem não suporta.
+      { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
     ],
@@ -52,7 +57,6 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="CatalogAI" />

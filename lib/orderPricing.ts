@@ -26,6 +26,7 @@ interface OrderForPricingCheck {
   shipping_fee: number
   total: number
   coupon_code: string | null
+  loyalty_reward_id?: string | null
   establishment_id: string
   customer_phone: string
 }
@@ -106,6 +107,27 @@ export async function validateOrderPricingFloor(
 
     if (discount > expectedDiscount + ROUNDING_TOLERANCE) {
       return { valid: false, reason: 'O desconto do pedido é maior do que o cupom permite.' }
+    }
+  } else if (order.loyalty_reward_id) {
+    const { data: rewardRows, error: rewardError } = await admin.rpc('validate_loyalty_redemption', {
+      p_establishment_id: order.establishment_id,
+      p_reward_id: order.loyalty_reward_id,
+      p_customer_phone: order.customer_phone,
+    })
+    if (rewardError) return { valid: false, reason: 'Erro ao conferir a recompensa de fidelidade do pedido.' }
+
+    const result = rewardRows?.[0]
+    if (!result?.valid) {
+      return { valid: false, reason: 'A recompensa de fidelidade informada no pedido não é mais válida.' }
+    }
+
+    const expectedDiscount =
+      result.benefit_type === 'percent_discount' ? subtotal * (Number(result.benefit_value) / 100)
+      : result.benefit_type === 'fixed_discount' ? Math.min(Number(result.benefit_value), subtotal)
+      : 0 // free_shipping não desconta o subtotal, desconta o frete
+
+    if (discount > expectedDiscount + ROUNDING_TOLERANCE) {
+      return { valid: false, reason: 'O desconto do pedido é maior do que a recompensa de fidelidade permite.' }
     }
   } else {
     // Sem cupom, o único desconto legítimo é o de aniversário — limitado
