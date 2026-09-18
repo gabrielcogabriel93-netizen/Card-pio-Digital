@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, ChevronDown, CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, Quote } from 'lucide-react'
+import Image from 'next/image'
+import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, ChevronDown, CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, Quote, MessageCircle, Wallet } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 
 const TESTIMONIALS = [
@@ -91,6 +92,19 @@ const FAQ_ITEMS = [
   },
 ]
 
+// Moldura de celular reutilizável — envolve prints reais do produto (não
+// ilustrações) capturados do cardápio de demonstração real
+// (/loja/pizzaria-demo-catalogai), pra mostrar a tela de verdade em vez de
+// um mockup genérico.
+function PhoneMockup({ src, alt, priority = false }: { src: string; alt: string; priority?: boolean }) {
+  return (
+    <div className="relative w-[240px] sm:w-[280px] rounded-[2.5rem] border-[10px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900 flex-shrink-0">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-gray-900 rounded-b-2xl z-10" />
+      <Image src={src} alt={alt} width={390} height={844} className="w-full h-auto" priority={priority} />
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -113,6 +127,7 @@ export default function LandingPage() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8">
+              <a href="#demonstracao" className="text-gray-600 hover:text-gray-900 transition-colors">Demonstração</a>
               <a href="#funcionalidades" className="text-gray-600 hover:text-gray-900 transition-colors">Funcionalidades</a>
               <a href="#para-quem" className="text-gray-600 hover:text-gray-900 transition-colors">Para quem é</a>
               <a href="#como-funciona" className="text-gray-600 hover:text-gray-900 transition-colors">Como funciona</a>
@@ -139,6 +154,7 @@ export default function LandingPage() {
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-100 animate-fade-in">
             <div className="px-4 py-4 space-y-3">
+              <a href="#demonstracao" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Demonstração</a>
               <a href="#funcionalidades" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Funcionalidades</a>
               <a href="#para-quem" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Para quem é</a>
               <a href="#como-funciona" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Como funciona</a>
@@ -159,35 +175,41 @@ export default function LandingPage() {
         <div className="absolute top-20 right-20 w-72 h-72 bg-primary-200/30 rounded-full blur-3xl" />
         <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-200/30 rounded-full blur-3xl" />
         
-        <div className={`relative max-w-4xl mx-auto text-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-          <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <CheckCircle size={16} />
-            <span>7 dias grátis, tudo liberado • Sem taxas • Multi-empresa</span>
+        <div className={`relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <CheckCircle size={16} />
+              <span>7 dias grátis, tudo liberado • Sem taxas • Multi-empresa</span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+              Crie seu{' '}
+              <span className="text-primary-500">cardápio digital</span>
+              {' '}e receba pedidos direto no{' '}
+              <span className="text-green-500">WhatsApp</span>
+            </h1>
+            <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0">
+              Transforme seu negócio com um cardápio online profissional.
+              Seus clientes visualizam produtos, escolhem variações e enviam o pedido
+              pronto pro seu WhatsApp com só um toque.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
+                Testar 7 dias grátis
+                <ChevronRight size={20} />
+              </Link>
+              <Link href="#como-funciona" className="btn-secondary text-lg px-8 py-4">
+                Como funciona
+              </Link>
+            </div>
+            <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 text-sm text-gray-500">
+              <span>✅ Sem instalação</span>
+              <span>🔒 Dados seguros</span>
+              <span>📱 Compatível celular</span>
+            </div>
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
-            Crie seu{' '}
-            <span className="text-primary-500">cardápio digital</span>
-            {' '}e receba pedidos direto no{' '}
-            <span className="text-green-500">WhatsApp</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
-            Transforme seu negócio com um cardápio online profissional.
-            Seus clientes visualizam produtos, escolhem variações e enviam o pedido
-            pronto pro seu WhatsApp com só um toque.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
-              Testar 7 dias grátis
-              <ChevronRight size={20} />
-            </Link>
-            <Link href="#como-funciona" className="btn-secondary text-lg px-8 py-4">
-              Como funciona
-            </Link>
-          </div>
-          <div className="mt-12 flex items-center justify-center gap-8 text-sm text-gray-500">
-            <span>✅ Sem instalação</span>
-            <span>🔒 Dados seguros</span>
-            <span>📱 Compatível celular</span>
+
+          <div className="flex justify-center lg:justify-end">
+            <PhoneMockup src="/screenshots/cardapio-inicio.png" alt="Cardápio digital real do CatalogAI, aberto no celular" priority />
           </div>
         </div>
       </section>
@@ -235,6 +257,50 @@ export default function LandingPage() {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Demonstração real (não é mockup nem foto de banco de imagens) */}
+      <section id="demonstracao" className="py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Isto é o produto de verdade, não uma simulação
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              As telas abaixo são prints reais de uma loja rodando no CatalogAI. Navegue você mesmo no cardápio de demonstração — sem cadastro, sem compromisso.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-8 mb-12">
+            <div className="text-center">
+              <PhoneMockup src="/screenshots/cardapio-inicio.png" alt="Lista de produtos do cardápio digital, com fotos e preços" />
+              <p className="mt-4 font-medium text-gray-900">O cardápio</p>
+              <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Fotos, descrição e preço de cada produto, sempre atualizado</p>
+            </div>
+            <div className="text-center">
+              <PhoneMockup src="/screenshots/carrinho.png" alt="Carrinho de compras com sugestões, cupom e programa de fidelidade" />
+              <p className="mt-4 font-medium text-gray-900">O carrinho</p>
+              <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Sugestões, cupom de desconto e resgate de pontos, tudo antes de enviar</p>
+            </div>
+            <div className="text-center">
+              <PhoneMockup src="/screenshots/sobre-a-loja.png" alt="Perfil completo da loja com endereço, horários e fidelidade" />
+              <p className="mt-4 font-medium text-gray-900">O perfil da loja</p>
+              <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Endereço, horário de funcionamento e saldo de pontos, num só lugar</p>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <a
+              href="/loja/pizzaria-demo-catalogai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary text-lg px-8 py-4 inline-flex"
+            >
+              Abrir cardápio de demonstração
+              <ChevronRight size={20} />
+            </a>
           </div>
         </div>
       </section>
@@ -436,6 +502,24 @@ export default function LandingPage() {
               <ChevronRight size={20} />
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Integrações Section */}
+      <section className="py-14 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-6">Já integrado com</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
+              <MessageCircle size={20} className="text-green-500" />
+              <span className="font-medium text-gray-700">WhatsApp</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
+              <Wallet size={20} className="text-blue-500" />
+              <span className="font-medium text-gray-700">Mercado Pago</span>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 mt-4">E mais integrações a caminho.</p>
         </div>
       </section>
 
