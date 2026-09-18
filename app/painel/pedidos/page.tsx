@@ -11,7 +11,7 @@ import { AutoPrintToggle } from '@/components/AutoPrintToggle'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import { STATUS_NOTIFICATION_MESSAGES } from '@/lib/orderStatusMessages'
 import type { Order, OrderItem, OrderAutomationMode } from '@/types'
-import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin, Wallet, Bot } from 'lucide-react'
+import { Loader2, Clock, CheckCircle, ChefHat, XCircle, ArrowRight, DollarSign, ExternalLink, Search, Printer, Bike, Store, MapPin, Wallet, Bot, Table2 } from 'lucide-react'
 
 // Limite de segurança: sem paginação de verdade ainda, mas evita puxar um
 // histórico infinito conforme a loja acumula pedidos.
@@ -46,6 +46,10 @@ export default function PedidosPage() {
   const [trackingEnabled, setTrackingEnabled] = useState(true)
   const [establishmentId, setEstablishmentId] = useState('')
   const [whatsappNotificationsEnabled, setWhatsappNotificationsEnabled] = useState(false)
+  // Resolve table_tab_id -> "Mesa 3" pro badge dos pedidos de mesa
+  // (migration 039) — carregado uma vez junto com os pedidos, não por
+  // pedido individual, pra não gerar N+1.
+  const [tableLabelByTabId, setTableLabelByTabId] = useState<Map<string, string>>(new Map())
 
   // Impressão automática — separado de `selectedOrder` de propósito: um
   // pedido novo chegando não pode trocar o que está aberto no modal caso
@@ -181,6 +185,15 @@ export default function PedidosPage() {
       if (error) logError('painel:pedidos', 'erro ao carregar pedidos', error)
       if (data) setOrders(data as Order[])
       log('painel:pedidos', 'pedidos carregados', { total: data?.length || 0 })
+
+      const { data: tabsData, error: tabsError } = await supabase
+        .from('table_tabs')
+        .select('id, restaurant_tables(label)')
+        .eq('establishment_id', est.id)
+      if (tabsError) logError('painel:pedidos', 'erro ao carregar mesas dos pedidos', tabsError)
+      if (tabsData) {
+        setTableLabelByTabId(new Map(tabsData.map((t: any) => [t.id, t.restaurant_tables?.label || '?'])))
+      }
     } catch (error) {
       logError('painel:pedidos', 'exceção ao carregar pedidos', error)
     } finally {
@@ -277,15 +290,22 @@ export default function PedidosPage() {
       }
 
       if (isFirstAcceptance) {
-        log('painel:pedidos', 'criando entrada financeira da confirmação', { finalTotal: updateData.total })
-        const { error: financeError } = await supabase.from('financial_entries').insert({
-          establishment_id: updatedOrder.establishment_id,
-          order_id: orderId,
-          type: 'income',
-          amount: updateData.total,
-          description: `Pedido #${orderId.slice(0, 8)} - ${updatedOrder.customer_name}`,
-        })
-        if (financeError) throw financeError
+        // Pedido de mesa (migration 039) não gera receita por pedido
+        // individual — vários pedidos se acumulam na mesma comanda, e a
+        // entrada financeira só é criada uma vez por pedido no
+        // FECHAMENTO da comanda inteira (RPC close_table_tab), senão a
+        // mesma venda apareceria duplicada em Financeiro.
+        if (updatedOrder.source !== 'mesa') {
+          log('painel:pedidos', 'criando entrada financeira da confirmação', { finalTotal: updateData.total })
+          const { error: financeError } = await supabase.from('financial_entries').insert({
+            establishment_id: updatedOrder.establishment_id,
+            order_id: orderId,
+            type: 'income',
+            amount: updateData.total,
+            description: `Pedido #${orderId.slice(0, 8)} - ${updatedOrder.customer_name}`,
+          })
+          if (financeError) throw financeError
+        }
 
         log('painel:pedidos', 'baixando estoque dos itens do pedido')
         await adjustStockForItems(updatedOrder.items || [], 'decrement')
@@ -581,6 +601,11 @@ export default function PedidosPage() {
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         {order.source === 'balcao' && (
                           <span className="text-xs text-blue-500 inline-block">Balcão</span>
+                        )}
+                        {order.source === 'mesa' && (
+                          <span className="text-xs text-orange-600 inline-flex items-center gap-1">
+                            <Table2 size={11} /> Mesa {tableLabelByTabId.get(order.table_tab_id || '') || '?'}
+                          </span>
                         )}
                         {order.source === 'online' && (
                           <span className={`text-xs inline-flex items-center gap-1 ${order.order_type === 'pickup' ? 'text-purple-500' : 'text-teal-600'}`}>
@@ -894,6 +919,9 @@ export default function PedidosPage() {
           <h2 className="text-lg font-bold mb-1">Pedido #{printOrder.id.slice(0, 8)}</h2>
           <p className="text-sm mb-1">Cliente: {printOrder.customer_name}</p>
           <p className="text-sm mb-1">Telefone: {printOrder.customer_phone}</p>
+          {printOrder.source === 'mesa' && (
+            <p className="text-sm mb-1">Mesa: {tableLabelByTabId.get(printOrder.table_tab_id || '') || '?'}</p>
+          )}
           {printOrder.source === 'online' && (
             <p className="text-sm mb-1">
               {printOrder.order_type === 'pickup' ? 'Retirada no local' : 'Entrega'}

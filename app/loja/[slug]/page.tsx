@@ -74,7 +74,13 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   }
 }
 
-export default async function PublicMenuPage({ params }: { params: { slug: string } }) {
+export default async function PublicMenuPage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string }
+  searchParams: { mesa?: string }
+}) {
   const establishment = await getEstablishment(params.slug)
 
   if (!establishment) {
@@ -114,7 +120,12 @@ export default async function PublicMenuPage({ params }: { params: { slug: strin
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <PublicMenuClient establishment={establishment} categories={categories} products={products} />
+      <PublicMenuClient
+        establishment={establishment}
+        categories={categories}
+        products={products}
+        tableIdParam={searchParams?.mesa || null}
+      />
     </>
   )
 }

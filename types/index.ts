@@ -262,6 +262,34 @@ export interface PublicDeliveryNeighborhood {
   fee: number
 }
 
+// Mesa física do estabelecimento (migration 039). label é o que o
+// garçom vê e o que fica no QR ("Mesa 5", "Varanda 2" etc.) — livre,
+// não precisa ser numérico.
+export interface RestaurantTable {
+  id: string
+  establishment_id: string
+  label: string
+  is_active: boolean
+  display_order: number
+  created_at: string
+}
+
+// Comanda aberta por mesa (migration 039) — acumula vários pedidos
+// (orders.table_tab_id) enquanto o cliente está sentado. closed_total
+// só é preenchido no fechamento (RPC close_table_tab); enquanto
+// 'open', o total corrente é calculado no client somando os orders
+// vinculados.
+export interface TableTab {
+  id: string
+  establishment_id: string
+  table_id: string
+  status: 'open' | 'closed'
+  opened_at: string
+  closed_at?: string | null
+  closed_total?: number | null
+  created_at: string
+}
+
 // Endereço salvo no perfil do cliente (rótulo tipo "Casa", "Trabalho").
 export interface CustomerAddress {
   id: string
@@ -305,8 +333,12 @@ export interface Order {
   loyalty_points_redeemed?: number
   total: number
   status: OrderStatus
-  source: 'online' | 'balcao'
-  order_type: 'delivery' | 'pickup'
+  source: 'online' | 'balcao' | 'mesa'
+  order_type: 'delivery' | 'pickup' | 'mesa'
+  // Só preenchido em pedidos source='mesa' (migration 039) — vincula à
+  // comanda aberta da mesa. Vários orders podem compartilhar o mesmo
+  // table_tab_id ao longo da refeição.
+  table_tab_id?: string | null
   delivery_address?: DeliveryAddress | null
   payment_method?: string
   // Só usado em pedidos pagos via Mercado Pago (payment_method =

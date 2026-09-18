@@ -29,6 +29,7 @@ import {
   Pizza,
   ShieldCheck,
   Gift,
+  Table2,
 } from 'lucide-react'
 
 const navigation = [
@@ -40,6 +41,7 @@ const navigation = [
   { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift },
   { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
   { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
+  { name: 'Mesas', href: '/painel/mesas', icon: Table2 },
   { name: 'Bairros', href: '/painel/bairros', icon: MapPin },
   { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
   { name: 'Relatórios', href: '/painel/relatorios', icon: TrendingUp },

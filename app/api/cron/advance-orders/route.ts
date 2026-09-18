@@ -40,11 +40,18 @@ export async function POST(request: NextRequest) {
     }
 
     const establishmentIds = establishments.map((e) => e.id)
+    // Pedidos de mesa (migration 039) ficam de fora da automação por
+    // tempo: quem decide quando um pedido de mesa avança é a cozinha,
+    // manualmente pelo Kanban — não faz sentido "confirmar sozinho após
+    // 2 minutos" um pedido que ainda vai se somar a outros na mesma
+    // comanda. resolveNextAutomaticStatus também só aceita
+    // orderType 'delivery'/'pickup', sem 'mesa'.
     const { data: orders, error: ordersError } = await admin
       .from('orders')
       .select('*')
       .in('establishment_id', establishmentIds)
       .in('status', ['pending', 'confirmed', 'preparing'])
+      .neq('source', 'mesa')
 
     if (ordersError) throw ordersError
     if (!orders || orders.length === 0) {
@@ -61,7 +68,10 @@ export async function POST(request: NextRequest) {
       const nextStatus = resolveNextAutomaticStatus(
         {
           status: order.status as 'pending' | 'confirmed' | 'preparing',
-          orderType: order.order_type,
+          // A query acima já filtra .neq('source', 'mesa'), então nunca
+          // chega aqui um order_type='mesa' — TS não enxerga esse filtro
+          // de runtime, daí o cast.
+          orderType: order.order_type as 'delivery' | 'pickup',
           paymentMethod: order.payment_method,
           paymentStatus: order.payment_status,
           statusChangedAt: new Date(order.status_changed_at),

@@ -29,16 +29,20 @@ import type { PublicEstablishment, Category, PublicProduct, VariationGroup, Vari
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { Logo } from '@/components/Logo'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift } from 'lucide-react'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2 } from 'lucide-react'
 
 export default function PublicMenuClient({
   establishment,
   categories,
   products,
+  tableIdParam,
 }: {
   establishment: PublicEstablishment
   categories: Category[]
   products: PublicProduct[]
+  // Presente quando o cliente chegou via QR de mesa (?mesa=<id>,
+  // migration 039) — ver useEffect que resolve isTableMode abaixo.
+  tableIdParam?: string | null
 }) {
   const [cart, setCart] = useState<CartItem<PublicProduct>[]>([])
   const [showCart, setShowCart] = useState(false)
@@ -93,6 +97,13 @@ export default function PublicMenuClient({
   const [appliedReward, setAppliedReward] = useState<{ id: string; name: string; benefitType: LoyaltyBenefitType; benefitValue: number | null; pointsCost: number } | null>(null)
   const [rewardError, setRewardError] = useState<string | null>(null)
   const [rewardLoading, setRewardLoading] = useState(false)
+  // Cardápio de mesa (migration 039) — QR aponta pra ?mesa=<table_id>.
+  // tableModeFailed cobre QR antigo/mesa desativada: degrada pro
+  // cardápio online normal em vez de travar o cliente numa tela quebrada.
+  const [tableTab, setTableTab] = useState<{ id: string; label: string } | null>(null)
+  const [tableModeFailed, setTableModeFailed] = useState(false)
+  const isTableMode = !!tableIdParam && !!tableTab && !tableModeFailed
+  const [tableOrderToast, setTableOrderToast] = useState(false)
   // Drawer "Sobre a loja" (perfil do estabelecimento) — aberto ao tocar
   // no nome/logo no header.
   const [showEstablishmentProfile, setShowEstablishmentProfile] = useState(false)
@@ -114,7 +125,10 @@ export default function PublicMenuClient({
   // antes disso era cobrada em qualquer pedido, mesmo retirando no local.
   // Se a loja usa taxa por bairro e o bairro escolhido tem valor próprio,
   // esse valor vale em vez da taxa padrão do estabelecimento.
-  const deliveryFee = orderType === 'delivery'
+  // isTableMode força frete zero mesmo se orderType ainda estiver no
+  // valor padrão 'delivery' (o seletor de entrega/retirada fica
+  // escondido em modo mesa, mas o state não muda sozinho).
+  const deliveryFee = !isTableMode && orderType === 'delivery'
     ? (useNeighborhoodFee && selectedNeighborhood
         ? Number(selectedNeighborhood.fee) || 0
         : Number(establishment.delivery_fee) || 0)
@@ -216,6 +230,26 @@ export default function PublicMenuClient({
     }
     loadLoyalty()
   }, [establishment.id])
+
+  // Cardápio de mesa: assim que detecta ?mesa=<id> na URL, abre (ou
+  // reusa) a comanda daquela mesa via RPC SECURITY DEFINER — nunca lê
+  // restaurant_tables/table_tabs direto (RLS não deixa o anônimo, ver
+  // migration 039). Erro aqui (QR antigo, mesa desativada) degrada pro
+  // cardápio online normal, silenciosamente.
+  useEffect(() => {
+    if (!tableIdParam) return
+    const supabase = createClient()
+    supabase
+      .rpc('get_or_create_table_tab', { p_establishment_id: establishment.id, p_table_id: tableIdParam })
+      .then(({ data, error }) => {
+        if (error || !data?.[0]?.tab_id) {
+          logError('loja', 'mesa inválida no link, caindo pro cardápio normal', error)
+          setTableModeFailed(true)
+          return
+        }
+        setTableTab({ id: data[0].tab_id, label: data[0].table_label })
+      })
+  }, [tableIdParam, establishment.id])
 
   // Mantém o carrinho salvo a cada mudança, para sobreviver a um refresh
   // acidental da página (fraqueza comum de navegador mobile).
@@ -882,6 +916,155 @@ export default function PublicMenuClient({
     }
   }
 
+  // Pedido de mesa (migration 039) — separado de handleSendOrder de
+  // propósito: aquela função está profundamente acoplada a
+  // WhatsApp/Mercado Pago/endereço, que não existem aqui. Diferença
+  // central de UX: não fecha pra uma tela de "pedido enviado"
+  // definitiva — o cliente continua na mesma mesa e pode pedir de novo,
+  // então só o carrinho é limpo e um toast confirma o envio.
+  const handleAddOrderToTable = async () => {
+    if (!customerName.trim() || !tableIdParam) return
+    if (website.trim()) {
+      log('loja', 'pedido de mesa bloqueado (honeypot preenchido)')
+      setCart([])
+      return
+    }
+    if (Date.now() - formOpenedAt < 1500) {
+      log('loja', 'pedido de mesa bloqueado (submissão rápida demais)')
+      return
+    }
+
+    setSaving(true)
+    log('loja', 'adicionando pedido à comanda da mesa...', { itens: cart.length, establishmentId: establishment.id })
+
+    try {
+      const supabase = createClient()
+      const subtotal = cartSubtotal
+      let finalDiscount = discountAmount
+      let finalRewardId: string | null = null
+      let finalPointsRedeemed = 0
+
+      // Recheck de cupom/recompensa só faz sentido com telefone
+      // informado (validate_coupon/validate_loyalty_redemption exigem
+      // p_customer_phone) — mesmo motivo/lógica do handleSendOrder.
+      if (customerPhone.trim() && appliedCoupon) {
+        const { data: recheckData, error: recheckError } = await supabase.rpc('validate_coupon', {
+          p_establishment_id: establishment.id,
+          p_code: appliedCoupon.code,
+          p_customer_phone: customerPhone.trim(),
+        })
+        if (recheckError) throw recheckError
+        const recheckResult = recheckData?.[0]
+        if (!recheckResult?.valid) {
+          removeCoupon()
+          alert(recheckResult?.message || 'Esse cupom não é mais válido. Removemos ele do pedido — confira o total e envie novamente.')
+          return
+        }
+        finalDiscount = recheckResult.discount_type === 'percent'
+          ? subtotal * (Number(recheckResult.discount_value) / 100)
+          : recheckResult.discount_type === 'fixed'
+            ? Math.min(Number(recheckResult.discount_value), subtotal)
+            : 0
+      } else if (customerPhone.trim() && appliedReward) {
+        const { data: recheckData, error: recheckError } = await supabase.rpc('validate_loyalty_redemption', {
+          p_establishment_id: establishment.id,
+          p_reward_id: appliedReward.id,
+          p_customer_phone: customerPhone.trim(),
+        })
+        if (recheckError) throw recheckError
+        const recheckResult = recheckData?.[0]
+        if (!recheckResult?.valid) {
+          removeReward()
+          alert(recheckResult?.message || 'Essa recompensa não está mais disponível. Removemos ela do pedido — confira o total e envie novamente.')
+          return
+        }
+        finalDiscount = recheckResult.benefit_type === 'percent_discount'
+          ? subtotal * (Number(recheckResult.benefit_value) / 100)
+          : recheckResult.benefit_type === 'fixed_discount'
+            ? Math.min(Number(recheckResult.benefit_value), subtotal)
+            : 0
+        finalRewardId = appliedReward.id
+        finalPointsRedeemed = recheckResult.points_cost
+      }
+
+      // Re-resolve a comanda agora (não confia no tableTab.id obtido no
+      // mount) — o garçom pode ter fechado a conta enquanto o cliente
+      // montava o carrinho; a RPC abre uma nova sozinha se preciso.
+      const { data: tabData, error: tabError } = await supabase.rpc('get_or_create_table_tab', {
+        p_establishment_id: establishment.id,
+        p_table_id: tableIdParam,
+      })
+      if (tabError || !tabData?.[0]?.tab_id) throw tabError || new Error('Mesa indisponível no momento.')
+      const currentTabId = tabData[0].tab_id as string
+      if (currentTabId !== tableTab?.id) setTableTab({ id: currentTabId, label: tabData[0].table_label })
+
+      const total = Math.max(0, subtotal - finalDiscount)
+      const orderId = crypto.randomUUID()
+
+      const { error: orderError } = await supabase.from('orders').insert({
+        id: orderId,
+        establishment_id: establishment.id,
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim() || '',
+        items: cart.map(item => ({
+          product_id: item.product.id,
+          product_name: item.product.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          image_url: item.product.image_url,
+          variations: item.variations,
+        })),
+        subtotal,
+        shipping_fee: 0,
+        discount: finalDiscount,
+        coupon_code: appliedCoupon?.code || null,
+        loyalty_reward_id: finalRewardId,
+        loyalty_points_redeemed: finalPointsRedeemed,
+        total,
+        status: 'pending',
+        source: 'mesa',
+        order_type: 'mesa',
+        delivery_address: null,
+        payment_method: null,
+        notes: notes.trim() || null,
+        table_tab_id: currentTabId,
+      })
+
+      if (orderError) throw orderError
+      log('loja', 'pedido de mesa salvo com sucesso')
+
+      if (customerPhone.trim()) {
+        try {
+          await supabase.rpc('upsert_customer_profile', {
+            p_establishment_id: establishment.id,
+            p_phone: customerPhone.trim(),
+            p_name: customerName.trim(),
+            p_birth_date: birthDate || null,
+          })
+        } catch (profileErr) {
+          logError('loja', 'erro ao salvar perfil do cliente (mesa)', profileErr)
+        }
+      }
+
+      setCart([])
+      setShowCustomerModal(false)
+      setNotes('')
+      removeCoupon()
+      removeReward()
+      // customerName/customerPhone permanecem preenchidos — o cliente
+      // provavelmente vai pedir de novo na mesma sessão à mesa.
+      setTableOrderToast(true)
+      setTimeout(() => setTableOrderToast(false), 4000)
+    } catch (err: any) {
+      logError('loja', 'erro ao enviar pedido de mesa', err)
+      logCritical('loja:pedido-mesa', err.message, err, establishment.id)
+      alert('Erro ao enviar pedido: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const discountAmount = appliedCoupon
     ? appliedCoupon.discountType === 'percent'
       ? cartSubtotal * (appliedCoupon.discountValue / 100)
@@ -1072,6 +1255,22 @@ export default function PublicMenuClient({
           </div>
         )}
       </header>
+
+      {/* Banner de mesa (migration 039) — sinaliza claramente que o
+          pedido vai pra comanda da mesa, não pro WhatsApp/entrega. */}
+      {isTableMode && (
+        <div className="sticky top-[calc(4rem+1px)] z-20 bg-primary-500 text-white text-sm font-medium text-center py-2 px-4 flex items-center justify-center gap-2">
+          <Table2 size={16} />
+          {tableTab?.label}
+        </div>
+      )}
+
+      {/* Toast temporário de pedido de mesa adicionado */}
+      {tableOrderToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg animate-fade-in">
+          Pedido enviado! Fica na conta da mesa.
+        </div>
+      )}
 
       {/* Perfil do Estabelecimento ("Sobre a loja") */}
       {showEstablishmentProfile && (
@@ -1411,7 +1610,7 @@ export default function PublicMenuClient({
               </div>
             )}
 
-            {cart.length > 0 && orderType === 'delivery' && freeShippingThreshold > 0 && (
+            {!isTableMode && cart.length > 0 && orderType === 'delivery' && freeShippingThreshold > 0 && (
               <div className="px-4 pb-3">
                 {qualifiesForFreeShippingThreshold ? (
                   <p className="text-sm text-primary-600 font-medium flex items-center gap-1">🎉 Você ganhou frete grátis!</p>
@@ -1626,8 +1825,12 @@ export default function PublicMenuClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCustomerModal(false)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fade-in p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Finalizar Pedido</h2>
-            <p className="text-sm text-gray-600 mb-4">Informe seus dados para enviar o pedido.</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              {isTableMode ? `Pedido para a ${tableTab?.label}` : 'Finalizar Pedido'}
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              {isTableMode ? 'Informe seu nome — o pedido fica na conta da mesa.' : 'Informe seus dados para enviar o pedido.'}
+            </p>
 
             <div className="space-y-4">
               {/* Honeypot - invisível para humanos */}
@@ -1656,7 +1859,7 @@ export default function PublicMenuClient({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefone *
+                  {isTableMode ? 'Telefone (opcional)' : 'Telefone *'}
                   {profileLoading && <Loader2 size={12} className="inline-block animate-spin ml-2 text-gray-400" />}
                 </label>
                 <input
@@ -1666,12 +1869,15 @@ export default function PublicMenuClient({
                   onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
                   onBlur={lookupCustomerProfile}
                   placeholder="(11) 99999-8888"
-                  required
+                  required={!isTableMode}
                 />
                 {customerProfile && (
                   <p className="text-xs text-primary-600 mt-1">
                     Olá de novo, {customerProfile.name.split(' ')[0]}! Já preenchemos seus dados.
                   </p>
+                )}
+                {isTableMode && !customerPhone.trim() && (
+                  <p className="text-xs text-gray-400 mt-1">Informe o telefone pra usar cupom ou pontos de fidelidade.</p>
                 )}
               </div>
 
@@ -1701,7 +1907,7 @@ export default function PublicMenuClient({
                 </p>
               </div>
 
-              {offersDelivery && offersPickup && (
+              {!isTableMode && offersDelivery && offersPickup && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Como você quer receber?</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1729,7 +1935,7 @@ export default function PublicMenuClient({
                 </div>
               )}
 
-              {orderType === 'delivery' ? (
+              {!isTableMode && (orderType === 'delivery' ? (
                 <div className="space-y-3">
                   {addressMode === 'confirm' && selectedSavedAddress ? (
                     <div className="bg-gray-50 rounded-lg p-3 flex items-start justify-between gap-3">
@@ -1915,8 +2121,10 @@ export default function PublicMenuClient({
                     <span>Retire em: {establishment.address}</span>
                   </div>
                 )
-              )}
+              ))}
 
+              {!isTableMode && (
+              <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento (opcional)</label>
                 <select
@@ -1971,6 +2179,8 @@ export default function PublicMenuClient({
                   pagamento cair.
                 </p>
               )}
+              </>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
@@ -1983,7 +2193,7 @@ export default function PublicMenuClient({
                 />
               </div>
               <p className="text-xs text-gray-500">
-                O pedido será enviado via WhatsApp para o estabelecimento.
+                {isTableMode ? 'O pedido entra direto na comanda da mesa — o garçom acompanha pelo painel.' : 'O pedido será enviado via WhatsApp para o estabelecimento.'}
               </p>
 
               <div className="border-t border-gray-200 pt-4">
@@ -2019,16 +2229,18 @@ export default function PublicMenuClient({
                     Cancelar
                   </button>
                   <button
-                    onClick={handleSendOrder}
+                    onClick={isTableMode ? handleAddOrderToTable : handleSendOrder}
                     className="btn-primary flex-1"
-                    disabled={saving || !customerName.trim() || !customerPhone.trim() || !isAddressValid}
+                    disabled={isTableMode
+                      ? (saving || !customerName.trim())
+                      : (saving || !customerName.trim() || !customerPhone.trim() || !isAddressValid)}
                   >
                     {saving ? (
                       <Loader2 size={18} className="animate-spin" />
                     ) : (
                       <>
                         <Send size={18} />
-                        Enviar Pedido
+                        {isTableMode ? 'Adicionar à comanda' : 'Enviar Pedido'}
                       </>
                     )}
                   </button>
