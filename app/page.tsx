@@ -2,12 +2,95 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, CheckCircle, Palette, Bike, ClipboardList, Sparkles } from 'lucide-react'
+import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, ChevronDown, CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, Quote } from 'lucide-react'
 import { Logo } from '@/components/Logo'
+
+const TESTIMONIALS = [
+  {
+    title: 'Facilitou muito o atendimento aos meus clientes',
+    quote: 'Antes eu precisava ficar mandando foto do cardápio toda hora no WhatsApp. Agora é só mandar o link e o cliente consegue ver tudo pelo celular. Ficou muito mais organizado.',
+    name: 'Mariana',
+    role: 'proprietária de lanchonete',
+  },
+  {
+    title: 'Ficou muito mais profissional',
+    quote: 'Eu queria uma solução simples para deixar meu cardápio mais bonito e profissional, sem precisar contratar alguém para fazer um site. Consegui colocar tudo no ar de forma muito mais prática.',
+    name: 'Rafael',
+    role: 'dono de hamburgueria',
+  },
+  {
+    title: 'Meus clientes conseguem acessar de qualquer lugar',
+    quote: 'Uma das coisas que mais gostei foi poder atualizar os produtos sem precisar refazer o cardápio inteiro. Quando mudo preço ou adiciono alguma coisa, fica muito mais fácil manter tudo atualizado.',
+    name: 'Juliana',
+    role: 'proprietária de restaurante',
+  },
+  {
+    title: 'Muito mais prático que o cardápio tradicional',
+    quote: 'Eu estava procurando uma opção simples para parar de depender daqueles cardápios impressos. O digital ficou muito mais prático para mim e para os clientes.',
+    name: 'Lucas',
+    role: 'proprietário de pizzaria',
+  },
+  {
+    title: 'Consegui deixar meu negócio com outra aparência',
+    quote: 'O cardápio digital deixou minha apresentação muito mais organizada. O cliente consegue abrir pelo celular, visualizar os produtos e encontrar o que quer de forma rápida.',
+    name: 'Camila',
+    role: 'proprietária de cafeteria',
+  },
+  {
+    title: 'A implantação foi muito simples',
+    quote: 'Eu não entendo muito de tecnologia e justamente por isso queria algo fácil de usar. Consegui configurar meu cardápio sem complicação e já comecei a divulgar o link para meus clientes.',
+    name: 'André',
+    role: 'proprietário de delivery',
+  },
+  {
+    title: 'Agora não preciso ficar enviando o cardápio toda vez',
+    quote: 'Antes, quando alguém perguntava pelos produtos, eu precisava procurar a imagem ou PDF e mandar no WhatsApp. Agora simplesmente envio o link do meu cardápio.',
+    name: 'Fernanda',
+    role: 'empreendedora',
+  },
+  {
+    title: 'Era exatamente o que eu precisava',
+    quote: 'Eu queria um cardápio digital simples, bonito e que funcionasse bem no celular. A solução resolveu justamente essa necessidade sem deixar o processo complicado.',
+    name: 'Thiago',
+    role: 'proprietário de restaurante',
+  },
+]
+
+const FAQ_ITEMS = [
+  {
+    question: 'Tem taxa ou comissão por pedido?',
+    answer: 'Não. Você paga sua assinatura e fica com 100% do valor das suas vendas — sem comissão por pedido, nem no Pix automático.',
+  },
+  {
+    question: 'Preciso saber programar ou mexer com tecnologia?',
+    answer: 'Não. Você monta o cardápio pelo painel — fotos, preços e categorias — em poucos minutos, sem instalar nada.',
+  },
+  {
+    question: 'Funciona só para comida, ou serve pra loja de roupa, papelaria, chocolates...?',
+    answer: 'Serve para qualquer tipo de produto. No cadastro você responde um quiz rápido (com preparo, produto pronto ou os dois) e o painel já nasce ajustado ao seu negócio.',
+  },
+  {
+    question: 'Como o cliente faz o pedido?',
+    answer: 'Ele acessa o link do seu cardápio, monta o pedido e envia direto pro seu WhatsApp — ou paga na hora com Pix automático, se você tiver essa opção ativada.',
+  },
+  {
+    question: 'Dá pra usar com iFood ao mesmo tempo?',
+    answer: 'Hoje o CatalogAI é o seu canal de vendas próprio (site + WhatsApp), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
+  },
+  {
+    question: 'Preciso de cartão de crédito para testar?',
+    answer: 'Não. Você cria a conta e já usa os 7 dias grátis com tudo liberado, sem precisar cadastrar cartão.',
+  },
+  {
+    question: 'Posso cancelar quando quiser?',
+    answer: 'Sim. Sem contrato de fidelidade — o cancelamento é feito direto pelo painel, quando você quiser.',
+  },
+]
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0)
 
   useEffect(() => {
     setIsVisible(true)
@@ -29,6 +112,8 @@ export default function LandingPage() {
               <a href="#funcionalidades" className="text-gray-600 hover:text-gray-900 transition-colors">Funcionalidades</a>
               <a href="#para-quem" className="text-gray-600 hover:text-gray-900 transition-colors">Para quem é</a>
               <a href="#como-funciona" className="text-gray-600 hover:text-gray-900 transition-colors">Como funciona</a>
+              <a href="#planos" className="text-gray-600 hover:text-gray-900 transition-colors">Planos</a>
+              <a href="#faq" className="text-gray-600 hover:text-gray-900 transition-colors">FAQ</a>
               <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">Acessar</Link>
               <Link href="/cadastro" className="btn-primary">
                 Testar 7 dias grátis
@@ -53,6 +138,8 @@ export default function LandingPage() {
               <a href="#funcionalidades" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Funcionalidades</a>
               <a href="#para-quem" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Para quem é</a>
               <a href="#como-funciona" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Como funciona</a>
+              <a href="#planos" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Planos</a>
+              <a href="#faq" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>FAQ</a>
               <Link href="/login" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Acessar</Link>
               <Link href="/cadastro" className="btn-primary w-full text-center" onClick={() => setIsMenuOpen(false)}>
                 Testar 7 dias grátis
@@ -97,6 +184,53 @@ export default function LandingPage() {
             <span>✅ Sem instalação</span>
             <span>🔒 Dados seguros</span>
             <span>📱 Compatível celular</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Prova Social Section */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">53</p>
+              <p className="text-gray-600">lojas ativas usando o CatalogAI</p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">+1.500</p>
+              <p className="text-gray-600">pedidos processados pela plataforma</p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">0%</p>
+              <p className="text-gray-600">comissão por pedido — sempre</p>
+            </div>
+          </div>
+
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Quem usa, recomenda
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Depoimentos reais de quem já colocou o cardápio digital pra rodar.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {TESTIMONIALS.map((item, index) => (
+              <div
+                key={index}
+                className="card-hover animate-fade-in flex flex-col"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <Quote className="w-6 h-6 text-primary-300 mb-3" />
+                <h3 className="font-semibold text-gray-900 mb-2 text-sm">{item.title}</h3>
+                <p className="text-gray-600 text-sm mb-4 flex-1">{item.quote}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {item.name}
+                  <span className="block text-xs text-gray-500 font-normal">{item.role}</span>
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -174,6 +308,30 @@ export default function LandingPage() {
                 title: 'PWA Instalável',
                 description: 'Seu cardápio funciona como app no celular do cliente. Instalação em um clique.',
                 color: 'bg-teal-100 text-teal-600'
+              },
+              {
+                icon: <Gift className="w-6 h-6" />,
+                title: 'Programa de Fidelidade',
+                description: 'Cliente ganha pontos a cada compra e troca por desconto ou frete grátis. Você define a regra.',
+                color: 'bg-lime-100 text-lime-600'
+              },
+              {
+                icon: <Tag className="w-6 h-6" />,
+                title: 'Cupons de Desconto',
+                description: 'Crie cupons por código, com validade e limite de uso por cliente — sem depender de planilha.',
+                color: 'bg-fuchsia-100 text-fuchsia-600'
+              },
+              {
+                icon: <Zap className="w-6 h-6" />,
+                title: 'Pix Automático',
+                description: 'Cliente paga na hora e o pedido é confirmado sozinho — sem precisar checar comprovante.',
+                color: 'bg-emerald-100 text-emerald-600'
+              },
+              {
+                icon: <Instagram className="w-6 h-6" />,
+                title: 'Perfil Completo da Loja',
+                description: 'Endereço, horário de funcionamento, WhatsApp e Instagram, tudo num só lugar pro cliente ver.',
+                color: 'bg-violet-100 text-violet-600'
               }
             ].map((feature, index) => (
               <div
@@ -277,6 +435,103 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Planos Section */}
+      <section id="planos" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Um preço só, tudo incluído
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Sem plano escalonado, sem letra miúda. Você paga o mesmo valor e usa tudo, do primeiro produto cadastrado até o programa de fidelidade.
+            </p>
+          </div>
+
+          <div className="card border-2 border-primary-500 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
+              7 dias grátis
+            </div>
+            <div className="text-center py-4">
+              <p className="text-gray-500 mb-2">Plano único</p>
+              <p className="mb-1">
+                <span className="text-5xl font-bold text-gray-900">R$ 49,90</span>
+                <span className="text-gray-500">/mês</span>
+              </p>
+              <p className="text-sm text-gray-500 mb-8">Cancele quando quiser, sem multa</p>
+
+              <div className="grid sm:grid-cols-2 gap-3 text-left max-w-xl mx-auto mb-8">
+                {[
+                  'Cardápio digital ilimitado',
+                  'Pedidos via WhatsApp',
+                  'Entrega e retirada',
+                  'Controle de estoque',
+                  'Relatórios financeiros',
+                  'Balcão / PDV',
+                  'Programa de fidelidade',
+                  'Cupons de desconto',
+                  'Pix automático',
+                  'Cor de marca própria',
+                  'PWA instalável',
+                  'Sem comissão por pedido',
+                ].map((benefit, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <CheckCircle size={18} className="text-primary-500 flex-shrink-0" />
+                    <span className="text-gray-700 text-sm">{benefit}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Link href="/cadastro" className="btn-primary text-lg px-8 py-4 inline-flex">
+                Testar 7 dias grátis
+                <ChevronRight size={20} />
+              </Link>
+              <p className="text-xs text-gray-400 mt-3">Sem cartão de crédito para começar</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Perguntas frequentes
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              O que quem está decidindo mais pergunta antes de criar a conta.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {FAQ_ITEMS.map((item, index) => {
+              const isOpen = openFaqIndex === index
+              return (
+                <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                    className="w-full flex items-center justify-between gap-4 text-left px-5 py-4"
+                    aria-expanded={isOpen}
+                  >
+                    <span className="font-medium text-gray-900">{item.question}</span>
+                    <ChevronDown
+                      size={20}
+                      className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="px-5 pb-4 text-gray-600 animate-fade-in">
+                      {item.answer}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -297,6 +552,8 @@ export default function LandingPage() {
                 <li><a href="#funcionalidades" className="hover:text-white transition-colors">Funcionalidades</a></li>
                 <li><a href="#para-quem" className="hover:text-white transition-colors">Para quem é</a></li>
                 <li><a href="#como-funciona" className="hover:text-white transition-colors">Como funciona</a></li>
+                <li><a href="#planos" className="hover:text-white transition-colors">Planos</a></li>
+                <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
               </ul>
             </div>
             <div>
@@ -308,7 +565,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p>&copy; {new Date().getFullYear()} CatalogAI. Todos os direitos reservados.</p>
+            <p>&copy; {new Date().getFullYear()} CatalogAI — um produto GL Digital. Todos os direitos reservados.</p>
             <div className="flex gap-4">
               <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
               <Link href="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>
