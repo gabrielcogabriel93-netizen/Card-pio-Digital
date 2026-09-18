@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, ChevronDown, CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, Quote, MessageCircle, Wallet, QrCode } from 'lucide-react'
+import {
+  Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown, ChevronLeft,
+  CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, MessageCircle, Wallet, QrCode,
+  PlayCircle, ArrowRight, MoreVertical, Sandwich, Cake, UtensilsCrossed, Truck, Send,
+} from 'lucide-react'
 import { Logo } from '@/components/Logo'
 
 const TESTIMONIALS = [
@@ -92,15 +96,66 @@ const FAQ_ITEMS = [
   },
 ]
 
+const CATEGORIES = [
+  { icon: <Pizza className="w-7 h-7" />, title: 'Pizzarias' },
+  { icon: <Sandwich className="w-7 h-7" />, title: 'Lanchonetes' },
+  { icon: <Cake className="w-7 h-7" />, title: 'Confeitarias' },
+  { icon: <UtensilsCrossed className="w-7 h-7" />, title: 'Restaurantes' },
+  { icon: <Truck className="w-7 h-7" />, title: 'Delivery' },
+  { icon: <Store className="w-7 h-7" />, title: 'Pequenos negócios' },
+]
+
 // Moldura de celular reutilizável — envolve prints reais do produto (não
 // ilustrações) capturados do cardápio de demonstração real
 // (/loja/pizzaria-demo-catalogai), pra mostrar a tela de verdade em vez de
 // um mockup genérico.
-function PhoneMockup({ src, alt, priority = false }: { src: string; alt: string; priority?: boolean }) {
+function PhoneMockup({ src, alt, priority = false, size = 'md' }: { src: string; alt: string; priority?: boolean; size?: 'sm' | 'md' }) {
+  const width = size === 'sm' ? 'w-[170px] sm:w-[190px]' : 'w-[240px] sm:w-[280px]'
+  const border = size === 'sm' ? 'border-[7px]' : 'border-[10px]'
   return (
-    <div className="relative w-[240px] sm:w-[280px] rounded-[2.5rem] border-[10px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900 flex-shrink-0">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-gray-900 rounded-b-2xl z-10" />
+    <div className={`relative ${width} rounded-[2.2rem] ${border} border-gray-900 shadow-2xl overflow-hidden bg-gray-900 flex-shrink-0`}>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-4 bg-gray-900 rounded-b-2xl z-10" />
       <Image src={src} alt={alt} width={390} height={844} className="w-full h-auto" priority={priority} />
+    </div>
+  )
+}
+
+// Mockup ilustrativo do WhatsApp — não é um print real (o WhatsApp é um app
+// de terceiros, não dá pra capturar isso do nosso produto), mas o texto
+// segue exatamente o mesmo formato que a mensagem real gerada pelo
+// CatalogAI usa (ver handleSendOrder em PublicMenuClient.tsx): nome,
+// telefone, tipo de entrega, endereço, itens, taxa e total.
+function WhatsAppMockup({ compact = false }: { compact?: boolean }) {
+  const textSize = compact ? 'text-[9px] leading-tight' : 'text-[11px] leading-snug'
+  return (
+    <div className="bg-[#e5ddd5] h-full flex flex-col">
+      <div className="bg-[#075e54] text-white px-3 py-2.5 flex items-center gap-2 flex-shrink-0">
+        <ChevronLeft className="w-4 h-4 flex-shrink-0" />
+        <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+          <Store className="w-3.5 h-3.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-xs truncate">Meu Restaurante</p>
+          <p className="text-[9px] text-white/70">online</p>
+        </div>
+        <MoreVertical className="w-4 h-4 flex-shrink-0" />
+      </div>
+      <div className="flex-1 p-3 overflow-hidden" style={{ backgroundImage: 'radial-gradient(#00000008 1px, transparent 1px)', backgroundSize: '10px 10px' }}>
+        <div className={`bg-white rounded-lg rounded-tl-none shadow-sm px-2.5 py-2 max-w-[92%] text-gray-800 ${textSize}`}>
+          <p>👤 <strong>Cliente:</strong> Ana Souza</p>
+          <p>📱 <strong>Telefone:</strong> (11) 98888-7777</p>
+          <p>🛵 <strong>Entrega</strong></p>
+          <p>📍 Rua das Flores, 123 - Centro</p>
+          <p className="mt-1.5">📋 <strong>Itens do Pedido:</strong></p>
+          <p>1. Pizza Margherita</p>
+          <p className="pl-2">Qtd: 1 x R$ 39,90</p>
+          <p>2. Refrigerante Lata</p>
+          <p className="pl-2">Qtd: 2 x R$ 6,00</p>
+          <p className="mt-1.5">🛵 <strong>Taxa de entrega:</strong> R$ 5,00</p>
+          <p>💰 <strong>Total: R$ 56,90</strong></p>
+          <p className="text-right text-[9px] text-gray-400 mt-1">10:24 ✓✓</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -113,6 +168,13 @@ export default function LandingPage() {
   useEffect(() => {
     setIsVisible(true)
   }, [])
+
+  const navLinks = [
+    { href: '#funcionalidades', label: 'Recursos' },
+    { href: '#veja-como-funciona', label: 'Como funciona' },
+    { href: '#planos', label: 'Planos' },
+    { href: '#depoimentos', label: 'Depoimentos' },
+  ]
 
   return (
     <div className="min-h-screen bg-white">
@@ -127,15 +189,15 @@ export default function LandingPage() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8">
-              <a href="#demonstracao" className="text-gray-600 hover:text-gray-900 transition-colors">Demonstração</a>
-              <a href="#funcionalidades" className="text-gray-600 hover:text-gray-900 transition-colors">Funcionalidades</a>
-              <a href="#para-quem" className="text-gray-600 hover:text-gray-900 transition-colors">Para quem é</a>
-              <a href="#como-funciona" className="text-gray-600 hover:text-gray-900 transition-colors">Como funciona</a>
-              <a href="#planos" className="text-gray-600 hover:text-gray-900 transition-colors">Planos</a>
-              <a href="#faq" className="text-gray-600 hover:text-gray-900 transition-colors">FAQ</a>
-              <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">Acessar</Link>
+              {navLinks.map((link) => (
+                <a key={link.href} href={link.href} className="text-gray-600 hover:text-gray-900 transition-colors">
+                  {link.label}
+                </a>
+              ))}
+              <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">Entrar</Link>
               <Link href="/cadastro" className="btn-primary">
-                Testar 7 dias grátis
+                Começar grátis
+                <ChevronRight size={18} />
               </Link>
             </nav>
 
@@ -154,15 +216,15 @@ export default function LandingPage() {
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-100 animate-fade-in">
             <div className="px-4 py-4 space-y-3">
-              <a href="#demonstracao" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Demonstração</a>
-              <a href="#funcionalidades" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Funcionalidades</a>
-              <a href="#para-quem" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Para quem é</a>
-              <a href="#como-funciona" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Como funciona</a>
-              <a href="#planos" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Planos</a>
+              {navLinks.map((link) => (
+                <a key={link.href} href={link.href} className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>
+                  {link.label}
+                </a>
+              ))}
               <a href="#faq" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>FAQ</a>
-              <Link href="/login" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Acessar</Link>
+              <Link href="/login" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Entrar</Link>
               <Link href="/cadastro" className="btn-primary w-full text-center" onClick={() => setIsMenuOpen(false)}>
-                Testar 7 dias grátis
+                Começar grátis
               </Link>
             </div>
           </div>
@@ -171,127 +233,161 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-blue-50" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-green-50" />
         <div className="absolute top-20 right-20 w-72 h-72 bg-primary-200/30 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 left-20 w-72 h-72 bg-blue-200/30 rounded-full blur-3xl" />
-        
-        <div className={`relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+        <div className="absolute bottom-20 left-20 w-72 h-72 bg-green-200/30 rounded-full blur-3xl" />
+
+        <div className={`relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <CheckCircle size={16} />
-              <span>7 dias grátis, tudo liberado • Sem taxas • Multi-empresa</span>
+              <span>7 dias grátis • Sem taxa por pedido</span>
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
-              Crie seu{' '}
-              <span className="text-primary-500">cardápio digital</span>
-              {' '}e receba pedidos direto no{' '}
-              <span className="text-green-500">WhatsApp</span>
+              Seu <span className="text-primary-500">cardápio digital</span>.
+              <br />Seus pedidos.
+              <br />No seu <span className="text-green-500">WhatsApp</span>.
             </h1>
-            <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0">
-              Transforme seu negócio com um cardápio online profissional.
-              Seus clientes visualizam produtos, escolhem variações e enviam o pedido
-              pronto pro seu WhatsApp com só um toque.
+            <p className="text-xl text-gray-600 mb-8 max-w-xl mx-auto lg:mx-0">
+              Crie seu cardápio online profissional, receba pedidos automaticamente pelo WhatsApp
+              e facilite a compra dos seus clientes.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
-                Testar 7 dias grátis
+                Começar 7 dias grátis
                 <ChevronRight size={20} />
               </Link>
-              <Link href="#como-funciona" className="btn-secondary text-lg px-8 py-4">
-                Como funciona
-              </Link>
+              <a href="#veja-como-funciona" className="btn-secondary text-lg px-8 py-4">
+                <PlayCircle size={20} />
+                Ver como funciona
+              </a>
             </div>
-            <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 text-sm text-gray-500">
-              <span>✅ Sem instalação</span>
-              <span>🔒 Dados seguros</span>
-              <span>📱 Compatível celular</span>
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-500">
+              <span className="flex items-center gap-1.5"><CheckCircle size={16} className="text-primary-500" /> Sem cartão de crédito</span>
+              <span className="flex items-center gap-1.5"><CheckCircle size={16} className="text-primary-500" /> Configuração rápida</span>
+              <span className="flex items-center gap-1.5"><CheckCircle size={16} className="text-primary-500" /> Funciona no celular</span>
             </div>
           </div>
 
-          <div className="flex justify-center lg:justify-end">
-            <PhoneMockup src="/screenshots/cardapio-inicio.png" alt="Cardápio digital real do CatalogAI, aberto no celular" priority />
+          <div className="relative flex justify-center lg:justify-end items-center h-[420px] sm:h-[480px]">
+            <div className="absolute left-1/2 -translate-x-[85%] sm:-translate-x-[90%] rotate-[-4deg]">
+              <PhoneMockup src="/screenshots/cardapio-inicio.png" alt="Cardápio digital real do CatalogAI, aberto no celular" priority />
+            </div>
+            <div className="absolute left-1/2 translate-x-[-8%] sm:translate-x-[-5%] rotate-[4deg] z-10">
+              <div className="relative w-[190px] sm:w-[220px] h-[400px] sm:h-[460px] rounded-[2.2rem] border-[8px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-gray-900 rounded-b-xl z-10" />
+                <WhatsAppMockup />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Prova Social Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
+      {/* Resumo rápido (4 destaques) */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
-            <div className="text-center">
-              <p className="text-4xl font-bold text-primary-500 mb-1">53</p>
-              <p className="text-gray-600">lojas ativas usando o CatalogAI</p>
-            </div>
-            <div className="text-center">
-              <p className="text-4xl font-bold text-primary-500 mb-1">+1.500</p>
-              <p className="text-gray-600">pedidos processados pela plataforma</p>
-            </div>
-            <div className="text-center">
-              <p className="text-4xl font-bold text-primary-500 mb-1">0%</p>
-              <p className="text-gray-600">comissão por pedido — sempre</p>
-            </div>
-          </div>
-
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Quem usa, recomenda
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Depoimentos reais de quem já colocou o cardápio digital pra rodar.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {TESTIMONIALS.map((item, index) => (
-              <div
-                key={index}
-                className="card-hover animate-fade-in flex flex-col"
-                style={{ animationDelay: `${index * 80}ms` }}
-              >
-                <Quote className="w-6 h-6 text-primary-300 mb-3" />
-                <h3 className="font-semibold text-gray-900 mb-2 text-sm">{item.title}</h3>
-                <p className="text-gray-600 text-sm mb-4 flex-1">{item.quote}</p>
-                <p className="text-sm font-medium text-gray-900">
-                  {item.name}
-                  <span className="block text-xs text-gray-500 font-normal">{item.role}</span>
-                </p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-10">
+            Tudo que você precisa para vender pelo WhatsApp
+          </h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: <ClipboardList className="w-5 h-5" />, title: 'Cardápio profissional', desc: 'Mostre seus produtos de forma bonita e organizada.' },
+              { icon: <MessageCircle className="w-5 h-5" />, title: 'Pedidos pelo WhatsApp', desc: 'Seu cliente monta o pedido e envia diretamente para seu WhatsApp.' },
+              { icon: <Zap className="w-5 h-5" />, title: 'Pedido rápido', desc: 'Menos mensagens de ida e volta. O pedido chega organizado.' },
+              { icon: <LineChart className="w-5 h-5" />, title: 'Gestão simples', desc: 'Tenha controle dos produtos, categorias e pedidos em um só lugar.' },
+            ].map((item, index) => (
+              <div key={index} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm animate-fade-in" style={{ animationDelay: `${index * 80}ms` }}>
+                <div className="w-10 h-10 rounded-lg bg-primary-500 text-white flex items-center justify-center mb-4">
+                  {item.icon}
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-1">{item.title}</h3>
+                <p className="text-sm text-gray-500">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Demonstração real (não é mockup nem foto de banco de imagens) */}
-      <section id="demonstracao" className="py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Comece a vender em poucos minutos (3 passos) */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-14">
+          <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Isto é o produto de verdade, não uma simulação
+              Comece a vender em poucos minutos
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              As telas abaixo são prints reais de uma loja rodando no CatalogAI. Navegue você mesmo no cardápio de demonstração — sem cadastro, sem compromisso.
+              É simples, rápido e sem complicação. Em 3 passos você já está recebendo pedidos pelo WhatsApp.
             </p>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-8 mb-12">
-            <div className="text-center">
-              <PhoneMockup src="/screenshots/cardapio-inicio.png" alt="Lista de produtos do cardápio digital, com fotos e preços" />
-              <p className="mt-4 font-medium text-gray-900">O cardápio</p>
-              <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Fotos, descrição e preço de cada produto, sempre atualizado</p>
-            </div>
-            <div className="text-center">
-              <PhoneMockup src="/screenshots/carrinho.png" alt="Carrinho de compras com sugestões, cupom e programa de fidelidade" />
-              <p className="mt-4 font-medium text-gray-900">O carrinho</p>
-              <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Sugestões, cupom de desconto e resgate de pontos, tudo antes de enviar</p>
-            </div>
-            <div className="text-center">
-              <PhoneMockup src="/screenshots/sobre-a-loja.png" alt="Perfil completo da loja com endereço, horários e fidelidade" />
-              <p className="mt-4 font-medium text-gray-900">O perfil da loja</p>
-              <p className="text-sm text-gray-500 max-w-[240px] mx-auto">Endereço, horário de funcionamento e saldo de pontos, num só lugar</p>
-            </div>
+          <div className="grid md:grid-cols-3 gap-4 items-start">
+            {[
+              { step: '01', icon: <Sparkles className="w-6 h-6" />, title: 'Crie sua conta', description: 'Cadastre seu negócio gratuitamente — 7 dias grátis, tudo liberado, sem cartão.' },
+              { step: '02', icon: <ShoppingCart className="w-6 h-6" />, title: 'Monte seu cardápio', description: 'Adicione produtos, fotos, preços e categorias pelo painel intuitivo.' },
+              { step: '03', icon: <MessageCircle className="w-6 h-6" />, title: 'Compartilhe seu link', description: 'Envie seu cardápio para seus clientes e receba pedidos pelo WhatsApp.' },
+            ].map((item, index, arr) => (
+              <div key={index} className="flex items-center gap-4">
+                <div className="text-center animate-fade-in flex-1" style={{ animationDelay: `${index * 150}ms` }}>
+                  <div className="relative w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-5 text-white">
+                    {item.icon}
+                    <span className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center">{item.step}</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                  <p className="text-gray-600 text-sm max-w-[220px] mx-auto">{item.description}</p>
+                </div>
+                {index < arr.length - 1 && (
+                  <ArrowRight className="hidden md:block w-6 h-6 text-gray-300 flex-shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Veja como é fácil receber pedidos (5 passos visuais, com prints reais) */}
+      <section id="veja-como-funciona" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Veja como é fácil receber pedidos
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              As 4 primeiras telas são prints reais do cardápio de demonstração rodando no CatalogAI — não são ilustrações.
+            </p>
           </div>
 
-          <div className="text-center">
+          <div className="flex flex-wrap justify-center items-start gap-x-3 gap-y-10">
+            {[
+              { kind: 'shot' as const, src: '/screenshots/cardapio-inicio.png', label: '1. Cliente acessa o cardápio' },
+              { kind: 'shot' as const, src: '/screenshots/escolhe-produtos.png', label: '2. Escolhe os produtos' },
+              { kind: 'shot' as const, src: '/screenshots/carrinho.png', label: '3. Adiciona ao carrinho' },
+              { kind: 'shot' as const, src: '/screenshots/confirmar-pedido.png', label: '4. Confirma o pedido' },
+              { kind: 'whatsapp' as const, label: '5. Pedido chega no WhatsApp' },
+            ].map((step, index, arr) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="text-center">
+                  {step.kind === 'shot' ? (
+                    <PhoneMockup src={step.src} alt={step.label} size="sm" />
+                  ) : (
+                    <div className="relative w-[170px] sm:w-[190px] h-[368px] sm:h-[412px] rounded-[2.2rem] border-[7px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-gray-900 rounded-b-xl z-10" />
+                      <WhatsAppMockup compact />
+                    </div>
+                  )}
+                  <p className="mt-3 text-sm font-medium text-gray-700 max-w-[190px] mx-auto">{step.label}</p>
+                </div>
+                {index < arr.length - 1 && (
+                  <ArrowRight className="hidden lg:block w-5 h-5 text-gray-300 flex-shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-gray-400 mt-2">
+            A tela 5 é uma ilustração de como a mensagem chega no WhatsApp — o texto segue o mesmo formato que o CatalogAI realmente gera.
+          </p>
+
+          <div className="text-center mt-10">
             <a
               href="/loja/pizzaria-demo-catalogai"
               target="_blank"
@@ -306,7 +402,7 @@ export default function LandingPage() {
       </section>
 
       {/* Funcionalidades Section */}
-      <section id="funcionalidades" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+      <section id="funcionalidades" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
@@ -426,87 +522,82 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Para Quem Section */}
-      <section id="para-quem" className="py-20 px-4 sm:px-6 lg:px-8">
+      {/* Feito para quem vende todos os dias */}
+      <section id="para-quem" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Para quem é o CatalogAI?
+              Feito para quem vende todos os dias
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Ideal para qualquer negócio que queira vender mais com um catálogo digital profissional.
+              Serve para qualquer tipo de negócio — de comida a produto pronto. No cadastro, um quiz ajusta o painel pro seu jeito de vender.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {[
-              { icon: <Pizza className="w-8 h-8" />, title: 'Pizzarias', desc: 'Cardápio com variações de sabores e tamanhos' },
-              { icon: <Store className="w-8 h-8" />, title: 'Restaurantes', desc: 'Menu completo com fotos e descrições' },
-              { icon: <ShoppingBag className="w-8 h-8" />, title: 'Lanchonetes', desc: 'Catálogo rápido para delivery' },
-              { icon: <Shirt className="w-8 h-8" />, title: 'Lojas de Roupa', desc: 'Catálogo de produtos com variações' },
-              { icon: <Package className="w-8 h-8" />, title: 'Mercados', desc: 'Lista de produtos com preços' }
-            ].map((item, index) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {CATEGORIES.map((cat, index) => (
               <div
                 key={index}
-                className="card-hover text-center animate-fade-in"
-                style={{ animationDelay: `${index * 100}ms` }}
+                className="bg-white rounded-xl p-6 text-center shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all animate-fade-in"
+                style={{ animationDelay: `${index * 80}ms` }}
               >
-                <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-500">
-                  {item.icon}
+                <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-500">
+                  {cat.icon}
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{item.title}</h3>
-                <p className="text-sm text-gray-500">{item.desc}</p>
+                <h3 className="font-semibold text-gray-900 text-sm">{cat.title}</h3>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Como Funciona Section */}
-      <section id="como-funciona" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+      {/* Quem usa, vende com mais praticidade (depoimentos reais) */}
+      <section id="depoimentos" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">53</p>
+              <p className="text-gray-600">lojas ativas usando o CatalogAI</p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">+1.500</p>
+              <p className="text-gray-600">pedidos processados pela plataforma</p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">0%</p>
+              <p className="text-gray-600">comissão por pedido — sempre</p>
+            </div>
+          </div>
+
+          <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Comece em 3 passos
+              Quem usa, vende com mais praticidade
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Rápido e simples. Você começa a receber pedidos hoje mesmo, com 7 dias grátis e tudo liberado.
+              Depoimentos reais de quem já colocou o cardápio digital pra rodar.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                step: '1',
-                title: 'Crie sua conta',
-                description: 'Cadastre-se (7 dias grátis, com tudo liberado) e responda um quiz rápido — o painel já nasce ajustado ao seu tipo de negócio.'
-              },
-              {
-                step: '2',
-                title: 'Monte seu cardápio',
-                description: 'Adicione produtos, fotos, preços, categorias e variações. Tudo pelo painel intuitivo.'
-              },
-              {
-                step: '3',
-                title: 'Compartilhe e venda',
-                description: 'Compartilhe o link do seu cardápio e comece a receber pedidos pelo WhatsApp!'
-              }
-            ].map((item, index) => (
-              <div key={index} className="text-center animate-fade-in" style={{ animationDelay: `${index * 200}ms` }}>
-                <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-2xl font-bold text-white">{item.step}</span>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {TESTIMONIALS.map((item, index) => (
+              <div
+                key={index}
+                className="card-hover animate-fade-in flex flex-col"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary-700 font-semibold text-sm">{item.name.charAt(0)}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{item.role}</p>
+                  </div>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">{item.title}</h3>
-                <p className="text-gray-600">{item.description}</p>
+                <h3 className="font-semibold text-gray-900 mb-2 text-sm">{item.title}</h3>
+                <p className="text-gray-600 text-sm flex-1">{item.quote}</p>
               </div>
             ))}
-          </div>
-
-          <div className="text-center mt-12">
-            <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
-              Testar 7 dias grátis agora
-              <ChevronRight size={20} />
-            </Link>
           </div>
         </div>
       </section>
@@ -529,101 +620,127 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Planos Section */}
-      <section id="planos" className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
+      {/* Comece grátis por 7 dias: benefícios + plano + FAQ lado a lado */}
+      <section id="planos" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Um preço só, tudo incluído
+              Comece grátis <span className="text-primary-500">por 7 dias</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Sem plano escalonado, sem letra miúda. Você paga o mesmo valor e usa tudo, do primeiro produto cadastrado até o programa de fidelidade.
+              Depois, um preço só, tudo incluído — sem plano escalonado e sem comissão por pedido.
             </p>
           </div>
 
-          <div className="card border-2 border-primary-500 relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
-              7 dias grátis
-            </div>
-            <div className="text-center py-4">
-              <p className="text-gray-500 mb-2">Plano único</p>
-              <p className="mb-1">
-                <span className="text-5xl font-bold text-gray-900">R$ 49,90</span>
-                <span className="text-gray-500">/mês</span>
-              </p>
-              <p className="text-sm text-gray-500 mb-8">Cancele quando quiser, sem multa</p>
-
-              <div className="grid sm:grid-cols-2 gap-3 text-left max-w-xl mx-auto mb-8">
+          <div className="grid lg:grid-cols-3 gap-8 items-start">
+            {/* Benefícios */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-4">Tudo incluído no plano</h3>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-1 gap-3">
                 {[
+                  '7 dias grátis',
                   'Cardápio digital ilimitado',
                   'Pedidos via WhatsApp',
                   'Entrega e retirada',
                   'Controle de estoque',
                   'Relatórios financeiros',
                   'Balcão / PDV',
+                  'Cardápio de mesa com QR Code',
                   'Programa de fidelidade',
                   'Cupons de desconto',
                   'Pix automático',
-                  'Cardápio de mesa com QR Code',
                   'Cor de marca própria',
                   'PWA instalável',
+                  'Link personalizado',
                   'Sem comissão por pedido',
                 ].map((benefit, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <CheckCircle size={18} className="text-primary-500 flex-shrink-0" />
+                    <CheckCircle size={16} className="text-primary-500 flex-shrink-0" />
                     <span className="text-gray-700 text-sm">{benefit}</span>
                   </div>
                 ))}
               </div>
+            </div>
 
-              <Link href="/cadastro" className="btn-primary text-lg px-8 py-4 inline-flex">
-                Testar 7 dias grátis
-                <ChevronRight size={20} />
-              </Link>
-              <p className="text-xs text-gray-400 mt-3">Sem cartão de crédito para começar</p>
+            {/* Card de preço */}
+            <div className="card border-2 border-primary-500 relative overflow-hidden text-center">
+              <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
+                7 dias grátis
+              </div>
+              <div className="py-4">
+                <p className="text-gray-500 mb-2 text-sm">Nos primeiros 7 dias</p>
+                <p className="mb-1">
+                  <span className="text-5xl font-bold text-gray-900">R$ 0,00</span>
+                </p>
+                <p className="text-sm text-gray-500 mb-6">tudo liberado, sem cartão de crédito</p>
+
+                <div className="border-t border-gray-100 pt-5 mb-6">
+                  <p className="text-sm text-gray-500 mb-1">Depois, plano único de</p>
+                  <p className="text-2xl font-bold text-gray-900">R$ 49,90<span className="text-base font-normal text-gray-500">/mês</span></p>
+                  <p className="text-xs text-gray-400 mt-1">Cancele quando quiser, sem multa</p>
+                </div>
+
+                <Link href="/cadastro" className="btn-primary text-lg px-8 py-4 inline-flex w-full justify-center">
+                  Começar agora
+                  <ChevronRight size={20} />
+                </Link>
+                <p className="text-xs text-gray-400 mt-3">Sem cartão de crédito para começar</p>
+              </div>
+            </div>
+
+            {/* FAQ */}
+            <div id="faq">
+              <h3 className="font-semibold text-gray-900 mb-4">Perguntas frequentes</h3>
+              <div className="space-y-3">
+                {FAQ_ITEMS.map((item, index) => {
+                  const isOpen = openFaqIndex === index
+                  return (
+                    <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                      <button
+                        type="button"
+                        onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                        className="w-full flex items-center justify-between gap-4 text-left px-4 py-3"
+                        aria-expanded={isOpen}
+                      >
+                        <span className="font-medium text-gray-900 text-sm">{item.question}</span>
+                        <ChevronDown
+                          size={18}
+                          className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-3 text-gray-600 text-sm animate-fade-in">
+                          {item.answer}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Perguntas frequentes
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              O que quem está decidindo mais pergunta antes de criar a conta.
-            </p>
+      {/* CTA final */}
+      <section className="px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-6xl mx-auto bg-gradient-to-r from-primary-600 to-green-700 rounded-3xl px-8 py-12 sm:px-14 flex flex-col sm:flex-row items-center justify-between gap-8 relative overflow-hidden">
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+          <div className="flex items-center gap-5 relative">
+            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={28} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">
+                Pronto para transformar seu WhatsApp em um canal de vendas?
+              </h2>
+              <p className="text-primary-100">Crie seu cardápio digital e comece seu teste grátis hoje.</p>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            {FAQ_ITEMS.map((item, index) => {
-              const isOpen = openFaqIndex === index
-              return (
-                <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaqIndex(isOpen ? null : index)}
-                    className="w-full flex items-center justify-between gap-4 text-left px-5 py-4"
-                    aria-expanded={isOpen}
-                  >
-                    <span className="font-medium text-gray-900">{item.question}</span>
-                    <ChevronDown
-                      size={20}
-                      className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                  {isOpen && (
-                    <div className="px-5 pb-4 text-gray-600 animate-fade-in">
-                      {item.answer}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          <Link href="/cadastro" className="bg-white text-primary-700 hover:bg-gray-50 font-semibold px-8 py-4 rounded-xl inline-flex items-center gap-2 transition-colors flex-shrink-0 relative">
+            Começar 7 dias grátis
+            <ChevronRight size={20} />
+          </Link>
         </div>
       </section>
 
@@ -637,16 +754,14 @@ export default function LandingPage() {
                 <span className="font-bold text-xl text-white">Catalog<span className="text-primary-500">AI</span></span>
               </div>
               <p className="text-sm">
-                Plataforma completa para criar e gerenciar seu cardápio digital. 
-                Receba pedidos direto no WhatsApp.
+                Cardápio digital e pedidos pelo WhatsApp.
               </p>
             </div>
             <div>
               <h4 className="text-white font-semibold mb-4">Produto</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#funcionalidades" className="hover:text-white transition-colors">Funcionalidades</a></li>
-                <li><a href="#para-quem" className="hover:text-white transition-colors">Para quem é</a></li>
-                <li><a href="#como-funciona" className="hover:text-white transition-colors">Como funciona</a></li>
+                <li><a href="#funcionalidades" className="hover:text-white transition-colors">Recursos</a></li>
+                <li><a href="#veja-como-funciona" className="hover:text-white transition-colors">Como funciona</a></li>
                 <li><a href="#planos" className="hover:text-white transition-colors">Planos</a></li>
                 <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
               </ul>
