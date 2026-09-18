@@ -71,7 +71,11 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Como o cliente faz o pedido?',
-    answer: 'Ele acessa o link do seu cardápio, monta o pedido e envia direto pro seu WhatsApp — ou paga na hora com Pix automático, se você tiver essa opção ativada.',
+    answer: 'Ele acessa o link do seu cardápio e monta o pedido. O CatalogAI já abre o WhatsApp dele com a mensagem pronta — ele só confirma o envio por lá. Ou paga na hora com Pix automático, se você tiver essa opção ativada.',
+  },
+  {
+    question: 'O pedido chega no meu WhatsApp de forma automática?',
+    answer: 'A mensagem é montada automaticamente e o WhatsApp já abre pronto pra enviar — mas quem confirma o envio é o cliente, com um toque, dentro do próprio WhatsApp dele. Isso vale pra qualquer link de WhatsApp, não só o nosso: só é possível enviar mensagem sem essa confirmação usando a API oficial paga da Meta, que não é o que fazemos aqui.',
   },
   {
     question: 'Dá pra usar com iFood ao mesmo tempo?',
@@ -169,7 +173,7 @@ export default function LandingPage() {
           <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
             Transforme seu negócio com um cardápio online profissional.
             Seus clientes visualizam produtos, escolhem variações e enviam o pedido
-            completo para você pelo WhatsApp em segundos.
+            pronto pro seu WhatsApp com só um toque.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
@@ -258,7 +262,7 @@ export default function LandingPage() {
               {
                 icon: <ShoppingCart className="w-6 h-6" />,
                 title: 'Pedidos via WhatsApp',
-                description: 'Cliente monta o pedido completo e envia direto para seu WhatsApp, com link de acompanhamento incluso.',
+                description: 'Cliente monta o pedido e o CatalogAI já abre o WhatsApp com a mensagem pronta e o link de acompanhamento — ele só confirma o envio, no WhatsApp dele.',
                 color: 'bg-blue-100 text-blue-600'
               },
               {
