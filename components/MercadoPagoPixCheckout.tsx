@@ -28,6 +28,7 @@ type PaymentState = 'waiting' | 'approved' | 'rejected' | 'timeout'
 export function MercadoPagoPixCheckout({ orderId, amount, qrCode, qrCodeBase64, trackingUrl, onClose }: MercadoPagoPixCheckoutProps) {
   const [state, setState] = useState<PaymentState>('waiting')
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
   const [currentQrCode, setCurrentQrCode] = useState(qrCode)
   const [currentQrCodeBase64, setCurrentQrCodeBase64] = useState(qrCodeBase64)
   const [retrying, setRetrying] = useState(false)
@@ -61,10 +62,12 @@ export function MercadoPagoPixCheckout({ orderId, amount, qrCode, qrCodeBase64, 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(currentQrCode)
+      setCopyFailed(false)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       logError('mercadopago:checkout', 'erro ao copiar código Pix', err)
+      setCopyFailed(true)
     }
   }
 
@@ -118,6 +121,18 @@ export function MercadoPagoPixCheckout({ orderId, amount, qrCode, qrCodeBase64, 
               <Copy size={14} />
               {copied ? 'Código copiado!' : 'Copiar código Pix'}
             </button>
+            {copyFailed && (
+              <div className="mt-2 text-left">
+                <p className="text-xs text-red-600 mb-1">Não foi possível copiar automaticamente. Selecione o código abaixo e copie manualmente:</p>
+                <input
+                  type="text"
+                  readOnly
+                  value={currentQrCode}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="input-field text-xs"
+                />
+              </div>
+            )}
 
             <div className="flex items-center justify-center gap-2 mt-4 text-sm text-gray-500">
               <Loader2 size={16} className="animate-spin" />

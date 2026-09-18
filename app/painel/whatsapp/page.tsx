@@ -83,10 +83,12 @@ export default function WhatsappPage() {
     setNotificationsEnabled(next)
     try {
       const supabase = createClient()
-      await supabase.from('establishments').update({ whatsapp_notifications_enabled: next }).eq('id', establishmentId)
-    } catch (err) {
+      const { error } = await supabase.from('establishments').update({ whatsapp_notifications_enabled: next }).eq('id', establishmentId)
+      if (error) throw error
+    } catch (err: any) {
       logError('painel:whatsapp', 'erro ao alternar notificações', err)
       setNotificationsEnabled(!next)
+      alert('Erro ao alterar: ' + err.message)
     }
   }
 

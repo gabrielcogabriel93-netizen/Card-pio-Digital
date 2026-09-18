@@ -36,6 +36,7 @@ export default function ProdutosPage() {
   // Variações
   const [variationGroups, setVariationGroups] = useState<GroupWithOptions[]>([])
   const [loadingVariations, setLoadingVariations] = useState(false)
+  const [variationsLoadError, setVariationsLoadError] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupRequired, setNewGroupRequired] = useState(false)
   const [newGroupMultiple, setNewGroupMultiple] = useState(false)
@@ -131,13 +132,15 @@ export default function ProdutosPage() {
 
   const loadVariations = async (productId: string) => {
     setLoadingVariations(true)
+    setVariationsLoadError(false)
     try {
       const supabase = createClient()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('variation_groups')
         .select('*, options:variation_options(*)')
         .eq('product_id', productId)
         .order('display_order')
+      if (error) throw error
 
       if (data) {
         setVariationGroups(
@@ -148,7 +151,8 @@ export default function ProdutosPage() {
         )
       }
     } catch (error) {
-      console.error('Erro ao carregar variações:', error)
+      logError('painel:produtos', 'erro ao carregar variações', error)
+      setVariationsLoadError(true)
     } finally {
       setLoadingVariations(false)
     }
@@ -398,26 +402,30 @@ export default function ProdutosPage() {
     try {
       const supabase = createClient()
       for (let i = 0; i < updated.length; i++) {
-        await supabase.from('products').update({ display_order: i }).eq('id', updated[i].id)
+        const { error } = await supabase.from('products').update({ display_order: i }).eq('id', updated[i].id)
+        if (error) throw error
       }
       log('painel:produtos', 'ordem de produtos atualizada')
       await loadData()
     } catch (error: any) {
       logError('painel:produtos', 'erro ao reordenar produtos', error)
+      alert('Erro ao reordenar produtos: ' + error.message)
     }
   }
 
   const toggleActive = async (product: Product) => {
     try {
       const supabase = createClient()
-      await supabase
+      const { error } = await supabase
         .from('products')
         .update({ is_active: !product.is_active })
         .eq('id', product.id)
-      
+      if (error) throw error
+
       await loadData()
-    } catch (error) {
-      console.error('Erro ao alterar status:', error)
+    } catch (error: any) {
+      logError('painel:produtos', 'erro ao alterar status do produto', error)
+      alert('Erro ao alterar status do produto: ' + error.message)
     }
   }
 
@@ -787,6 +795,17 @@ export default function ProdutosPage() {
                 ) : loadingVariations ? (
                   <div className="flex justify-center py-4">
                     <Loader2 size={20} className="animate-spin text-primary-500" />
+                  </div>
+                ) : variationsLoadError ? (
+                  <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3 flex items-center justify-between gap-3">
+                    <span>Não foi possível carregar as variações.</span>
+                    <button
+                      type="button"
+                      onClick={() => loadVariations(editingProduct!.id)}
+                      className="text-red-700 underline flex-shrink-0"
+                    >
+                      Tentar de novo
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-3">

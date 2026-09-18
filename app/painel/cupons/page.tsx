@@ -145,10 +145,12 @@ export default function CuponsPage() {
   const toggleActive = async (coupon: Coupon) => {
     try {
       const supabase = createClient()
-      await supabase.from('coupons').update({ is_active: !coupon.is_active }).eq('id', coupon.id)
+      const { error } = await supabase.from('coupons').update({ is_active: !coupon.is_active }).eq('id', coupon.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:cupons', 'erro ao alterar status do cupom', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 

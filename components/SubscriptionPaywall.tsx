@@ -26,6 +26,7 @@ export function SubscriptionPaywall({ reason, monthlyPrice, onUnlocked }: Subscr
   const [qrCode, setQrCode] = useState('')
   const [qrCodeBase64, setQrCodeBase64] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
 
   useEffect(() => {
     if (step !== 'waiting') return
@@ -74,10 +75,12 @@ export function SubscriptionPaywall({ reason, monthlyPrice, onUnlocked }: Subscr
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(qrCode)
+      setCopyFailed(false)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       logError('painel:paywall', 'erro ao copiar código Pix', err)
+      setCopyFailed(true)
     }
   }
 
@@ -107,6 +110,18 @@ export function SubscriptionPaywall({ reason, monthlyPrice, onUnlocked }: Subscr
               <Copy size={14} />
               {copied ? 'Código copiado!' : 'Copiar código Pix'}
             </button>
+            {copyFailed && (
+              <div className="mt-2 text-left">
+                <p className="text-xs text-red-600 mb-1">Não foi possível copiar automaticamente. Selecione o código abaixo e copie manualmente:</p>
+                <input
+                  type="text"
+                  readOnly
+                  value={qrCode}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="input-field text-xs"
+                />
+              </div>
+            )}
             <div className="flex items-center justify-center gap-2 mt-4 text-sm text-gray-500">
               <Loader2 size={16} className="animate-spin" />
               Aguardando pagamento...

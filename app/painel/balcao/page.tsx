@@ -9,7 +9,7 @@ import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function BalcaoPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -25,6 +25,7 @@ export default function BalcaoPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('dinheiro')
   const [showCheckout, setShowCheckout] = useState(false)
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false)
   const [saving, setSaving] = useState(false)
   const [lastSale, setLastSale] = useState<{ items: CartItem[]; paymentMethod: string; total: number; customerName: string } | null>(null)
   const [establishmentId, setEstablishmentId] = useState<string>('')
@@ -178,6 +179,19 @@ export default function BalcaoPage() {
 
   const removeFromCart = (index: number) => {
     setCart(cart.filter((_, i) => i !== index))
+  }
+
+  const missingFields = [
+    !customerName.trim() && 'Nome do cliente',
+    !customerPhone.trim() && 'Telefone',
+  ].filter(Boolean) as string[]
+
+  const handleFinishSaleClick = () => {
+    if (missingFields.length > 0) {
+      setAttemptedSubmit(true)
+      return
+    }
+    handleFinishSale()
   }
 
   const handleFinishSale = async () => {
@@ -411,7 +425,7 @@ export default function BalcaoPage() {
               </span>
             </div>
             <button
-              onClick={() => setShowCheckout(true)}
+              onClick={() => { setAttemptedSubmit(false); setShowCheckout(true) }}
               className="btn-primary w-full"
             >
               Finalizar Venda
@@ -447,29 +461,35 @@ export default function BalcaoPage() {
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCheckout(false)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md animate-fade-in p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Finalizar Venda</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome do cliente *</label>
                 <input
                   type="text"
-                  className="input-field"
+                  className={`input-field ${attemptedSubmit && !customerName.trim() ? 'border-red-400 focus:border-red-500' : ''}`}
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Nome do cliente"
                   required
                 />
+                {attemptedSubmit && !customerName.trim() && (
+                  <p className="text-xs text-red-600 mt-1">Informe o nome do cliente.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
                 <input
                   type="tel"
-                  className="input-field"
+                  className={`input-field ${attemptedSubmit && !customerPhone.trim() ? 'border-red-400 focus:border-red-500' : ''}`}
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
                   placeholder="(11) 99999-8888"
                   required
                 />
+                {attemptedSubmit && !customerPhone.trim() && (
+                  <p className="text-xs text-red-600 mt-1">Informe o telefone.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
@@ -493,14 +513,21 @@ export default function BalcaoPage() {
                 </div>
               </div>
 
+              {attemptedSubmit && missingFields.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
+                  <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                  <span>Falta preencher: <strong>{missingFields.join(', ')}</strong>.</span>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <button onClick={() => setShowCheckout(false)} className="btn-secondary flex-1">
                   Cancelar
                 </button>
                 <button
-                  onClick={handleFinishSale}
+                  onClick={handleFinishSaleClick}
                   className="btn-primary flex-1"
-                  disabled={saving || !customerName.trim() || !customerPhone.trim()}
+                  disabled={saving}
                 >
                   {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Venda'}
                 </button>
@@ -560,6 +587,7 @@ function VariationModal({
   const [groups, setGroups] = useState<(VariationGroup & { options: VariationOption[] })[]>([])
   const [selected, setSelected] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
+  const [attemptedConfirm, setAttemptedConfirm] = useState(false)
 
   useEscapeKey(onClose, true)
 
@@ -627,13 +655,14 @@ function VariationModal({
     onConfirm(variations)
   }
 
-  const isRequiredFilled = () => {
-    return groups.every(group => {
-      if (group.is_required) {
-        return (selected[group.id]?.length || 0) > 0
-      }
-      return true
-    })
+  const missingGroups = groups.filter((group) => group.is_required && (selected[group.id]?.length || 0) === 0)
+
+  const handleConfirmClick = () => {
+    if (missingGroups.length > 0) {
+      setAttemptedConfirm(true)
+      return
+    }
+    handleConfirm()
   }
 
   if (loading) {
@@ -662,14 +691,19 @@ function VariationModal({
         </div>
 
         <div className="p-6 space-y-6">
-          {groups.map(group => (
-            <div key={group.id}>
+          {groups.map(group => {
+            const groupMissing = attemptedConfirm && group.is_required && (selected[group.id]?.length || 0) === 0
+            return (
+            <div key={group.id} className={groupMissing ? 'border border-red-300 bg-red-50/50 rounded-lg p-3 -m-3' : ''}>
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="font-medium text-gray-900">{group.name}</h3>
                 {group.is_required && (
                   <span className="text-xs text-red-500">*Obrigatório</span>
                 )}
               </div>
+              {groupMissing && (
+                <p className="text-xs text-red-600 mb-2">Escolha uma opção para continuar.</p>
+              )}
               <div className="space-y-2">
                 {group.options.map(option => {
                   const isSelected = (selected[group.id] || []).includes(option.id)
@@ -694,13 +728,19 @@ function VariationModal({
                 })}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+          {attemptedConfirm && missingGroups.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-sm text-red-700 flex items-start gap-2">
+              <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+              <span>Escolha uma opção em: <strong>{missingGroups.map((g) => g.name).join(', ')}</strong>.</span>
+            </div>
+          )}
           <button
-            onClick={handleConfirm}
-            disabled={!isRequiredFilled()}
+            onClick={handleConfirmClick}
             className="btn-primary w-full"
           >
             Adicionar ao Carrinho

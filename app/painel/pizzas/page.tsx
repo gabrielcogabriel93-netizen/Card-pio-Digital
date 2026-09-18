@@ -147,11 +147,13 @@ export default function PizzasPage() {
     try {
       const supabase = createClient()
       for (let i = 0; i < updated.length; i++) {
-        await supabase.from(table).update({ display_order: i }).eq('id', updated[i].id)
+        const { error } = await supabase.from(table).update({ display_order: i }).eq('id', updated[i].id)
+        if (error) throw error
       }
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:pizzas', `erro ao reordenar ${table}`, error)
+      alert('Erro ao reordenar: ' + error.message)
     }
   }
 
@@ -224,10 +226,12 @@ export default function PizzasPage() {
   const toggleSizeActive = async (size: PizzaSize) => {
     try {
       const supabase = createClient()
-      await supabase.from('pizza_sizes').update({ is_active: !size.is_active }).eq('id', size.id)
+      const { error } = await supabase.from('pizza_sizes').update({ is_active: !size.is_active }).eq('id', size.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do tamanho', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 
@@ -323,10 +327,12 @@ export default function PizzasPage() {
   const toggleFlavorActive = async (flavor: PizzaFlavor) => {
     try {
       const supabase = createClient()
-      await supabase.from('pizza_flavors').update({ is_active: !flavor.is_active }).eq('id', flavor.id)
+      const { error } = await supabase.from('pizza_flavors').update({ is_active: !flavor.is_active }).eq('id', flavor.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do sabor', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 
@@ -416,10 +422,12 @@ export default function PizzasPage() {
   const toggleAdditionalActive = async (additional: PizzaAdditional) => {
     try {
       const supabase = createClient()
-      await supabase.from('pizza_additionals').update({ is_active: !additional.is_active }).eq('id', additional.id)
+      const { error } = await supabase.from('pizza_additionals').update({ is_active: !additional.is_active }).eq('id', additional.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do adicional', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 

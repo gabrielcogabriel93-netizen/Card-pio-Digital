@@ -193,10 +193,12 @@ export default function FidelidadePage() {
   const toggleRewardActive = async (reward: LoyaltyReward) => {
     try {
       const supabase = createClient()
-      await supabase.from('loyalty_rewards').update({ is_active: !reward.is_active }).eq('id', reward.id)
+      const { error } = await supabase.from('loyalty_rewards').update({ is_active: !reward.is_active }).eq('id', reward.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:fidelidade', 'erro ao alterar status da recompensa', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 

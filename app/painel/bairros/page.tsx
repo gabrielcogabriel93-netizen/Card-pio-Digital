@@ -62,10 +62,12 @@ export default function BairrosPage() {
     setUseNeighborhoodFee(next)
     try {
       const supabase = createClient()
-      await supabase.from('establishments').update({ use_neighborhood_delivery_fee: next }).eq('id', establishmentId)
-    } catch (error) {
+      const { error } = await supabase.from('establishments').update({ use_neighborhood_delivery_fee: next }).eq('id', establishmentId)
+      if (error) throw error
+    } catch (error: any) {
       logError('painel:bairros', 'erro ao alternar taxa por bairro', error)
       setUseNeighborhoodFee(!next)
+      alert('Erro ao alterar: ' + error.message)
     }
   }
 
@@ -130,10 +132,12 @@ export default function BairrosPage() {
   const toggleActive = async (n: DeliveryNeighborhood) => {
     try {
       const supabase = createClient()
-      await supabase.from('delivery_neighborhoods').update({ is_active: !n.is_active }).eq('id', n.id)
+      const { error } = await supabase.from('delivery_neighborhoods').update({ is_active: !n.is_active }).eq('id', n.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:bairros', 'erro ao alterar status do bairro', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 

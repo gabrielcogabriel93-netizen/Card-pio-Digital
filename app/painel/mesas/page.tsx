@@ -160,10 +160,12 @@ export default function MesasPage() {
   const toggleActive = async (t: RestaurantTable) => {
     try {
       const supabase = createClient()
-      await supabase.from('restaurant_tables').update({ is_active: !t.is_active }).eq('id', t.id)
+      const { error } = await supabase.from('restaurant_tables').update({ is_active: !t.is_active }).eq('id', t.id)
+      if (error) throw error
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       logError('painel:mesas', 'erro ao alterar status da mesa', error)
+      alert('Erro ao alterar status: ' + error.message)
     }
   }
 
