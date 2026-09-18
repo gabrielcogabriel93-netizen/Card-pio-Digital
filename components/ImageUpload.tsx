@@ -13,7 +13,7 @@ interface ImageUploadProps {
   value: string
   onChange: (url: string) => void
   establishmentId: string
-  folder: 'products' | 'logo' | 'pizza-flavors'
+  folder: 'products' | 'logo' | 'pizza-flavors' | 'combos'
   label?: string
   aspectClassName?: string
 }

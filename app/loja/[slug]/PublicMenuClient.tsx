@@ -25,21 +25,24 @@ import {
   saveAddress,
   type SavedAddress,
 } from '@/lib/customerStorage'
-import type { PublicEstablishment, Category, PublicProduct, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress, PublicLoyaltySettings, PublicLoyaltyReward, LoyaltyBenefitType } from '@/types'
+import type { PublicEstablishment, Category, PublicProduct, PublicCombo, VariationGroup, VariationOption, CartItem, PublicDeliveryNeighborhood, CustomerProfile, CustomerAddress, PublicLoyaltySettings, PublicLoyaltyReward, LoyaltyBenefitType } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { Logo } from '@/components/Logo'
-import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2 } from 'lucide-react'
+import { ShoppingCart, X, Plus, Minus, MapPin, Clock, Loader2, Store, Send, Bike, Package, ClipboardList, Trash2, CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2, Layers } from 'lucide-react'
+import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderModal'
 
 export default function PublicMenuClient({
   establishment,
   categories,
   products,
+  combos,
   tableIdParam,
 }: {
   establishment: PublicEstablishment
   categories: Category[]
   products: PublicProduct[]
+  combos: PublicCombo[]
   // Presente quando o cliente chegou via QR de mesa (?mesa=<id>,
   // migration 039) — ver useEffect que resolve isTableMode abaixo.
   tableIdParam?: string | null
@@ -48,6 +51,7 @@ export default function PublicMenuClient({
   const [showCart, setShowCart] = useState(false)
   const [showVariations, setShowVariations] = useState<PublicProduct | null>(null)
   const [showPizzaOrder, setShowPizzaOrder] = useState<PublicProduct | null>(null)
+  const [showComboOrder, setShowComboOrder] = useState<PublicCombo | null>(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -405,6 +409,51 @@ export default function PublicMenuClient({
     setShowPizzaOrder(null)
   }
 
+  // Item de combo: preço sempre é o fixo do combo (migration 040), as
+  // escolhas do cliente nunca mudam o total. "produto" sintético só pra
+  // reaproveitar toda a renderização de carrinho existente (nome/imagem/
+  // preço/quantidade) sem mexer em CartItem<P> -- o vínculo real com o
+  // combo e as escolhas de cada slot ficam em `combo`, usado na hora de
+  // montar o pedido (handleSendOrder/handleAddOrderToTable) e na baixa de
+  // estoque dos componentes escolhidos (app/painel/pedidos/page.tsx).
+  const addComboItemToCart = (combo: PublicCombo, result: ComboOrderResult) => {
+    const variationsKey = result.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|')
+    const existingIndex = cart.findIndex(
+      item => item.product.id === combo.id &&
+      item.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|') === variationsKey
+    )
+
+    const syntheticProduct: PublicProduct = {
+      id: combo.id,
+      establishment_id: combo.establishment_id,
+      name: combo.name,
+      description: combo.description ?? undefined,
+      price: combo.price,
+      image_url: combo.image_url ?? undefined,
+      display_order: combo.display_order,
+      in_stock: true,
+      pizza_flavor_id: null,
+    }
+
+    if (existingIndex >= 0) {
+      const updated = [...cart]
+      updated[existingIndex].quantity += 1
+      updated[existingIndex].total_price = updated[existingIndex].unit_price * updated[existingIndex].quantity
+      setCart(updated)
+    } else {
+      setCart([...cart, {
+        product: syntheticProduct,
+        quantity: 1,
+        variations: result.variations,
+        unit_price: result.unitPrice,
+        total_price: result.unitPrice,
+        combo: { combo_id: result.comboId, selections: result.selections },
+      }])
+    }
+
+    setShowComboOrder(null)
+  }
+
   const addToCartDirect = (product: PublicProduct, variations: CartItem<PublicProduct>['variations']) => {
     const variationsKey = variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|')
     const existingIndex = cart.findIndex(
@@ -751,6 +800,8 @@ export default function PublicMenuClient({
           total_price: item.total_price,
           image_url: item.product.image_url,
           variations: item.variations,
+          combo_id: item.combo?.combo_id ?? null,
+          combo_selections: item.combo?.selections,
         })),
         subtotal,
         shipping_fee: effectiveDeliveryFee,
@@ -1053,6 +1104,8 @@ export default function PublicMenuClient({
           total_price: item.total_price,
           image_url: item.product.image_url,
           variations: item.variations,
+          combo_id: item.combo?.combo_id ?? null,
+          combo_selections: item.combo?.selections,
         })),
         subtotal,
         shipping_fee: 0,
@@ -1262,7 +1315,7 @@ export default function PublicMenuClient({
         </div>
 
         {/* Categories Scroll */}
-        {categories.length > 0 && (
+        {(categories.length > 0 || combos.length > 0) && (
           <div className="border-t border-gray-100">
             <div className="max-w-2xl mx-auto px-4 py-2 overflow-x-auto">
               <div className="flex gap-2">
@@ -1276,6 +1329,19 @@ export default function PublicMenuClient({
                 >
                   Todos
                 </button>
+                {combos.length > 0 && (
+                  <button
+                    onClick={() => setActiveCategory('combos')}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                      activeCategory === 'combos'
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Layers size={14} />
+                    Combos
+                  </button>
+                )}
                 {categories.map(cat => (
                   <button
                     key={cat.id}
@@ -1499,7 +1565,51 @@ export default function PublicMenuClient({
           </div>
         )}
 
-        {filteredProducts.length === 0 ? (
+        {activeCategory === 'combos' ? (
+          combos.length === 0 ? (
+            <div className="text-center py-12">
+              <Layers size={48} className="text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhum combo disponível no momento.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {combos.map(combo => {
+                const disabled = !isEffectivelyOpen
+                return (
+                  <button
+                    key={combo.id}
+                    onClick={() => !disabled && setShowComboOrder(combo)}
+                    disabled={disabled}
+                    className="w-full text-left bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow disabled:opacity-60 disabled:cursor-not-allowed flex gap-4"
+                  >
+                    {combo.image_url && (
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                        <SmartImage src={combo.image_url} alt={combo.name} fill sizes="80px" className="object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-medium text-gray-900">{combo.name}</h3>
+                        <span className="text-[10px] font-medium text-primary-700 bg-primary-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          Combo
+                        </span>
+                      </div>
+                      {combo.description && (
+                        <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{combo.description}</p>
+                      )}
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-lg font-bold text-primary-600">{formatCurrency(Number(combo.price))}</span>
+                        {isEffectivelyOpen && (
+                          <span className="text-sm text-primary-500 font-medium">Montar combo</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <Store size={48} className="text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">Nenhum produto disponível nesta categoria.</p>
@@ -1856,6 +1966,19 @@ export default function PublicMenuClient({
           product={showVariations}
           onConfirm={(variations) => addToCartDirect(showVariations, variations)}
           onClose={() => setShowVariations(null)}
+        />
+      )}
+
+      {/* Combo Modal (migration 040) */}
+      {showComboOrder && (
+        <ComboOrderModal
+          comboId={showComboOrder.id}
+          comboName={showComboOrder.name}
+          comboImageUrl={showComboOrder.image_url}
+          comboPrice={showComboOrder.price}
+          establishmentId={establishment.id}
+          onConfirm={(result) => addComboItemToCart(showComboOrder, result)}
+          onClose={() => setShowComboOrder(null)}
         />
       )}
 

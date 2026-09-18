@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/public'
-import type { PublicEstablishment, Category, PublicProduct } from '@/types'
+import type { PublicEstablishment, Category, PublicProduct, PublicCombo } from '@/types'
 import PublicMenuClient from './PublicMenuClient'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { Store } from 'lucide-react'
@@ -22,10 +22,11 @@ async function getEstablishment(slug: string): Promise<PublicEstablishment | nul
 
 async function getMenu(establishmentId: string) {
   const supabase = createPublicClient()
-  const [{ data: categories }, { data: products }, { data: bestsellers }] = await Promise.all([
+  const [{ data: categories }, { data: products }, { data: bestsellers }, { data: combos }] = await Promise.all([
     supabase.from('categories').select('*').eq('establishment_id', establishmentId).order('display_order'),
     supabase.from('public_products').select('*').eq('establishment_id', establishmentId).order('display_order'),
     supabase.rpc('get_bestseller_products', { p_establishment_id: establishmentId, p_limit: 3 }),
+    supabase.from('combos').select('*').eq('establishment_id', establishmentId).eq('is_active', true).order('display_order'),
   ])
 
   // "Mais vendido" é dado real (pedidos aceitos dos últimos 30 dias),
@@ -40,6 +41,7 @@ async function getMenu(establishmentId: string) {
   return {
     categories: (categories || []) as Category[],
     products: productsWithBestsellers,
+    combos: (combos || []) as PublicCombo[],
   }
 }
 
@@ -95,7 +97,7 @@ export default async function PublicMenuPage({
     )
   }
 
-  const { categories, products } = await getMenu(establishment.id)
+  const { categories, products, combos } = await getMenu(establishment.id)
 
   // Dados estruturados (schema.org) pra buscadores entenderem que é um
   // estabelecimento comercial com cardápio — LocalBusiness serve pra
@@ -124,6 +126,7 @@ export default async function PublicMenuPage({
         establishment={establishment}
         categories={categories}
         products={products}
+        combos={combos}
         tableIdParam={searchParams?.mesa || null}
       />
     </>

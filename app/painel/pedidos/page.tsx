@@ -380,11 +380,24 @@ export default function PedidosPage() {
     const supabase = createClient()
     const rpcName = direction === 'decrement' ? 'decrement_product_stock' : 'increment_product_stock'
 
-    for (const item of items) {
+    // Item de combo não tem estoque próprio (product_id é o id do
+    // COMBO, que não existe em `products` -- preço fixo, sem controle
+    // de estoque no nível do combo, migration 040). Em vez disso,
+    // baixamos/repomos o estoque de cada produto ESCOLHIDO em cada
+    // slot (sabor/sobremesa/bebida), multiplicado pela quantidade do
+    // item no pedido.
+    const targets: { product_id: string; quantity: number }[] =
+      items.flatMap((item) =>
+        item.combo_selections && item.combo_selections.length > 0
+          ? item.combo_selections.map((sel) => ({ product_id: sel.product_id, quantity: item.quantity }))
+          : [{ product_id: item.product_id, quantity: item.quantity }]
+      )
+
+    for (const target of targets) {
       const { data: product, error: productError } = await supabase
         .from('products')
         .select('track_stock')
-        .eq('id', item.product_id)
+        .eq('id', target.product_id)
         .single()
 
       if (productError) {
@@ -394,8 +407,8 @@ export default function PedidosPage() {
 
       if (product?.track_stock) {
         const { error: rpcError } = await supabase.rpc(rpcName, {
-          product_id: item.product_id,
-          quantity: item.quantity,
+          product_id: target.product_id,
+          quantity: target.quantity,
         })
         if (rpcError) logError('painel:pedidos', `erro ao chamar ${rpcName}`, rpcError)
       }

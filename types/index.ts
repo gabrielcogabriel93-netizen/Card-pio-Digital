@@ -213,6 +213,54 @@ export interface PizzaAdditionalPrice {
   price: number
 }
 
+// Sistema de combos (migration 040) -- kits de produtos com preço
+// fixo, para qualquer tipo de negócio. Cada combo_group é um slot de
+// escolha com nome livre; v1 sempre exige exatamente 1 produto por
+// slot (min_select=max_select=1) -- colunas já preparadas pra
+// multi-escolha futura. is_pizza_slot/fixed_pizza_size_id são uso
+// opcional, só pra quem vende pizza reaproveitar os produtos-sabor
+// existentes sem duplicar cadastro; o cliente só escolhe o sabor, o
+// tamanho fica fixo (definido pelo lojista), diferente do pedido
+// avulso de pizza.
+export interface Combo {
+  id: string
+  establishment_id: string
+  name: string
+  description?: string | null
+  image_url?: string | null
+  price: number
+  is_active: boolean
+  display_order: number
+  created_at?: string
+}
+
+// `combos` não tem nenhuma coluna sensível pra esconder do cardápio
+// público -- a política de SELECT já libera leitura pública direto na
+// tabela, igual pizza_sizes/pizza_flavors. Alias só pra deixar
+// explícito, no código do cardápio, que o dado já veio filtrado por
+// is_active = true.
+export type PublicCombo = Combo
+
+export interface ComboGroup {
+  id: string
+  combo_id: string
+  name: string
+  display_order: number
+  is_pizza_slot: boolean
+  fixed_pizza_size_id?: string | null
+  min_select: number
+  max_select: number
+  created_at?: string
+}
+
+export interface ComboGroupProduct {
+  id: string
+  combo_group_id: string
+  product_id: string
+  display_order: number
+  created_at?: string
+}
+
 // Item do Pedido (armazenado em JSONB)
 export interface OrderItem {
   product_id: string
@@ -225,6 +273,21 @@ export interface OrderItem {
     group_name: string
     option_name: string
     price_delta: number
+  }[]
+  // Preenchido só quando o item é um combo (migration 040). Nesse
+  // caso `product_id` acima é o id do COMBO (não existe em
+  // `products`) -- usado só pra chave/exibição. `combo_selections`
+  // guarda o produto escolhido em cada slot, pra baixa de estoque (ver
+  // adjustStockForItems em app/painel/pedidos/page.tsx e o loop
+  // equivalente em app/painel/balcao/page.tsx). `variations` continua
+  // sendo a fonte de exibição genérica (WhatsApp/Kanban/recibo) --
+  // não duplicar lógica de render a partir deste campo.
+  combo_id?: string | null
+  combo_selections?: {
+    group_id: string
+    group_name: string
+    product_id: string
+    product_name: string
   }[]
 }
 
@@ -451,6 +514,20 @@ export interface CartItem<P = Product> {
   }[]
   unit_price: number
   total_price: number
+  // Preenchido só quando `product` é o "produto sintético" que
+  // representa um combo no carrinho (ver addComboItemToCart em
+  // PublicMenuClient.tsx e balcao/page.tsx) -- carrega o id real do
+  // combo e a escolha de cada slot, pra popular
+  // OrderItem.combo_id/combo_selections ao montar o pedido.
+  combo?: {
+    combo_id: string
+    selections: {
+      group_id: string
+      group_name: string
+      product_id: string
+      product_name: string
+    }[]
+  }
 }
 
 // Dashboard Stats

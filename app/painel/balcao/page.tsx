@@ -7,19 +7,26 @@ import { log, logError, logCritical } from '@/lib/logger'
 import { formatPhoneNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
-import type { Product, Category, CartItem, VariationGroup, VariationOption } from '@/types'
+import type { Product, Category, CartItem, VariationGroup, VariationOption, Combo } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderModal'
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle, Layers } from 'lucide-react'
+
+// Valor de filterCategory reservado pra mostrar a lista de combos em vez
+// de produtos -- não colide com nenhum id real de categoria (UUID).
+const COMBOS_FILTER = '__combos__'
 
 export default function BalcaoPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [combos, setCombos] = useState<Combo[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
   const [loading, setLoading] = useState(true)
   const [showVariations, setShowVariations] = useState<Product | null>(null)
   const [showPizzaOrder, setShowPizzaOrder] = useState<Product | null>(null)
+  const [showComboOrder, setShowComboOrder] = useState<Combo | null>(null)
   const [selectedVariations, setSelectedVariations] = useState<Record<string, string[]>>({})
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -53,18 +60,22 @@ export default function BalcaoPage() {
       if (!est) return
       setEstablishmentId(est.id)
 
-      const [catsRes, prodsRes] = await Promise.all([
+      const [catsRes, prodsRes, combosRes] = await Promise.all([
         supabase.from('categories').select('*').eq('establishment_id', est.id).order('display_order'),
         supabase.from('products').select('*').eq('establishment_id', est.id).eq('is_active', true).order('display_order'),
+        supabase.from('combos').select('*').eq('establishment_id', est.id).eq('is_active', true).order('display_order'),
       ])
 
       if (catsRes.error) logError('painel:balcao', 'erro ao carregar categorias', catsRes.error)
       if (prodsRes.error) logError('painel:balcao', 'erro ao carregar produtos', prodsRes.error)
+      if (combosRes.error) logError('painel:balcao', 'erro ao carregar combos', combosRes.error)
       if (catsRes.data) setCategories(catsRes.data)
       if (prodsRes.data) setProducts(prodsRes.data)
+      if (combosRes.data) setCombos(combosRes.data)
       log('painel:balcao', 'dados carregados', {
         categorias: catsRes.data?.length || 0,
         produtos: prodsRes.data?.length || 0,
+        combos: combosRes.data?.length || 0,
       })
     } catch (error) {
       logError('painel:balcao', 'exceção ao carregar dados', error)
@@ -121,6 +132,51 @@ export default function BalcaoPage() {
     }
 
     setShowPizzaOrder(null)
+  }
+
+  // Item de combo: preço sempre é o fixo do combo (migration 040) --
+  // "produto" sintético só pra reaproveitar a renderização de carrinho
+  // existente; track_stock: false porque o combo em si não tem estoque
+  // próprio -- a baixa real acontece por componente escolhido (ver loop
+  // de baixa de estoque em handleFinishSale).
+  const addComboItemToCart = (combo: Combo, result: ComboOrderResult) => {
+    const variationsKey = result.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|')
+    const existingIndex = cart.findIndex(
+      item => item.product.id === combo.id &&
+      item.variations.map(v => `${v.group_name}:${v.option_name}`).sort().join('|') === variationsKey
+    )
+
+    const syntheticProduct: Product = {
+      id: combo.id,
+      establishment_id: combo.establishment_id,
+      name: combo.name,
+      description: combo.description ?? undefined,
+      price: combo.price,
+      image_url: combo.image_url ?? undefined,
+      stock_qty: 0,
+      track_stock: false,
+      is_active: true,
+      display_order: combo.display_order,
+      pizza_flavor_id: null,
+    }
+
+    if (existingIndex >= 0) {
+      const updated = [...cart]
+      updated[existingIndex].quantity += 1
+      updated[existingIndex].total_price = updated[existingIndex].unit_price * updated[existingIndex].quantity
+      setCart(updated)
+    } else {
+      setCart([...cart, {
+        product: syntheticProduct,
+        quantity: 1,
+        variations: result.variations,
+        unit_price: result.unitPrice,
+        total_price: result.unitPrice,
+        combo: { combo_id: result.comboId, selections: result.selections },
+      }])
+    }
+
+    setShowComboOrder(null)
   }
 
   const addToCartDirect = (product: Product, variations: CartItem['variations']) => {
@@ -216,6 +272,8 @@ export default function BalcaoPage() {
           total_price: item.total_price,
           image_url: item.product.image_url,
           variations: item.variations,
+          combo_id: item.combo?.combo_id ?? null,
+          combo_selections: item.combo?.selections,
         })),
         subtotal,
         shipping_fee: 0,
@@ -229,11 +287,22 @@ export default function BalcaoPage() {
       if (error) throw error
       log('painel:balcao', 'pedido de balcão criado, baixando estoque...')
 
-      // Baixar estoque
+      // Baixar estoque -- item de combo não tem estoque próprio (preço
+      // fixo, migration 040): baixa de cada produto ESCOLHIDO em cada
+      // slot (sabor/sobremesa/bebida) em vez do "produto" sintético do
+      // combo, que nem existe em `products`.
       for (const item of cart) {
-        if (item.product.track_stock) {
+        const targets = item.combo
+          ? item.combo.selections.map((sel) => ({
+              product_id: sel.product_id,
+              track_stock: products.find((p) => p.id === sel.product_id)?.track_stock ?? false,
+            }))
+          : [{ product_id: item.product.id, track_stock: item.product.track_stock }]
+
+        for (const target of targets) {
+          if (!target.track_stock) continue
           const { error: rpcError } = await supabase.rpc('decrement_product_stock', {
-            product_id: item.product.id,
+            product_id: target.product_id,
             quantity: item.quantity,
           })
           if (rpcError) logError('painel:balcao', 'erro ao baixar estoque', { item: item.product.name, rpcError })
@@ -314,6 +383,7 @@ export default function BalcaoPage() {
             onChange={(e) => setFilterCategory(e.target.value)}
           >
             <option value="all">Todas</option>
+            {combos.length > 0 && <option value={COMBOS_FILTER}>Combos</option>}
             {categories.map(cat => (
               <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}
@@ -322,7 +392,24 @@ export default function BalcaoPage() {
 
         {/* Products Grid */}
         <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 content-start">
-          {filteredProducts.map(product => {
+          {filterCategory === COMBOS_FILTER ? combos.map(combo => (
+            <button
+              key={combo.id}
+              onClick={() => setShowComboOrder(combo)}
+              className="card-hover text-left p-3"
+            >
+              {combo.image_url && (
+                <div className="relative w-full h-24 rounded-lg overflow-hidden mb-2">
+                  <SmartImage src={combo.image_url} alt={combo.name} fill sizes="(max-width: 640px) 45vw, 180px" className="object-cover" />
+                </div>
+              )}
+              <div className="flex items-center gap-1">
+                <Layers size={12} className="text-primary-500 flex-shrink-0" />
+                <p className="font-medium text-sm text-gray-900 truncate">{combo.name}</p>
+              </div>
+              <p className="text-primary-600 font-bold text-sm mt-1">{formatCurrency(Number(combo.price))}</p>
+            </button>
+          )) : filteredProducts.map(product => {
             const outOfStock = product.track_stock && product.stock_qty <= 0
             return (
             <button
@@ -452,6 +539,19 @@ export default function BalcaoPage() {
           product={showVariations}
           onConfirm={(variations) => addToCartDirect(showVariations, variations)}
           onClose={() => setShowVariations(null)}
+        />
+      )}
+
+      {/* Combo Modal (migration 040) */}
+      {showComboOrder && (
+        <ComboOrderModal
+          comboId={showComboOrder.id}
+          comboName={showComboOrder.name}
+          comboImageUrl={showComboOrder.image_url}
+          comboPrice={showComboOrder.price}
+          establishmentId={showComboOrder.establishment_id}
+          onConfirm={(result) => addComboItemToCart(showComboOrder, result)}
+          onClose={() => setShowComboOrder(null)}
         />
       )}
 

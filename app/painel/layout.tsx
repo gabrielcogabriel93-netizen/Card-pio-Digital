@@ -30,12 +30,14 @@ import {
   ShieldCheck,
   Gift,
   Table2,
+  Layers,
 } from 'lucide-react'
 
 const navigation = [
   { name: 'Dashboard', href: '/painel', icon: LayoutDashboard },
   { name: 'Produtos', href: '/painel/produtos', icon: Package },
   { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
+  { name: 'Combos', href: '/painel/combos', icon: Layers },
   { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
   { name: 'Cupons', href: '/painel/cupons', icon: Tag },
   { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift },
