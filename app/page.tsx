@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, ChevronDown, CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, Quote, MessageCircle, Wallet } from 'lucide-react'
+import { Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, Shirt, ShoppingBag, ChevronRight, ChevronDown, CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, Quote, MessageCircle, Wallet, QrCode } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 
 const TESTIMONIALS = [
@@ -352,7 +352,7 @@ export default function LandingPage() {
               {
                 icon: <LineChart className="w-6 h-6" />,
                 title: 'Financeiro Automático',
-                description: 'Relatórios de faturamento diário, semanal e mensal. Gráficos e filtros por período.',
+                description: 'Faturamento de hoje, dos últimos 7 dias, do mês ou de um período personalizado — com gráficos e produtos mais vendidos.',
                 color: 'bg-orange-100 text-orange-600'
               },
               {
@@ -402,6 +402,12 @@ export default function LandingPage() {
                 title: 'Perfil Completo da Loja',
                 description: 'Endereço, horário de funcionamento, WhatsApp e Instagram, tudo num só lugar pro cliente ver.',
                 color: 'bg-violet-100 text-violet-600'
+              },
+              {
+                icon: <QrCode className="w-6 h-6" />,
+                title: 'Cardápio de Mesa com QR Code',
+                description: 'Cada mesa tem um QR Code. O cliente escaneia, pede pelo celular e tudo fica na comanda até você fechar a conta pelo painel.',
+                color: 'bg-sky-100 text-sky-600'
               }
             ].map((feature, index) => (
               <div
@@ -519,7 +525,7 @@ export default function LandingPage() {
               <span className="font-medium text-gray-700">Mercado Pago</span>
             </div>
           </div>
-          <p className="text-sm text-gray-400 mt-4">E mais integrações a caminho.</p>
+          <p className="text-sm text-gray-400 mt-4">Sem taxa de integração — já vem incluído no seu plano.</p>
         </div>
       </section>
 
@@ -558,6 +564,7 @@ export default function LandingPage() {
                   'Programa de fidelidade',
                   'Cupons de desconto',
                   'Pix automático',
+                  'Cardápio de mesa com QR Code',
                   'Cor de marca própria',
                   'PWA instalável',
                   'Sem comissão por pedido',
