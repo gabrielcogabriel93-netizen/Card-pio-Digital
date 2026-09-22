@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createSubscriptionCheckoutSession } from '@/lib/stripe'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
+import { COMPLETO_MONTHLY_PRICE, type PlanTier } from '@/lib/plans'
 
 export const runtime = 'nodejs'
 
@@ -21,6 +22,9 @@ export const runtime = 'nodejs'
 // /api/mercadopago/create-payment, sem relação nenhuma com esta rota.
 export async function POST(request: NextRequest) {
   try {
+    const body = await request.json().catch(() => ({}))
+    const tier: PlanTier = body?.tier === 'completo' ? 'completo' : 'essencial'
+
     const supabase = await createServerSupabaseClient()
     const {
       data: { user },
@@ -70,12 +74,15 @@ export async function POST(request: NextRequest) {
           }
         : null
 
+    const amount = tier === 'completo' ? COMPLETO_MONTHLY_PRICE : Number(settings.monthly_price)
+
     const baseUrl = getBaseUrl()
     const { url } = await createSubscriptionCheckoutSession({
       establishmentId: establishment.id,
       establishmentName: establishment.name,
       ownerEmail: user.email || '',
-      amount: Number(settings.monthly_price),
+      amount,
+      tier,
       successUrl: `${baseUrl}/painel/planos?assinatura=sucesso`,
       cancelUrl: `${baseUrl}/painel/planos?assinatura=cancelada`,
       stripeCustomerId: establishment.stripe_customer_id,

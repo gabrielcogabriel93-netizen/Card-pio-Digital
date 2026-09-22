@@ -58,6 +58,20 @@ export interface Establishment {
   // que a view pública (`public_establishments`) expõe (migration 026).
   mercadopago_pix_enabled?: boolean
   plan?: string
+  // Plano de assinatura da plataforma (migration 041) — 'essencial' ou
+  // 'completo'. Travado por trigger, só o service role grava (webhook
+  // do Stripe / rotas /api/admin/**). Exposto também na view pública
+  // pra PublicMenuClient decidir o que mostrar (cupom, fidelidade)
+  // sem duplicar a lógica de acesso no client.
+  plan_tier?: 'essencial' | 'completo'
+  // Acesso EFETIVO ao plano Completo (migration 041) -- respeita
+  // trial/isenção, diferente de plan_tier cru (loja continua "tudo
+  // liberado" durante o trial mesmo com plan_tier='essencial'). Só a
+  // coluna computada da view `public_establishments` preenche isto de
+  // verdade -- é o que PublicMenuClient usa pra decidir se mostra
+  // cupom/fidelidade. No painel autenticado a mesma informação vem por
+  // outro caminho (useSubscription(), contexts/SubscriptionContext.tsx).
+  has_completo_access?: boolean
   created_at?: string
   // Impressão automática de comanda (migration 027). NULL = lojista ainda
   // não decidiu (dispara o banner de primeira vez em Painel > Pedidos).

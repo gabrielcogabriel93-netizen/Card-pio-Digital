@@ -4,6 +4,7 @@ import type Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { constructWebhookEvent, calculateCommissionAmount } from '@/lib/stripe'
 import { log, logError } from '@/lib/logger'
+import type { PlanTier } from '@/lib/plans'
 
 export const runtime = 'nodejs'
 
@@ -93,14 +94,25 @@ async function handleInvoicePaymentSucceeded(admin: SupabaseClient, invoice: Str
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle()
 
+  // Sempre busca a subscription na Stripe (não só no fallback) -- é
+  // dali que vem qual PLANO (tier) foi assinado (migration 041,
+  // plan_tier). subscription_data.metadata carrega isso desde o
+  // checkout (lib/stripe.ts), então precisamos ler de volta aqui pra
+  // gravar o tier certo no exato momento em que o pagamento confirma
+  // (não em checkout.session.completed: se gravássemos plan_tier ali,
+  // antes do pagamento confirmar, e o pagamento falhasse depois, a loja
+  // ficaria com acesso Completo permanente -- establishment_has_completo_access
+  // nunca mais checaria current_period_end pra essa loja).
+  const { getStripeClient } = await import('@/lib/stripe')
+  const stripe = getStripeClient()
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  const tier: PlanTier = subscription.metadata?.tier === 'completo' ? 'completo' : 'essencial'
+
   // Fallback raro: invoice.payment_succeeded chegou antes de
   // checkout.session.completed terminar de gravar (webhooks não têm
   // ordem garantida). Recupera o establishmentId direto dos metadados da
   // subscription na Stripe e já aproveita pra gravar o vínculo.
   if (!establishment) {
-    const { getStripeClient } = await import('@/lib/stripe')
-    const stripe = getStripeClient()
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const establishmentId = subscription.metadata?.establishmentId
     if (!establishmentId) {
       log('api:stripe:webhook', 'fatura paga sem establishment correspondente', { subscriptionId })
@@ -122,11 +134,11 @@ async function handleInvoicePaymentSucceeded(admin: SupabaseClient, invoice: Str
 
   const { error: updateError } = await admin
     .from('establishments')
-    .update({ subscription_status: 'active', ...(periodEnd ? { current_period_end: periodEnd } : {}) })
+    .update({ subscription_status: 'active', plan_tier: tier, ...(periodEnd ? { current_period_end: periodEnd } : {}) })
     .eq('id', establishment.id)
   if (updateError) throw updateError
 
-  log('api:stripe:webhook', 'assinatura da plataforma confirmada', { establishmentId: establishment.id, periodEnd })
+  log('api:stripe:webhook', 'assinatura da plataforma confirmada', { establishmentId: establishment.id, tier, periodEnd })
 
   await recordCommissionIfReferred(admin, {
     establishmentId: establishment.id,

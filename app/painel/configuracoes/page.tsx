@@ -50,6 +50,8 @@ export default function ConfiguracoesPage() {
     auto_preparing_minutes: '5',
     auto_completed_minutes_pickup: '15',
     auto_completed_minutes_delivery: '30',
+    abandoned_cart_minutes: '15',
+    inactive_customer_days: '20',
   })
   const [mpStatus, setMpStatus] = useState<{ connected: boolean; email: string | null } | null>(null)
   const [mpStatusLoading, setMpStatusLoading] = useState(true)
@@ -176,6 +178,8 @@ export default function ConfiguracoesPage() {
           auto_preparing_minutes: String(data.auto_preparing_minutes ?? 5),
           auto_completed_minutes_pickup: String(data.auto_completed_minutes_pickup ?? 15),
           auto_completed_minutes_delivery: String(data.auto_completed_minutes_delivery ?? 30),
+          abandoned_cart_minutes: String(data.abandoned_cart_minutes ?? 15),
+          inactive_customer_days: String(data.inactive_customer_days ?? 20),
         })
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
@@ -233,6 +237,8 @@ export default function ConfiguracoesPage() {
           auto_preparing_minutes: parseInt(formData.auto_preparing_minutes) || 0,
           auto_completed_minutes_pickup: parseInt(formData.auto_completed_minutes_pickup) || 0,
           auto_completed_minutes_delivery: parseInt(formData.auto_completed_minutes_delivery) || 0,
+          abandoned_cart_minutes: parseInt(formData.abandoned_cart_minutes) || 15,
+          inactive_customer_days: parseInt(formData.inactive_customer_days) || 20,
         })
         .eq('owner_id', user.id)
 
@@ -673,6 +679,49 @@ export default function ConfiguracoesPage() {
               </p>
             </div>
           )}
+        </div>
+
+        {/* Carrinho abandonado (migration 042) */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Carrinho abandonado</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Quando um cliente chega a informar o telefone na etapa de finalizar pedido mas não confirma o
+            envio, o pedido entra na lista de &quot;Carrinhos abandonados&quot; em WhatsApp, pra você chamar
+            de volta.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Considerar abandonado depois de (minutos)
+            </label>
+            <input
+              type="number"
+              min="1"
+              className="input-field max-w-[140px]"
+              value={formData.abandoned_cart_minutes}
+              onChange={(e) => setFormData({ ...formData, abandoned_cart_minutes: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {/* Reengajamento de clientes inativos */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Clientes inativos</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Clientes que já pediram antes mas não voltam a pedir aparecem numa lista em WhatsApp, com um
+            botão pra chamar de volta.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Considerar inativo depois de (dias sem pedir)
+            </label>
+            <input
+              type="number"
+              min="1"
+              className="input-field max-w-[140px]"
+              value={formData.inactive_customer_days}
+              onChange={(e) => setFormData({ ...formData, inactive_customer_days: e.target.value })}
+            />
+          </div>
         </div>
 
         {/* Pix */}

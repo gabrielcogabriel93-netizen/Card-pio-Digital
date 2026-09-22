@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import type { Order, OrderItem } from '@/types'
-import { TrendingUp, DollarSign, Clock, Award, Loader2, ShoppingBag } from 'lucide-react'
+import { FeatureGate } from '@/components/FeatureGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
+import { TrendingUp, DollarSign, Clock, Award, Loader2, ShoppingBag, ShoppingCart, CalendarDays } from 'lucide-react'
 
 type Period = 'today' | 'week' | 'month' | 'custom'
 
@@ -14,9 +16,13 @@ interface ProductStat {
   revenue: number
 }
 
+const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+
 export default function RelatoriosPage() {
+  const { hasCompletoAccess } = useSubscription()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [abandonedCartsCount, setAbandonedCartsCount] = useState(0)
   const [period, setPeriod] = useState<Period>('week')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -93,6 +99,16 @@ export default function RelatoriosPage() {
 
       if (error) logError('painel:relatorios', 'erro ao carregar pedidos', error)
       if (data) setOrders(data as Order[])
+
+      // Carrinhos abandonados no período (migration 042) -- só a
+      // contagem, pra não trazer telefone/nome de cliente pra esta tela.
+      const { count } = await supabase
+        .from('cart_drafts')
+        .select('id', { count: 'exact', head: true })
+        .eq('establishment_id', est.id)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+      setAbandonedCartsCount(count ?? 0)
     } catch (error) {
       logError('painel:relatorios', 'exceção ao carregar relatórios', error)
     } finally {
@@ -132,12 +148,58 @@ export default function RelatoriosPage() {
   const maxHourCount = Math.max(1, ...hourCounts)
   const peakHour = hourCounts.indexOf(Math.max(...hourCounts))
 
+  // Mais vendidos por dia da semana: mesma agregação de productStats,
+  // só bucketizada por .getDay() (0=domingo) em vez de um total único.
+  const weekdayStats = (() => {
+    const buckets: Map<string, ProductStat>[] = Array.from({ length: 7 }, () => new Map())
+    const orderCounts = new Array(7).fill(0)
+    orders.forEach((order) => {
+      const day = new Date(order.created_at).getDay()
+      orderCounts[day]++
+      ;(order.items as OrderItem[]).forEach((item) => {
+        const map = buckets[day]
+        const current = map.get(item.product_name) || { name: item.product_name, quantity: 0, revenue: 0 }
+        current.quantity += item.quantity
+        current.revenue += item.total_price
+        map.set(item.product_name, current)
+      })
+    })
+    return WEEKDAY_NAMES.map((name, day) => ({
+      name,
+      orderCount: orderCounts[day],
+      topProducts: Array.from(buckets[day].values()).sort((a, b) => b.quantity - a.quantity).slice(0, 3),
+    }))
+  })()
+
+  // Mais vendido por horário: mesma ideia, bucketizada por .getHours() --
+  // só o produto nº1 de cada hora, pra caber numa lista compacta.
+  const hourlyTopProduct = (() => {
+    const buckets: Map<string, ProductStat>[] = Array.from({ length: 24 }, () => new Map())
+    orders.forEach((order) => {
+      const hour = new Date(order.created_at).getHours()
+      ;(order.items as OrderItem[]).forEach((item) => {
+        const map = buckets[hour]
+        const current = map.get(item.product_name) || { name: item.product_name, quantity: 0, revenue: 0 }
+        current.quantity += item.quantity
+        current.revenue += item.total_price
+        map.set(item.product_name, current)
+      })
+    })
+    return buckets
+      .map((map, hour) => ({ hour, top: Array.from(map.values()).sort((a, b) => b.quantity - a.quantity)[0] }))
+      .filter((h) => h.top)
+  })()
+
   if (loading && orders.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 size={32} className="animate-spin text-primary-500" />
       </div>
     )
+  }
+
+  if (!hasCompletoAccess) {
+    return <FeatureGate featureName="Relatórios financeiros" description="Faturamento, ticket médio, produtos mais vendidos e horário de pico." />
   }
 
   return (
@@ -203,6 +265,13 @@ export default function RelatoriosPage() {
           </p>
           <p className="text-sm text-gray-600">Horário de pico</p>
         </div>
+        <div className="card">
+          <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center mb-2">
+            <ShoppingCart size={20} className="text-rose-600" />
+          </div>
+          <p className="stat-value">{abandonedCartsCount}</p>
+          <p className="text-sm text-gray-600">Carrinhos abandonados</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -255,6 +324,61 @@ export default function RelatoriosPage() {
                     style={{ height: `${(count / maxHourCount) * 100}%`, minHeight: count > 0 ? '2px' : '0' }}
                   />
                   {hour % 4 === 0 && <span className="text-[10px] text-gray-400 mt-1">{hour}h</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Insights de vendas: mais vendidos por dia da semana e por horário */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <CalendarDays size={18} className="text-primary-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Mais vendidos por dia da semana</h2>
+          </div>
+          {orders.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda no período.</p>
+          ) : (
+            <div className="space-y-3">
+              {weekdayStats.map((w) => (
+                <div key={w.name} className="flex items-center justify-between gap-3 border-b border-gray-100 last:border-0 pb-2 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{w.name}</p>
+                    <p className="text-xs text-gray-500">{w.orderCount} pedido(s)</p>
+                  </div>
+                  <div className="text-right min-w-0">
+                    {w.topProducts.length === 0 ? (
+                      <span className="text-xs text-gray-400">—</span>
+                    ) : (
+                      w.topProducts.map((p) => (
+                        <p key={p.name} className="text-xs text-gray-700 truncate">
+                          {p.quantity}x {p.name}
+                        </p>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Award size={18} className="text-primary-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Mais vendido por horário</h2>
+          </div>
+          {hourlyTopProduct.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda no período.</p>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {hourlyTopProduct.map(({ hour, top }) => (
+                <div key={hour} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-gray-500 w-10 flex-shrink-0">{String(hour).padStart(2, '0')}h</span>
+                  <span className="flex-1 text-gray-900 truncate">{top.name}</span>
+                  <span className="text-gray-500 flex-shrink-0">{top.quantity}x</span>
                 </div>
               ))}
             </div>

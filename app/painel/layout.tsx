@@ -7,7 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { SubscriptionPaywall } from '@/components/SubscriptionPaywall'
+import { SubscriptionProvider } from '@/contexts/SubscriptionContext'
 import { Logo } from '@/components/Logo'
+import type { PlanTier } from '@/lib/plans'
 import {
   LayoutDashboard,
   Package,
@@ -33,20 +35,24 @@ import {
   Layers,
 } from 'lucide-react'
 
+// requiresCompleto: item continua sempre visível na nav (pedido
+// explícito -- nunca esconder sem explicação); só ganha um badge "Completo"
+// quando a loja não tem acesso, ver render abaixo. O bloqueio de
+// verdade acontece dentro de cada página (FeatureGate), não aqui.
 const navigation = [
   { name: 'Dashboard', href: '/painel', icon: LayoutDashboard },
   { name: 'Produtos', href: '/painel/produtos', icon: Package },
   { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
   { name: 'Combos', href: '/painel/combos', icon: Layers },
   { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
-  { name: 'Cupons', href: '/painel/cupons', icon: Tag },
-  { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift },
+  { name: 'Cupons', href: '/painel/cupons', icon: Tag, requiresCompleto: true },
+  { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift, requiresCompleto: true },
   { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
-  { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store },
-  { name: 'Mesas', href: '/painel/mesas', icon: Table2 },
+  { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store, requiresCompleto: true },
+  { name: 'Mesas', href: '/painel/mesas', icon: Table2, requiresCompleto: true },
   { name: 'Bairros', href: '/painel/bairros', icon: MapPin },
   { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
-  { name: 'Relatórios', href: '/painel/relatorios', icon: TrendingUp },
+  { name: 'Relatórios', href: '/painel/relatorios', icon: TrendingUp, requiresCompleto: true },
   { name: 'WhatsApp', href: '/painel/whatsapp', icon: MessageCircle },
   { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
   { name: 'Planos', href: '/painel/planos', icon: Sparkles },
@@ -71,6 +77,8 @@ export default function PainelLayout({
     blocked: boolean
     reason: 'trial_expired' | 'subscription_expired' | null
     monthlyPrice: number
+    planTier: PlanTier
+    hasCompletoAccess: boolean
   } | null>(null)
   // Só true pro e-mail do dono da plataforma (PLATFORM_ADMIN_EMAILS) —
   // checado no servidor, aqui só decide se mostra o atalho no menu.
@@ -128,13 +136,18 @@ export default function PainelLayout({
           const { data: subStatus, error: subError } = await supabase.rpc('get_my_subscription_status')
           if (subError) {
             logError('painel:layout', 'erro ao checar assinatura', subError)
-            setSubscription({ blocked: false, reason: null, monthlyPrice: 49.9 })
+            // Falha ao consultar -- não trava ninguém por uma falha
+            // transitória nossa (mesmo espírito de blocked:false já
+            // usado aqui: fail-open, nunca fail-closed).
+            setSubscription({ blocked: false, reason: null, monthlyPrice: 49.9, planTier: 'completo', hasCompletoAccess: true })
           } else {
             const row = subStatus?.[0]
             setSubscription({
               blocked: !!row?.blocked,
               reason: row?.status === 'active' ? 'subscription_expired' : 'trial_expired',
               monthlyPrice: Number(row?.monthly_price ?? 49.9),
+              planTier: row?.plan_tier === 'completo' ? 'completo' : 'essencial',
+              hasCompletoAccess: row?.completo_access !== false,
             })
           }
         } else {
@@ -214,8 +227,9 @@ export default function PainelLayout({
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = pathname === item.href || 
+              const isActive = pathname === item.href ||
                 (item.href !== '/painel' && pathname.startsWith(item.href))
+              const showLockBadge = item.requiresCompleto && subscription && !subscription.hasCompletoAccess
               return (
                 <Link
                   key={item.name}
@@ -228,7 +242,12 @@ export default function PainelLayout({
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon size={20} />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>
+                  {showLockBadge && (
+                    <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                      Completo
+                    </span>
+                  )}
                 </Link>
               )
             })}
@@ -289,7 +308,15 @@ export default function PainelLayout({
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">
-          {children}
+          <SubscriptionProvider
+            value={{
+              planTier: subscription?.planTier ?? 'completo',
+              hasCompletoAccess: subscription?.hasCompletoAccess ?? true,
+              monthlyPrice: subscription?.monthlyPrice ?? 49.9,
+            }}
+          >
+            {children}
+          </SubscriptionProvider>
         </main>
       </div>
     </div>

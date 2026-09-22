@@ -5,12 +5,15 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { LoyaltySettings, LoyaltyReward, LoyaltyBenefitType } from '@/types'
+import { FeatureGate } from '@/components/FeatureGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Edit2, Trash2, X, Loader2, Gift, ToggleLeft, ToggleRight } from 'lucide-react'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
 export default function FidelidadePage() {
+  const { hasCompletoAccess } = useSubscription()
   const [establishmentId, setEstablishmentId] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -216,6 +219,10 @@ export default function FidelidadePage() {
         <Loader2 size={32} className="animate-spin text-primary-500" />
       </div>
     )
+  }
+
+  if (!hasCompletoAccess) {
+    return <FeatureGate featureName="O programa de fidelidade" description="Cliente ganha pontos a cada compra e troca por desconto ou frete grátis." />
   }
 
   return (

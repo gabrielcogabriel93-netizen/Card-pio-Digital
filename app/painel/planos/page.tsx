@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logError } from '@/lib/logger'
-import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle, Loader2, Clock, ShieldCheck, CreditCard } from 'lucide-react'
+import { COMPLETO_MONTHLY_PRICE, ESSENCIAL_FEATURES, COMPLETO_FEATURES, type PlanTier } from '@/lib/plans'
+import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle, Loader2, Clock, CreditCard, Layers } from 'lucide-react'
 
 // Contato pra quem quiser saber mais sobre os planos pagos que ainda
 // estão em preparação — nenhum checkout de verdade acontece aqui, só
@@ -16,14 +17,6 @@ const CONTACT_WHATSAPP = '5521972652314'
 const PIX_PHONE_DISPLAY = '(21) 97265-2314'
 const PIX_PHONE_KEY = '+5521972652314'
 
-const INCLUDED_FEATURES = [
-  'Cardápio digital ilimitado, com fotos e variações',
-  'Pedidos via WhatsApp, com link de acompanhamento',
-  'Painel de pedidos, balcão/PDV e financeiro',
-  'Cupons de desconto e controle de estoque',
-  'Cor de marca personalizada no cardápio',
-]
-
 interface SubscriptionInfo {
   blocked: boolean
   status: 'trial' | 'active' | 'exempt'
@@ -31,6 +24,8 @@ interface SubscriptionInfo {
   currentPeriodEnd: string | null
   monthlyPrice: number
   billingEnabled: boolean
+  planTier: PlanTier
+  hasCompletoAccess: boolean
 }
 
 export default function PlanosPage() {
@@ -56,6 +51,8 @@ export default function PlanosPage() {
             currentPeriodEnd: row.current_period_end,
             monthlyPrice: Number(row.monthly_price),
             billingEnabled: !!row.billing_enabled,
+            planTier: row.plan_tier === 'completo' ? 'completo' : 'essencial',
+            hasCompletoAccess: !!row.completo_access,
           })
         }
       } catch (err) {
@@ -67,11 +64,15 @@ export default function PlanosPage() {
     loadSubscription()
   }, [])
 
-  const handleAssinar = async () => {
+  const handleAssinar = async (tier: PlanTier) => {
     setStartingCheckout(true)
     setCheckoutError(null)
     try {
-      const response = await fetch('/api/subscription/create-payment', { method: 'POST' })
+      const response = await fetch('/api/subscription/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier }),
+      })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Erro ao iniciar assinatura')
       window.location.href = data.url
@@ -101,9 +102,9 @@ export default function PlanosPage() {
         <p className="text-gray-600 mt-1">Sua assinatura e como apoiar o projeto.</p>
       </div>
 
-      {/* Plano atual */}
+      {/* Status atual */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Sparkles size={20} className="text-primary-500" />
             <h2 className="text-lg font-semibold text-gray-900">Seu plano</h2>
@@ -123,88 +124,107 @@ export default function PlanosPage() {
 
         {!loadingSub && subscription && (
           !subscription.billingEnabled ? (
-            <p className="text-gray-600 text-sm mb-4">
-              Você tem 7 dias grátis, com todas as funcionalidades abaixo já liberadas — sem limite de
-              produtos e sem precisar de cartão de crédito.
+            <p className="text-gray-600 text-sm">
+              Você tem 7 dias grátis, com todas as funcionalidades dos dois planos já liberadas — sem
+              precisar de cartão de crédito.
             </p>
           ) : subscription.status === 'exempt' ? (
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-gray-600 text-sm">
               Sua conta tem acesso liberado por cortesia, sem cobrança da mensalidade.
             </p>
           ) : subscription.status === 'active' ? (
-            <p className="text-gray-600 text-sm mb-4">
-              Assinatura mensal de {formatCurrency(subscription.monthlyPrice)}
+            <p className="text-gray-600 text-sm">
+              Plano {subscription.planTier === 'completo' ? 'Completo' : 'Essencial'}
               {formatDate(subscription.currentPeriodEnd) && (
                 <> — renova em {formatDate(subscription.currentPeriodEnd)}.</>
               )}
             </p>
           ) : (
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-gray-600 text-sm">
               {formatDate(subscription.trialEndsAt) ? (
-                <>Seu período de teste grátis termina em {formatDate(subscription.trialEndsAt)}. Depois disso, a
-                assinatura mensal de {formatCurrency(subscription.monthlyPrice)} é cobrada via Pix pra continuar
-                usando o painel.</>
+                <>Seu período de teste grátis termina em {formatDate(subscription.trialEndsAt)}, com tudo
+                liberado até lá. Depois disso, escolha um dos planos abaixo pra continuar usando o painel.</>
               ) : (
-                <>Você ainda está no período de teste, sem prazo definido.</>
+                <>Você ainda está no período de teste, sem prazo definido, com tudo liberado.</>
               )}
             </p>
           )
         )}
-
-        <div className="space-y-2">
-          {INCLUDED_FEATURES.map((feature) => (
-            <div key={feature} className="flex items-center gap-2 text-sm text-gray-700">
-              <CheckCircle2 size={16} className="text-primary-500 flex-shrink-0" />
-              {feature}
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Mensalidade da plataforma */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-2">
-          <ShieldCheck size={20} className="text-primary-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Mensalidade da plataforma</h2>
-        </div>
-        <p className="text-gray-600 text-sm mb-2">
-          A partir de {formatCurrency(subscription?.monthlyPrice || 49.9)}/mês, via cartão (checkout
-          seguro da Stripe) — sem contrato de fidelidade, cancelável quando quiser.
-        </p>
-        <p className="text-gray-600 text-sm mb-4 flex items-center gap-1.5">
-          <Clock size={14} className="text-gray-400 flex-shrink-0" />
-          Essa cobrança é separada da comissão de {formatCurrency(1)} por pedido pago automaticamente pelo
-          Mercado Pago no seu cardápio, que continua valendo do mesmo jeito.
-        </p>
+      {checkoutError && (
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{checkoutError}</div>
+      )}
 
-        {checkoutError && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{checkoutError}</div>
-        )}
-
-        <div className="flex flex-wrap gap-3">
-          {subscription?.billingEnabled && subscription.status !== 'exempt' && (
-            <button onClick={handleAssinar} className="btn-primary inline-flex" disabled={startingCheckout}>
-              {startingCheckout ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <>
-                  <CreditCard size={18} />
-                  {subscription.status === 'active' ? 'Atualizar forma de pagamento' : 'Assinar agora'}
-                </>
+      {/* Dois planos */}
+      <div className="grid sm:grid-cols-2 gap-4">
+        {(
+          [
+            { tier: 'essencial' as PlanTier, name: 'Essencial', price: subscription?.monthlyPrice ?? 49.9, features: ESSENCIAL_FEATURES },
+            { tier: 'completo' as PlanTier, name: 'Completo', price: COMPLETO_MONTHLY_PRICE, features: COMPLETO_FEATURES },
+          ]
+        ).map((plan) => {
+          const isCurrent = subscription?.planTier === plan.tier
+          return (
+            <div
+              key={plan.tier}
+              className={`card ${plan.tier === 'completo' ? 'border-2 border-primary-500' : ''}`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
+                  {plan.tier === 'completo' && <Layers size={16} className="text-primary-600" />}
+                  {plan.name}
+                </h3>
+                {isCurrent && <span className="badge bg-primary-100 text-primary-700">Plano atual</span>}
+              </div>
+              <p className="text-2xl font-bold text-gray-900 mb-3">
+                {formatCurrency(plan.price)}<span className="text-sm font-normal text-gray-500">/mês</span>
+              </p>
+              <div className="space-y-1.5 mb-4">
+                {plan.features.map((feature) => (
+                  <div key={feature} className="flex items-center gap-2 text-sm text-gray-700">
+                    <CheckCircle2 size={15} className="text-primary-500 flex-shrink-0" />
+                    {feature}
+                  </div>
+                ))}
+              </div>
+              {subscription?.billingEnabled && subscription.status !== 'exempt' && !isCurrent && (
+                <button
+                  onClick={() => handleAssinar(plan.tier)}
+                  className="btn-primary w-full"
+                  disabled={startingCheckout}
+                >
+                  {startingCheckout ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <>
+                      <CreditCard size={18} />
+                      {plan.tier === 'completo' ? 'Fazer upgrade' : 'Assinar'}
+                    </>
+                  )}
+                </button>
               )}
-            </button>
-          )}
-          <a
-            href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do CatalogAI.')}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary inline-flex"
-          >
-            <MessageCircle size={18} />
-            Falar no WhatsApp
-          </a>
-        </div>
+            </div>
+          )
+        })}
       </div>
+
+      <p className="text-gray-500 text-xs flex items-center gap-1.5">
+        <Clock size={14} className="text-gray-400 flex-shrink-0" />
+        Cobrança via cartão (checkout seguro da Stripe), sem contrato de fidelidade — cancelável quando
+        quiser. Separada da comissão de {formatCurrency(1)} por pedido pago automaticamente pelo Mercado Pago
+        no seu cardápio, que continua valendo do mesmo jeito.
+      </p>
+
+      <a
+        href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do CatalogAI.')}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn-secondary inline-flex"
+      >
+        <MessageCircle size={18} />
+        Falar no WhatsApp
+      </a>
 
       {/* Doação */}
       <div className="card bg-gradient-to-br from-primary-50 to-white border-primary-100">

@@ -9,9 +9,12 @@ interface OverrideBody {
   // 'exempt' isenta de cobrança pra sempre (cortesia); 'restore' volta ao
   // fluxo normal de trial/assinatura; 'set_trial_ends_at' ajusta o prazo
   // manualmente — útil tanto pro suporte quanto pra testar o bloqueio sem
-  // esperar 7 dias de verdade.
-  action: 'exempt' | 'restore' | 'set_trial_ends_at'
+  // esperar 7 dias de verdade. 'set_plan_tier' (migration 041) muda o
+  // plano manualmente, sem passar pelo checkout Stripe -- pra corrigir
+  // caso a caso sem precisar mexer direto no banco.
+  action: 'exempt' | 'restore' | 'set_trial_ends_at' | 'set_plan_tier'
   trialEndsAt?: string
+  planTier?: 'essencial' | 'completo'
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
@@ -41,6 +44,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         return NextResponse.json({ error: 'trialEndsAt é obrigatório' }, { status: 400 })
       }
       const { error } = await admin.from('establishments').update({ trial_ends_at: body.trialEndsAt }).eq('id', params.id)
+      if (error) throw error
+    } else if (body.action === 'set_plan_tier') {
+      if (body.planTier !== 'essencial' && body.planTier !== 'completo') {
+        return NextResponse.json({ error: 'planTier inválido' }, { status: 400 })
+      }
+      const { error } = await admin.from('establishments').update({ plan_tier: body.planTier }).eq('id', params.id)
       if (error) throw error
     } else {
       return NextResponse.json({ error: 'Ação desconhecida' }, { status: 400 })

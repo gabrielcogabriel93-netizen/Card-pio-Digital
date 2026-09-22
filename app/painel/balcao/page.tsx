@@ -10,6 +10,8 @@ import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import type { Product, Category, CartItem, VariationGroup, VariationOption, Combo } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderModal'
+import { FeatureGate } from '@/components/FeatureGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle, Layers } from 'lucide-react'
 
 // Valor de filterCategory reservado pra mostrar a lista de combos em vez
@@ -17,6 +19,7 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, Ale
 const COMBOS_FILTER = '__combos__'
 
 export default function BalcaoPage() {
+  const { hasCompletoAccess } = useSubscription()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [combos, setCombos] = useState<Combo[]>([])
@@ -353,6 +356,10 @@ export default function BalcaoPage() {
         <Loader2 size={32} className="animate-spin text-primary-500" />
       </div>
     )
+  }
+
+  if (!hasCompletoAccess) {
+    return <FeatureGate featureName="O Balcão / PDV" description="Venda presencial rápida com busca de produtos e baixa de estoque automática." />
   }
 
   return (

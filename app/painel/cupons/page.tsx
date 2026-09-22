@@ -5,9 +5,12 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Coupon } from '@/types'
+import { FeatureGate } from '@/components/FeatureGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Edit2, Trash2, X, Loader2, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
 
 export default function CuponsPage() {
+  const { hasCompletoAccess } = useSubscription()
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [establishmentId, setEstablishmentId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -170,6 +173,10 @@ export default function CuponsPage() {
         <Loader2 size={32} className="animate-spin text-primary-500" />
       </div>
     )
+  }
+
+  if (!hasCompletoAccess) {
+    return <FeatureGate featureName="Cupons de desconto" description="Crie cupons por código, com validade e limite de uso por cliente." />
   }
 
   return (

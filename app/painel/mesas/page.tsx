@@ -7,6 +7,8 @@ import { useEscapeKey } from '@/lib/useEscapeKey'
 import { QrCodeImage } from '@/components/QrCodeImage'
 import { sumTabTotal } from '@/lib/tableTab'
 import type { RestaurantTable, Order } from '@/types'
+import { FeatureGate } from '@/components/FeatureGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Edit2, Trash2, X, Loader2, Table2, ToggleLeft, ToggleRight, QrCode, Printer, Clock, Receipt } from 'lucide-react'
 
 interface OpenTab {
@@ -18,6 +20,7 @@ interface OpenTab {
 }
 
 export default function MesasPage() {
+  const { hasCompletoAccess } = useSubscription()
   const [establishmentId, setEstablishmentId] = useState('')
   const [establishmentSlug, setEstablishmentSlug] = useState('')
   const [customDomain, setCustomDomain] = useState<string | null>(null)
@@ -202,6 +205,10 @@ export default function MesasPage() {
         <Loader2 size={32} className="animate-spin text-primary-500" />
       </div>
     )
+  }
+
+  if (!hasCompletoAccess) {
+    return <FeatureGate featureName="O cardápio de mesa com QR Code" description="Cada mesa tem um QR Code — o cliente escaneia, pede pelo celular e tudo fica na comanda." />
   }
 
   return (

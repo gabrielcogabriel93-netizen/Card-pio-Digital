@@ -337,6 +337,39 @@ export default function PublicMenuClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCustomerModal])
 
+  // Carrinho abandonado (migration 042): assim que o telefone fica
+  // válido na etapa de "Finalizar Pedido", salva/atualiza um rascunho
+  // do carrinho (debounced) — é o único momento em que dá pra saber o
+  // telefone do lado do servidor antes do pedido ser confirmado (ver
+  // comentário na migration). Não roda em modo mesa (isTableMode): lá
+  // o telefone é opcional e o fluxo não passa pelo WhatsApp.
+  useEffect(() => {
+    if (isTableMode || !showCustomerModal) return
+    const digits = customerPhone.replace(/\D/g, '')
+    if (digits.length < 10 || cart.length === 0) return
+
+    const timer = setTimeout(() => {
+      const supabase = createClient()
+      supabase
+        .rpc('save_cart_draft', {
+          p_establishment_id: establishment.id,
+          p_customer_phone: customerPhone,
+          p_customer_name: customerName,
+          p_cart_snapshot: cart.map((item) => ({
+            name: item.product.name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+          })),
+          p_cart_total: cartSubtotal,
+        })
+        .then(({ error }) => {
+          if (error) logError('loja', 'erro ao salvar rascunho de carrinho', error)
+        })
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  }, [isTableMode, showCustomerModal, customerPhone, customerName, cart, cartSubtotal, establishment.id])
+
   const handleDeleteSavedAddress = async (addressId: string) => {
     if (!confirm('Remover este endereço salvo?')) return
     try {
@@ -829,6 +862,16 @@ export default function PublicMenuClient({
       if (orderError) throw orderError
       log('loja', 'pedido salvo com sucesso, montando mensagem do WhatsApp...')
       if (orderType === 'delivery') saveAddress(address)
+
+      // Pedido confirmado -- não é mais "abandonado" (migration 042).
+      // Best-effort: uma falha aqui não pode derrubar o pedido, que já
+      // foi salvo com sucesso.
+      supabase.rpc('mark_cart_draft_recovered', {
+        p_establishment_id: establishment.id,
+        p_customer_phone: customerPhone.trim(),
+      }).then(({ error }) => {
+        if (error) logError('loja', 'erro ao marcar carrinho como recuperado', error)
+      })
 
       // Salva o perfil (nome + telefone) e, se foi um endereço novo, o
       // endereço com o rótulo — vinculado ao telefone, então funciona
@@ -1779,7 +1822,7 @@ export default function PublicMenuClient({
               </div>
             )}
 
-            {cart.length > 0 && (
+            {cart.length > 0 && establishment.has_completo_access !== false && (
               <div className="p-4 border-t border-gray-200 space-y-2">
                 {/* Cupom */}
                 {appliedCoupon ? (

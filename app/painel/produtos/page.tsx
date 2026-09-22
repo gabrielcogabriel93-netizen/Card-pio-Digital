@@ -6,11 +6,14 @@ import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
+import { FeatureGateInline } from '@/components/FeatureGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers, Copy } from 'lucide-react'
 
 type GroupWithOptions = VariationGroup & { options: VariationOption[] }
 
 export default function ProdutosPage() {
+  const { hasCompletoAccess } = useSubscription()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [establishmentId, setEstablishmentId] = useState('')
@@ -269,7 +272,12 @@ export default function ProdutosPage() {
         price: parseFloat(formData.price),
         category_id: formData.category_id || null,
         stock_qty: parseInt(formData.stock_qty) || 0,
-        track_stock: formData.track_stock,
+        // Loja essencial não vê o controle de estoque (JSX abaixo) --
+        // força false aqui pra não deixar track_stock=true "vazar" do
+        // valor padrão do formData (openNewProduct) sem o lojista ter
+        // decidido nada, o que deixaria o produto marcado como
+        // esgotado (stock_qty=0) sem ele saber por quê.
+        track_stock: hasCompletoAccess ? formData.track_stock : false,
         is_active: formData.is_active,
         is_featured: formData.is_featured,
         image_url: formData.image_url || null,
@@ -714,29 +722,33 @@ export default function ProdutosPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.track_stock}
-                    onChange={(e) => setFormData({ ...formData, track_stock: e.target.checked })}
-                    className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-gray-700">Controlar estoque</span>
-                </label>
-                {formData.track_stock && (
-                  <div className="flex-1">
+              {hasCompletoAccess ? (
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="number"
-                      min="0"
-                      className="input-field"
-                      value={formData.stock_qty}
-                      onChange={(e) => setFormData({ ...formData, stock_qty: e.target.value })}
-                      placeholder="Quantidade"
+                      type="checkbox"
+                      checked={formData.track_stock}
+                      onChange={(e) => setFormData({ ...formData, track_stock: e.target.checked })}
+                      className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                     />
-                  </div>
-                )}
-              </div>
+                    <span className="text-sm text-gray-700">Controlar estoque</span>
+                  </label>
+                  {formData.track_stock && (
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        className="input-field"
+                        value={formData.stock_qty}
+                        onChange={(e) => setFormData({ ...formData, stock_qty: e.target.value })}
+                        placeholder="Quantidade"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <FeatureGateInline featureName="Controle de estoque" />
+              )}
 
               <ImageUpload
                 label="Foto do produto (opcional)"

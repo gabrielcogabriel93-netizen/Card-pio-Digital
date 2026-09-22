@@ -104,7 +104,11 @@ export interface CreateSubscriptionCheckoutParams {
   establishmentId: string
   establishmentName: string
   ownerEmail: string
-  amount: number // em reais (ex: 49.90)
+  amount: number // em reais (ex: 49.90) -- já calculado pelo chamador a partir da tier
+  // Plano escolhido (migration 041) -- vai só nos metadata da sessão,
+  // pro webhook saber em qual plan_tier gravar quando o pagamento
+  // confirmar (ver app/api/stripe/webhook/route.ts).
+  tier: 'essencial' | 'completo'
   successUrl: string
   cancelUrl: string
   stripeCustomerId?: string | null
@@ -132,13 +136,15 @@ export async function createSubscriptionCheckoutSession(
   const stripe = getStripeClient()
 
   const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
-    metadata: { establishmentId: params.establishmentId },
+    metadata: { establishmentId: params.establishmentId, tier: params.tier },
   }
 
   if (params.divulgadorConnect) {
     subscriptionData.application_fee_percent = params.divulgadorConnect.percentualComissao
     subscriptionData.transfer_data = { destination: params.divulgadorConnect.stripeAccountId }
   }
+
+  const planLabel = params.tier === 'completo' ? 'Completo' : 'Essencial'
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -149,7 +155,7 @@ export async function createSubscriptionCheckoutSession(
       {
         price_data: {
           currency: 'brl',
-          product_data: { name: `Assinatura CatalogAI - ${params.establishmentName}` },
+          product_data: { name: `Assinatura CatalogAI (${planLabel}) - ${params.establishmentName}` },
           unit_amount: Math.round(params.amount * 100),
           recurring: { interval: 'month' },
         },
@@ -157,7 +163,7 @@ export async function createSubscriptionCheckoutSession(
       },
     ],
     subscription_data: subscriptionData,
-    metadata: { establishmentId: params.establishmentId },
+    metadata: { establishmentId: params.establishmentId, tier: params.tier },
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
   })

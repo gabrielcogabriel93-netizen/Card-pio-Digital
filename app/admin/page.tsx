@@ -26,6 +26,7 @@ interface EstablishmentRow {
   trialEndsAt: string | null
   currentPeriodEnd: string | null
   blocked: boolean
+  planTier: 'essencial' | 'completo'
 }
 
 interface Overview {
@@ -156,6 +157,25 @@ export default function AdminPage() {
     } catch (err: any) {
       logError('admin:page', 'erro ao aplicar override', err)
       alert(err.message || 'Erro ao aplicar alteração')
+    } finally {
+      setRowActionId(null)
+    }
+  }
+
+  const handleSetPlanTier = async (establishmentId: string, planTier: 'essencial' | 'completo') => {
+    setRowActionId(establishmentId)
+    try {
+      const response = await fetch(`/api/admin/establishments/${establishmentId}/override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_plan_tier', planTier }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Erro ao alterar plano')
+      await loadOverview()
+    } catch (err: any) {
+      logError('admin:page', 'erro ao alterar plano', err)
+      alert(err.message || 'Erro ao alterar plano')
     } finally {
       setRowActionId(null)
     }
@@ -310,6 +330,7 @@ export default function AdminPage() {
               <th className="pb-2 pr-3">Status</th>
               <th className="pb-2 pr-3">Prazo</th>
               <th className="pb-2 pr-3">Acesso</th>
+              <th className="pb-2 pr-3">Plano</th>
               <th className="pb-2">Ações</th>
             </tr>
           </thead>
@@ -335,6 +356,17 @@ export default function AdminPage() {
                   ) : (
                     <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Liberado</span>
                   )}
+                </td>
+                <td className="py-2 pr-3">
+                  <select
+                    value={row.planTier}
+                    onChange={(e) => handleSetPlanTier(row.id, e.target.value as 'essencial' | 'completo')}
+                    disabled={rowActionId === row.id}
+                    className="input-field text-xs py-1 w-auto"
+                  >
+                    <option value="essencial">Essencial</option>
+                    <option value="completo">Completo</option>
+                  </select>
                 </td>
                 <td className="py-2">
                   <div className="flex items-center gap-2">

@@ -24,7 +24,7 @@ export async function GET() {
 
     const { data: establishments, error: estError } = await admin
       .from('establishments')
-      .select('id, name, slug, created_at, subscription_status, trial_ends_at, current_period_end')
+      .select('id, name, slug, created_at, subscription_status, trial_ends_at, current_period_end, plan_tier')
       .order('created_at', { ascending: false })
     if (estError) throw estError
 
@@ -45,6 +45,7 @@ export async function GET() {
         trialEndsAt: e.trial_ends_at,
         currentPeriodEnd: e.current_period_end,
         blocked: access.blocked,
+        planTier: e.plan_tier === 'completo' ? 'completo' : 'essencial',
       }
     })
 
