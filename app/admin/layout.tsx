@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { logError } from '@/lib/logger'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowLeft } from 'lucide-react'
 
 // Gate de UX (a segurança de verdade está em cada rota /api/admin/**,
 // que revalida o e-mail por conta própria via getPlatformAdminUser).
@@ -38,5 +39,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  return <div className="min-h-screen bg-gray-50">{children}</div>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Sem isso, /admin (e suas subrotas) era um beco sem saída: o
+          layout não tem sidebar (autorização é de dono-da-plataforma,
+          não de dono-de-estabelecimento, ver comentário acima), e
+          nenhuma página aqui dentro linkava de volta pro /painel. */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <Link href="/painel" className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
+            <ArrowLeft size={16} />
+            Voltar ao painel
+          </Link>
+        </div>
+      </div>
+      {children}
+    </div>
+  )
 }
