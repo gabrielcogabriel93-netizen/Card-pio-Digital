@@ -6,9 +6,10 @@ import Image from 'next/image'
 import {
   Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown, ChevronLeft,
   CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, MessageCircle, Wallet, QrCode,
-  PlayCircle, ArrowRight, MoreVertical, Sandwich, Cake, UtensilsCrossed, Truck, Send,
+  PlayCircle, ArrowRight, MoreVertical, Sandwich, Cake, UtensilsCrossed, Truck, Send, RotateCcw, UserX, Layers,
 } from 'lucide-react'
 import { Logo } from '@/components/Logo'
+import { COMPLETO_MONTHLY_PRICE, ESSENCIAL_FEATURES, COMPLETO_FEATURES } from '@/lib/plans'
 
 const TESTIMONIALS = [
   {
@@ -62,6 +63,10 @@ const TESTIMONIALS = [
 ]
 
 const FAQ_ITEMS = [
+  {
+    question: 'Qual a diferença entre os planos Essencial e Completo?',
+    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender pelo WhatsApp: cardápio digital, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante os 7 dias grátis, os dois planos vêm liberados.',
+  },
   {
     question: 'Tem taxa ou comissão por pedido?',
     answer: 'Não. Você paga sua assinatura e fica com 100% do valor das suas vendas — sem comissão por pedido, nem no Pix automático.',
@@ -440,22 +445,31 @@ export default function LandingPage() {
                 color: 'bg-amber-100 text-amber-600'
               },
               {
+                icon: <Layers className="w-6 h-6" />,
+                title: 'Combos de Produtos',
+                description: 'Monte kits com produtos do seu catálogo por um preço fixo — serve pra qualquer tipo de negócio, não só comida.',
+                color: 'bg-cyan-100 text-cyan-700'
+              },
+              {
                 icon: <Package className="w-6 h-6" />,
                 title: 'Controle de Estoque',
                 description: 'Gerencie estoque em tempo real. Baixa automática ao confirmar pedidos.',
-                color: 'bg-purple-100 text-purple-600'
+                color: 'bg-purple-100 text-purple-600',
+                completo: true,
               },
               {
                 icon: <LineChart className="w-6 h-6" />,
-                title: 'Financeiro Automático',
-                description: 'Faturamento de hoje, dos últimos 7 dias, do mês ou de um período personalizado — com gráficos e produtos mais vendidos.',
-                color: 'bg-orange-100 text-orange-600'
+                title: 'Relatórios e Insights',
+                description: 'Faturamento por período, ticket médio, mais vendidos e horário de pico — com produtos mais vendidos por dia da semana e por horário.',
+                color: 'bg-orange-100 text-orange-600',
+                completo: true,
               },
               {
                 icon: <Store className="w-6 h-6" />,
                 title: 'Balcão / PDV',
                 description: 'Venda presencial rápida com busca de produtos e baixa de estoque automática.',
-                color: 'bg-pink-100 text-pink-600'
+                color: 'bg-pink-100 text-pink-600',
+                completo: true,
               },
               {
                 icon: <Palette className="w-6 h-6" />,
@@ -479,19 +493,22 @@ export default function LandingPage() {
                 icon: <Gift className="w-6 h-6" />,
                 title: 'Programa de Fidelidade',
                 description: 'Cliente ganha pontos a cada compra e troca por desconto ou frete grátis. Você define a regra.',
-                color: 'bg-lime-100 text-lime-600'
+                color: 'bg-lime-100 text-lime-600',
+                completo: true,
               },
               {
                 icon: <Tag className="w-6 h-6" />,
                 title: 'Cupons de Desconto',
                 description: 'Crie cupons por código, com validade e limite de uso por cliente — sem depender de planilha.',
-                color: 'bg-fuchsia-100 text-fuchsia-600'
+                color: 'bg-fuchsia-100 text-fuchsia-600',
+                completo: true,
               },
               {
                 icon: <Zap className="w-6 h-6" />,
                 title: 'Pix Automático',
                 description: 'Cliente paga na hora e o pedido é confirmado sozinho — sem precisar checar comprovante.',
-                color: 'bg-emerald-100 text-emerald-600'
+                color: 'bg-emerald-100 text-emerald-600',
+                completo: true,
               },
               {
                 icon: <Instagram className="w-6 h-6" />,
@@ -503,22 +520,43 @@ export default function LandingPage() {
                 icon: <QrCode className="w-6 h-6" />,
                 title: 'Cardápio de Mesa com QR Code',
                 description: 'Cada mesa tem um QR Code. O cliente escaneia, pede pelo celular e tudo fica na comanda até você fechar a conta pelo painel.',
-                color: 'bg-sky-100 text-sky-600'
+                color: 'bg-sky-100 text-sky-600',
+                completo: true,
+              },
+              {
+                icon: <RotateCcw className="w-6 h-6" />,
+                title: 'Recuperação de Carrinho',
+                description: 'Veja quem chegou a informar o telefone mas não confirmou o pedido, e chame de volta com um WhatsApp pronto.',
+                color: 'bg-yellow-100 text-yellow-700'
+              },
+              {
+                icon: <UserX className="w-6 h-6" />,
+                title: 'Clientes Inativos',
+                description: 'Lista de clientes que já compraram mas sumiram há um tempo (configurável), com um clique pra chamar de volta.',
+                color: 'bg-red-100 text-red-600'
               }
             ].map((feature, index) => (
               <div
                 key={index}
-                className="card-hover animate-fade-in"
+                className="card-hover animate-fade-in relative"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
+                {feature.completo && (
+                  <span className="absolute top-4 right-4 text-[10px] font-semibold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                    Completo
+                  </span>
+                )}
                 <div className={`w-12 h-12 rounded-lg ${feature.color} flex items-center justify-center mb-4`}>
                   {feature.icon}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-16">{feature.title}</h3>
                 <p className="text-gray-600">{feature.description}</p>
               </div>
             ))}
           </div>
+          <p className="text-center text-sm text-gray-400 mt-8">
+            Recursos marcados <span className="text-primary-600 font-medium">Completo</span> fazem parte do plano Completo — os demais já vêm no Essencial.
+          </p>
         </div>
       </section>
 
@@ -616,108 +654,112 @@ export default function LandingPage() {
               <span className="font-medium text-gray-700">Mercado Pago</span>
             </div>
           </div>
-          <p className="text-sm text-gray-400 mt-4">Sem taxa de integração — já vem incluído no seu plano.</p>
+          <p className="text-sm text-gray-400 mt-4">
+            WhatsApp vem em todos os planos. Pix automático faz parte do plano Completo — sem taxa de
+            integração extra.
+          </p>
         </div>
       </section>
 
-      {/* Comece grátis por 7 dias: benefícios + plano + FAQ lado a lado */}
+      {/* Comece grátis por 7 dias: dois planos */}
       <section id="planos" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               Comece grátis <span className="text-primary-500">por 7 dias</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Depois, um preço só, tudo incluído — sem plano escalonado e sem comissão por pedido.
+              Nos 7 dias de teste, tudo dos dois planos vem liberado. Depois, escolha o que faz sentido pro seu negócio — sem comissão por pedido, em nenhum dos dois.
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-8 items-start">
-            {/* Benefícios */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">Tudo incluído no plano</h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-1 gap-3">
-                {[
-                  '7 dias grátis',
-                  'Cardápio digital ilimitado',
-                  'Pedidos via WhatsApp',
-                  'Entrega e retirada',
-                  'Controle de estoque',
-                  'Relatórios financeiros',
-                  'Balcão / PDV',
-                  'Cardápio de mesa com QR Code',
-                  'Programa de fidelidade',
-                  'Cupons de desconto',
-                  'Pix automático',
-                  'Cor de marca própria',
-                  'PWA instalável',
-                  'Link personalizado',
-                  'Sem comissão por pedido',
-                ].map((benefit, index) => (
-                  <div key={index} className="flex items-center gap-2">
+          <div className="grid sm:grid-cols-2 gap-6">
+            {/* Essencial */}
+            <div className="card relative overflow-hidden">
+              <h3 className="font-semibold text-gray-900 text-lg mb-1">Essencial</h3>
+              <p className="text-sm text-gray-500 mb-4">Pra colocar seu cardápio no ar e vender pelo WhatsApp.</p>
+              <p className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">R$ 49,90</span>
+                <span className="text-gray-500">/mês</span>
+              </p>
+              <div className="space-y-2.5 mb-8 text-left">
+                {ESSENCIAL_FEATURES.map((feature) => (
+                  <div key={feature} className="flex items-center gap-2">
                     <CheckCircle size={16} className="text-primary-500 flex-shrink-0" />
-                    <span className="text-gray-700 text-sm">{benefit}</span>
+                    <span className="text-gray-700 text-sm">{feature}</span>
                   </div>
                 ))}
               </div>
+              <Link href="/cadastro" className="btn-secondary w-full justify-center">
+                Começar 7 dias grátis
+              </Link>
             </div>
 
-            {/* Card de preço */}
-            <div className="card border-2 border-primary-500 relative overflow-hidden text-center">
+            {/* Completo */}
+            <div className="card border-2 border-primary-500 relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
-                7 dias grátis
+                Mais completo
               </div>
-              <div className="py-4">
-                <p className="text-gray-500 mb-2 text-sm">Nos primeiros 7 dias</p>
-                <p className="mb-1">
-                  <span className="text-5xl font-bold text-gray-900">R$ 0,00</span>
-                </p>
-                <p className="text-sm text-gray-500 mb-6">tudo liberado, sem cartão de crédito</p>
-
-                <div className="border-t border-gray-100 pt-5 mb-6">
-                  <p className="text-sm text-gray-500 mb-1">Depois, plano único de</p>
-                  <p className="text-2xl font-bold text-gray-900">R$ 49,90<span className="text-base font-normal text-gray-500">/mês</span></p>
-                  <p className="text-xs text-gray-400 mt-1">Cancele quando quiser, sem multa</p>
-                </div>
-
-                <Link href="/cadastro" className="btn-primary text-lg px-8 py-4 inline-flex w-full justify-center">
-                  Começar agora
-                  <ChevronRight size={20} />
-                </Link>
-                <p className="text-xs text-gray-400 mt-3">Sem cartão de crédito para começar</p>
+              <h3 className="font-semibold text-gray-900 text-lg mb-1 flex items-center gap-1.5">
+                <Layers size={18} className="text-primary-600" /> Completo
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">Tudo do Essencial + ferramentas pra operar e vender mais.</p>
+              <p className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">{`R$ ${COMPLETO_MONTHLY_PRICE.toFixed(2).replace('.', ',')}`}</span>
+                <span className="text-gray-500">/mês</span>
+              </p>
+              <div className="space-y-2.5 mb-8 text-left">
+                {COMPLETO_FEATURES.map((feature) => (
+                  <div key={feature} className="flex items-center gap-2">
+                    <CheckCircle size={16} className="text-primary-500 flex-shrink-0" />
+                    <span className="text-gray-700 text-sm">{feature}</span>
+                  </div>
+                ))}
               </div>
+              <Link href="/cadastro" className="btn-primary w-full justify-center">
+                Começar 7 dias grátis
+                <ChevronRight size={20} />
+              </Link>
             </div>
+          </div>
 
-            {/* FAQ */}
-            <div id="faq">
-              <h3 className="font-semibold text-gray-900 mb-4">Perguntas frequentes</h3>
-              <div className="space-y-3">
-                {FAQ_ITEMS.map((item, index) => {
-                  const isOpen = openFaqIndex === index
-                  return (
-                    <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setOpenFaqIndex(isOpen ? null : index)}
-                        className="w-full flex items-center justify-between gap-4 text-left px-4 py-3"
-                        aria-expanded={isOpen}
-                      >
-                        <span className="font-medium text-gray-900 text-sm">{item.question}</span>
-                        <ChevronDown
-                          size={18}
-                          className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                        />
-                      </button>
-                      {isOpen && (
-                        <div className="px-4 pb-3 text-gray-600 text-sm animate-fade-in">
-                          {item.answer}
-                        </div>
-                      )}
+          <p className="text-center text-sm text-gray-400 mt-8">
+            Sem cartão de crédito para começar · Cancele quando quiser, sem multa
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Perguntas frequentes</h2>
+          </div>
+          <div className="space-y-3">
+            {FAQ_ITEMS.map((item, index) => {
+              const isOpen = openFaqIndex === index
+              return (
+                <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                    className="w-full flex items-center justify-between gap-4 text-left px-4 py-3"
+                    aria-expanded={isOpen}
+                  >
+                    <span className="font-medium text-gray-900 text-sm">{item.question}</span>
+                    <ChevronDown
+                      size={18}
+                      className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-3 text-gray-600 text-sm animate-fade-in">
+                      {item.answer}
                     </div>
-                  )
-                })}
-              </div>
-            </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       </section>
