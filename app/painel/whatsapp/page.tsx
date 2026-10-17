@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { toWhatsAppNumber } from '@/lib/phone'
 import { MessageCircle, Loader2, Construction, Cake, Send, ShoppingCart, UserX } from 'lucide-react'
+import { toast } from '@/components/Feedback'
 
 // Conexão de WhatsApp (sessão via whatsapp-server) ainda não está pronta
 // pra oferecer em produção — fica com o botão de conectar desativado e
@@ -150,7 +151,7 @@ export default function WhatsappPage() {
     } catch (err: any) {
       logError('painel:whatsapp', 'erro ao alternar notificações', err)
       setNotificationsEnabled(!next)
-      alert('Erro ao alterar: ' + err.message)
+      toast.error('Erro ao alterar: ' + err.message)
     }
   }
 
@@ -169,10 +170,10 @@ export default function WhatsappPage() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
       log('painel:whatsapp', 'mensagem de aniversário enviada', { customer: customer.id })
-      alert(`Mensagem enviada para ${customer.name}!`)
+      toast(`Mensagem enviada para ${customer.name}!`)
     } catch (err: any) {
       logError('painel:whatsapp', 'erro ao enviar mensagem de aniversário', err)
-      alert('Erro ao enviar: ' + err.message)
+      toast.error('Erro ao enviar: ' + err.message)
     } finally {
       setSendingTo(null)
     }

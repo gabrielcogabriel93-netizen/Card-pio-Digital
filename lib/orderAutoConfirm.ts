@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { STATUS_NOTIFICATION_MESSAGES } from './orderStatusMessages'
-import { MERCADOPAGO_COMMISSION_AMOUNT } from './mercadoPago'
-import { getBaseUrl } from './baseUrl'
+import { whatsappServer } from './whatsappServer'
+import { sendOrderPush } from './orderPush'
 import { logError } from './logger'
 import type { Order, Establishment } from '@/types'
 
@@ -18,113 +18,68 @@ type EstablishmentForAutoConfirm = Pick<Establishment, 'whatsapp_notifications_e
 
 /**
  * Notificação de mudança de status pro cliente — WhatsApp (se a loja
- * ligou o toggle) e push (se o cliente ativou em /pedido/[id]). Usada
- * tanto pelo aceite automático (financeiro+estoque) quanto pelos passos
- * seguintes (só status, sem financeiro/estoque de novo) — um só lugar
- * pro texto e pro disparo, pra não desalinhar as duas rotas com o tempo.
+ * ligou o toggle) e push (se o cliente ativou em /pedido/[id]).
+ *
+ * Roda no SERVIDOR (webhook do Mercado Pago, cron): chama o servidor de
+ * WhatsApp direto. Antes passava pela rota /api/whatsapp/send, que exige
+ * o cookie de sessão do dono -- servidor a servidor não tem cookie, a
+ * rota respondia 401 e nenhuma mensagem automática saía.
  */
-async function notifyStatusChange(
-  order: Order,
-  newStatus: 'confirmed' | 'preparing' | 'completed',
+export async function notifyStatusChange(
+  order: Pick<Order, 'id' | 'establishment_id' | 'source' | 'customer_phone' | 'order_type' | 'eta_minutes'>,
+  newStatus: 'confirmed' | 'preparing' | 'completed' | 'dispatched',
   establishment: EstablishmentForAutoConfirm,
   logScope: string
 ): Promise<void> {
-  if (establishment.whatsapp_notifications_enabled && order.source === 'online' && order.customer_phone) {
+  if (order.source !== 'online') return
+
+  if (establishment.whatsapp_notifications_enabled && order.customer_phone) {
     const message = STATUS_NOTIFICATION_MESSAGES[newStatus]?.(order)
     if (message) {
       try {
-        await fetch(`${getBaseUrl()}/api/whatsapp/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ establishment_id: order.establishment_id, phone: order.customer_phone, message }),
-        })
+        await whatsappServer.send(order.establishment_id, order.customer_phone, message)
       } catch (err) {
         logError(logScope, 'erro ao notificar WhatsApp', err)
       }
     }
   }
 
-  // Push pro cliente, se ele tiver ativado em /pedido/[id] — canal
-  // separado, dispara independente do WhatsApp estar ligado ou não.
-  if (order.source === 'online') {
-    try {
-      await fetch(`${getBaseUrl()}/api/push/send-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: order.id }),
-      })
-    } catch (err) {
-      logError(logScope, 'erro ao notificar push do pedido', err)
-    }
+  try {
+    await sendOrderPush(order.id)
+  } catch (err) {
+    logError(logScope, 'erro ao notificar push do pedido', err)
   }
 }
 
 /**
- * Efeitos colaterais do "primeiro aceite" de um pedido — lança
- * financeiro, baixa estoque, notifica o cliente. Usada tanto pelo
- * webhook do Mercado Pago (pagamento aprovado) quanto pela automação por
- * tempo (app/api/cron/advance-orders) quando um pedido pendente vira
- * confirmado/concluído sozinho.
- *
- * Assume que a trava de idempotência (UPDATE condicional em
- * payment_status='pending' ou em status='pending', feita por quem chama
- * isso) já garantiu que só roda uma vez — não faz checagem própria de novo.
+ * Primeiro aceite automático (webhook do Mercado Pago com pagamento
+ * aprovado, ou automação por tempo). Status, financeiro, comissão do Pix
+ * e estoque mudam juntos numa transação no banco (service_accept_order,
+ * migration 045). Devolve o pedido atualizado, ou null se outra
+ * execução já tinha processado (idempotente).
  */
 export async function applyAutomaticOrderConfirmation(
   admin: SupabaseClient,
-  order: Order,
+  orderId: string,
   newStatus: 'confirmed' | 'completed',
   establishment: EstablishmentForAutoConfirm
-): Promise<void> {
-  const { error: financeError } = await admin.from('financial_entries').insert([
-    {
-      establishment_id: order.establishment_id,
-      order_id: order.id,
-      type: 'income',
-      amount: order.total,
-      description: `Pedido #${order.id.slice(0, 8)} - ${order.customer_name}`,
-    },
-    {
-      establishment_id: order.establishment_id,
-      order_id: order.id,
-      type: 'expense',
-      amount: MERCADOPAGO_COMMISSION_AMOUNT,
-      description: 'Comissão da plataforma (Mercado Pago)',
-    },
-  ])
-  if (financeError) logError('order-auto-confirm', 'erro ao lançar financeiro do pedido', financeError)
-
-  for (const item of order.items) {
-    const { data: product, error: productError } = await admin
-      .from('products')
-      .select('track_stock')
-      .eq('id', item.product_id)
-      .maybeSingle()
-
-    if (productError) {
-      logError('order-auto-confirm', 'erro ao buscar produto para ajuste de estoque', productError)
-      continue
-    }
-
-    if (product?.track_stock) {
-      const { error: stockError } = await admin.rpc('decrement_product_stock', {
-        product_id: item.product_id,
-        quantity: item.quantity,
-      })
-      if (stockError) logError('order-auto-confirm', 'erro ao baixar estoque', stockError)
-    }
+): Promise<Order | null> {
+  const { data, error } = await admin.rpc('service_accept_order', { p_order_id: orderId, p_new_status: newStatus })
+  if (error) {
+    logError('order-auto-confirm', 'erro ao aceitar pedido automaticamente', error)
+    throw error
   }
+  const order = (data as Order | null) && (data as Order).id ? (data as Order) : null
+  if (!order) return null
 
   await notifyStatusChange(order, newStatus, establishment, 'order-auto-confirm')
+  return order
 }
 
 /**
  * Avança um pedido já confirmado pra próxima etapa (confirmado -> em
- * preparo, em preparo -> concluído) sem financeiro/estoque de novo —
- * isso já aconteceu no primeiro aceite. Só notifica; assume que quem
- * chamou (app/api/cron/advance-orders) já atualizou `status` no banco de
- * forma condicional/idempotente antes de chamar isso — mesmo contrato de
- * `applyAutomaticOrderConfirmation`.
+ * preparo, em preparo -> concluído) sem financeiro/estoque de novo. Só
+ * notifica; quem chamou já atualizou `status` de forma condicional.
  */
 export async function applyStatusOnly(
   order: Order,
@@ -150,12 +105,14 @@ export interface OrderForAutomation {
   orderTrackingEnabled: boolean
 }
 
+// Pedido pendente mais velho que isso não é confirmado sozinho: provavelmente
+// ficou esquecido (loja fechou, cliente desistiu) e precisa de um humano.
+export const AUTOMATION_MAX_PENDING_AGE_MINUTES = 12 * 60
+
 /**
  * Decide pra qual status (se algum) um pedido deve avançar sozinho,
  * dado quanto tempo já se passou desde a última troca de status. Função
- * pura (sem I/O) — só a regra de negócio, testável isoladamente. Quem
- * chama (app/api/cron/advance-orders) é responsável por buscar os
- * pedidos e aplicar a mudança de verdade.
+ * pura (sem I/O) — só a regra de negócio, testável isoladamente.
  */
 export function resolveNextAutomaticStatus(
   order: OrderForAutomation,
@@ -167,17 +124,14 @@ export function resolveNextAutomaticStatus(
   if (order.status === 'pending') {
     // Pix automático ainda não pago nunca avança sozinho daqui — só a
     // confirmação de pagamento de verdade (webhook do Mercado Pago) pode
-    // tirar esse pedido de "pendente". Sem essa trava, a loja liberaria
-    // pedido pra cozinha antes do cliente ter pago.
+    // tirar esse pedido de "pendente".
     if (order.paymentMethod === 'mercadopago_pix' && order.paymentStatus !== 'approved') return null
     if (elapsedMinutes < timings.autoConfirmMinutes) return null
+    if (elapsedMinutes > AUTOMATION_MAX_PENDING_AGE_MINUTES) return null
     return order.orderTrackingEnabled ? 'confirmed' : 'completed'
   }
 
   if (order.status === 'confirmed') {
-    // Loja sem acompanhamento nunca deveria ter um pedido 'confirmed'
-    // (o primeiro aceite já vai direto pra 'completed') — por segurança,
-    // não faz nada se acontecer mesmo assim.
     if (!order.orderTrackingEnabled) return null
     if (elapsedMinutes < timings.autoPreparingMinutes) return null
     return 'preparing'

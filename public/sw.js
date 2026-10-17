@@ -1,11 +1,11 @@
-// Service worker do CatalogAI.
+// Service worker do Freguês.
 // Estratégia: cache-first apenas para assets estáticos versionados pelo Next
 // (JS/CSS/ícones); tudo mais (páginas, dados do Supabase) vai sempre para a
 // rede, já que cardápio, pedidos e painel mudam a todo momento e não podem
 // ficar desatualizados por causa de cache. Navegação sem rede cai numa
 // página de fallback offline pré-cacheada (ver /offline).
 
-const CACHE_NAME = 'catalogai-v2'
+const CACHE_NAME = 'fregues-v3'
 const STATIC_ASSET_PATTERN = /\/_next\/static\/|\/icons\//
 const OFFLINE_URL = '/offline'
 
@@ -83,8 +83,11 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
+      // Notificação do cliente leva o logo da loja (lib/orderPush.ts).
+      icon: data.icon || '/icons/icon-192x192.png',
+      badge: '/icons/badge-96x96.png',
+      tag: data.url,
+      renotify: true,
       data: { url: data.url || '/painel/pedidos' },
     })
   )

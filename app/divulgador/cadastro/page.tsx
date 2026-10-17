@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
+import { BrandLockup } from '@/components/Logo'
 
 // Cadastro público, compartilhado pelo admin (ver app/admin, aba
 // Divulgadores) -- mesma estrutura de app/cadastro/page.tsx (auth do
@@ -30,8 +31,8 @@ export default function DivulgadorCadastroPage() {
       setLoading(false)
       return
     }
-    if (formData.password.length < 6) {
-      setError('A senha deve ter no mínimo 6 caracteres.')
+    if (formData.password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.')
       setLoading(false)
       return
     }
@@ -100,10 +101,7 @@ export default function DivulgadorCadastroPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="font-bold text-2xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
+            <BrandLockup size={40} textClassName="text-3xl text-ink" />
           </Link>
           <p className="text-sm text-gray-500 mt-2">Seja um divulgador</p>
         </div>
@@ -116,7 +114,7 @@ export default function DivulgadorCadastroPage() {
             <h1 className="text-xl font-bold text-gray-900 mb-2">Esse e-mail já tem conta</h1>
             <p className="text-gray-600 mb-6">
               Já existe uma conta com <strong>{formData.email}</strong> (pode ser até uma loja sua já
-              cadastrada no CatalogAI). Você não precisa de outro e-mail: é só entrar com a senha dessa
+              cadastrada no Freguês). Você não precisa de outro e-mail: é só entrar com a senha dessa
               conta que a gente vincula o cadastro de divulgador a ela.
             </p>
             <Link href="/divulgador/login" className="btn-primary w-full">
@@ -141,7 +139,7 @@ export default function DivulgadorCadastroPage() {
           <div className="card">
             <h1 className="page-title mb-2">Cadastro de divulgador</h1>
             <p className="text-gray-600 mb-6">
-              Indique estabelecimentos pro CatalogAI e ganhe comissão recorrente enquanto a assinatura
+              Indique estabelecimentos pro Freguês e ganhe comissão recorrente enquanto a assinatura
               deles estiver ativa.
             </p>
 

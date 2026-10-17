@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle, KeyRound } from 'lucide-react'
+import { BrandLockup } from '@/components/Logo'
 
 export default function RedefinirSenhaPage() {
   const router = useRouter()
@@ -54,8 +55,8 @@ export default function RedefinirSenhaPage() {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 6) {
-      setError('A senha deve ter no mínimo 6 caracteres.')
+    if (password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.')
       return
     }
     if (password !== confirmPassword) {
@@ -91,10 +92,7 @@ export default function RedefinirSenhaPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="font-bold text-2xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
+            <BrandLockup size={40} textClassName="text-3xl text-ink" />
           </Link>
         </div>
 
@@ -136,7 +134,7 @@ export default function RedefinirSenhaPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
                       autoFocus
                     />
                     <button

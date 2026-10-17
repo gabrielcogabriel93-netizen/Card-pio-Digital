@@ -115,3 +115,45 @@ export function getSavedLastOrder(establishmentId: string): string | null {
 export function clearSavedLastOrder(establishmentId: string) {
   safeRemove(lastOrderKey(establishmentId))
 }
+
+// Token do aparelho (migration 045): prova de que este navegador já fez
+// pedido (ou confirmou o código) com aquele telefone naquela loja. Sem
+// ele, o banco não devolve endereço, pontos nem histórico.
+const tokenKey = (establishmentId: string) => `cardapio:token:${establishmentId}`
+
+interface SavedToken {
+  phone: string
+  token: string
+}
+
+const digits = (phone: string) => phone.replace(/D/g, '')
+
+export function saveCustomerToken(establishmentId: string, phone: string, token: string) {
+  const all = safeGet<SavedToken[]>(tokenKey(establishmentId)) || []
+  const next = [{ phone: digits(phone), token }, ...all.filter((t) => t.phone !== digits(phone))].slice(0, 5)
+  safeSet(tokenKey(establishmentId), next)
+}
+
+export function getCustomerToken(establishmentId: string, phone: string): string | null {
+  const all = safeGet<SavedToken[]>(tokenKey(establishmentId)) || []
+  return all.find((t) => t.phone === digits(phone))?.token || null
+}
+
+export function clearCustomerToken(establishmentId: string, phone: string) {
+  const all = safeGet<SavedToken[]>(tokenKey(establishmentId)) || []
+  safeSet(tokenKey(establishmentId), all.filter((t) => t.phone !== digits(phone)))
+}
+
+// "Pedir de novo": a página Meus Pedidos guarda os itens aqui e o
+// cardápio os recoloca no carrinho ao abrir.
+const reorderKey = (establishmentId: string) => `cardapio:reorder:${establishmentId}`
+
+export function saveReorder(establishmentId: string, items: unknown[]) {
+  safeSet(reorderKey(establishmentId), items)
+}
+
+export function takeReorder<T>(establishmentId: string): T[] | null {
+  const items = safeGet<T[]>(reorderKey(establishmentId))
+  safeRemove(reorderKey(establishmentId))
+  return items
+}

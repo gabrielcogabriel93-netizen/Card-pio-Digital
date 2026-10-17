@@ -16,6 +16,7 @@ import {
   X,
   Megaphone,
 } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 interface EstablishmentRow {
   id: string
@@ -84,9 +85,9 @@ export default function AdminPage() {
 
   const handleActivate = async () => {
     if (!overview) return
-    const confirmed = confirm(
+    const confirmed = (await confirmDialog(
       `Isso vai LIGAR a cobrança da plataforma agora. Todos os ${overview.counts.total} estabelecimentos que hoje têm acesso livre (sem prazo) vão ganhar 7 dias de prazo a partir de agora — depois disso, quem não pagar tem o painel bloqueado. Não dá pra desfazer o prazo já concedido. Continuar?`
-    )
+    ))
     if (!confirmed) return
 
     setActivating(true)
@@ -97,14 +98,14 @@ export default function AdminPage() {
       await loadOverview()
     } catch (err: any) {
       logError('admin:page', 'erro ao ativar cobrança', err)
-      alert(err.message || 'Erro ao ativar cobrança')
+      toast.error(err.message || 'Erro ao ativar cobrança')
     } finally {
       setActivating(false)
     }
   }
 
   const handleDeactivate = async () => {
-    if (!confirm('Desligar a cobrança da plataforma? Ninguém fica bloqueado enquanto estiver desligada.')) return
+    if (!(await confirmDialog('Desligar a cobrança da plataforma? Ninguém fica bloqueado enquanto estiver desligada.'))) return
     setActivating(true)
     try {
       const response = await fetch('/api/admin/billing/deactivate', { method: 'POST' })
@@ -113,7 +114,7 @@ export default function AdminPage() {
       await loadOverview()
     } catch (err: any) {
       logError('admin:page', 'erro ao desativar cobrança', err)
-      alert(err.message || 'Erro ao desativar cobrança')
+      toast.error(err.message || 'Erro ao desativar cobrança')
     } finally {
       setActivating(false)
     }
@@ -122,7 +123,7 @@ export default function AdminPage() {
   const handleSavePrice = async () => {
     const value = Number(priceDraft.replace(',', '.'))
     if (!Number.isFinite(value) || value <= 0) {
-      alert('Informe um valor válido.')
+      toast('Informe um valor válido.')
       return
     }
     setSavingPrice(true)
@@ -137,7 +138,7 @@ export default function AdminPage() {
       await loadOverview()
     } catch (err: any) {
       logError('admin:page', 'erro ao salvar valor da mensalidade', err)
-      alert(err.message || 'Erro ao salvar valor')
+      toast.error(err.message || 'Erro ao salvar valor')
     } finally {
       setSavingPrice(false)
     }
@@ -156,7 +157,7 @@ export default function AdminPage() {
       await loadOverview()
     } catch (err: any) {
       logError('admin:page', 'erro ao aplicar override', err)
-      alert(err.message || 'Erro ao aplicar alteração')
+      toast.error(err.message || 'Erro ao aplicar alteração')
     } finally {
       setRowActionId(null)
     }
@@ -175,7 +176,7 @@ export default function AdminPage() {
       await loadOverview()
     } catch (err: any) {
       logError('admin:page', 'erro ao alterar plano', err)
-      alert(err.message || 'Erro ao alterar plano')
+      toast.error(err.message || 'Erro ao alterar plano')
     } finally {
       setRowActionId(null)
     }
@@ -202,7 +203,7 @@ export default function AdminPage() {
       await loadOverview()
     } catch (err: any) {
       logError('admin:page', 'erro ao ajustar prazo', err)
-      alert(err.message || 'Erro ao ajustar prazo')
+      toast.error(err.message || 'Erro ao ajustar prazo')
     } finally {
       setRowActionId(null)
     }
@@ -231,7 +232,7 @@ export default function AdminPage() {
           <ShieldCheck size={24} className="text-primary-600" />
           <div>
             <h1 className="page-title">Painel administrativo</h1>
-            <p className="text-gray-600 text-sm">Controle de assinantes da plataforma CatalogAI.</p>
+            <p className="text-gray-600 text-sm">Controle de assinantes da plataforma Freguês.</p>
           </div>
         </div>
         <Link href="/admin/divulgadores" className="btn-secondary">

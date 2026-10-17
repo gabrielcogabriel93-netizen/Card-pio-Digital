@@ -16,9 +16,12 @@ import { Loader2, X } from 'lucide-react'
 export interface PizzaOrderResult {
   variations: { group_name: string; option_name: string; price_delta: number }[]
   unitPrice: number
+  // Escolhas por id: o servidor recalcula o preço a partir disso.
+  config: { kind: 'pizza'; product_id: string; size_id: string; flavor_ids: string[]; additional_ids: string[] }
 }
 
 interface PizzaOrderModalProps {
+  productId: string
   productName: string
   productImageUrl?: string
   pizzaFlavorId: string
@@ -32,7 +35,7 @@ interface PizzaOrderModalProps {
  * -> adicionais. Compartilhado entre o cardápio público e o balcão — os dois
  * só precisam saber o `pizza_flavor_id` do produto clicado.
  */
-export function PizzaOrderModal({ productName, productImageUrl, pizzaFlavorId, establishmentId, onConfirm, onClose }: PizzaOrderModalProps) {
+export function PizzaOrderModal({ productId, productName, productImageUrl, pizzaFlavorId, establishmentId, onConfirm, onClose }: PizzaOrderModalProps) {
   const [loading, setLoading] = useState(true)
   const [sizes, setSizes] = useState<PizzaSize[]>([])
   const [ownFlavor, setOwnFlavor] = useState<PizzaFlavor | null>(null)
@@ -145,7 +148,17 @@ export function PizzaOrderModal({ productName, productImageUrl, pizzaFlavorId, e
   const handleConfirm = () => {
     if (!selectedSize || !priceResult) return
     const variations = buildPizzaVariationLines(selectedSize, flavorSelections, additionalSelections)
-    onConfirm({ variations, unitPrice: priceResult.unitPrice })
+    onConfirm({
+      variations,
+      unitPrice: priceResult.unitPrice,
+      config: {
+        kind: 'pizza',
+        product_id: productId,
+        size_id: selectedSize.id,
+        flavor_ids: flavorSelections.map((s) => s.flavor.id),
+        additional_ids: additionalSelections.map((s) => s.additional.id),
+      },
+    })
   }
 
   if (loading) {
@@ -172,9 +185,9 @@ export function PizzaOrderModal({ productName, productImageUrl, pizzaFlavorId, e
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-fade-in">
+      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto animate-slide-up sm:animate-fade-in">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             {productImageUrl && (

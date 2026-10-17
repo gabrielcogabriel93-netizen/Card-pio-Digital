@@ -1,52 +1,55 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Bricolage_Grotesque, Figtree, JetBrains_Mono, Caveat } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import PwaRegister from '@/components/PwaRegister'
 import GlobalErrorTracker from '@/components/GlobalErrorTracker'
+import { FeedbackHost } from '@/components/Feedback'
+import { BRAND } from '@/lib/brand'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+// Tipografia da marca: Bricolage Grotesque nos títulos, Figtree no texto,
+// JetBrains Mono em números de pedido e valores, Caveat só em anotações.
+const display = Bricolage_Grotesque({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
+const body = Figtree({ subsets: ['latin'], variable: '--font-body', display: 'swap' })
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap', weight: ['500', '700'] })
+const hand = Caveat({ subsets: ['latin'], variable: '--font-hand', display: 'swap', weight: ['600', '700'] })
 
 export const metadata: Metadata = {
   title: {
-    default: 'CatalogAI - Cardápio Digital com 7 Dias Grátis',
-    template: '%s | CatalogAI',
+    default: `${BRAND.name} - Cardápio digital com pedido direto e fidelidade`,
+    template: `%s | ${BRAND.name}`,
   },
-  description:
-    'Crie seu cardápio digital e receba pedidos direto no WhatsApp. 7 dias grátis, com todas as funções liberadas. Ideal para restaurantes, pizzarias, lanchonetes e muito mais.',
-  keywords: [
-    'cardápio digital',
-    'cardápio online',
-    'pedidos whatsapp',
-    'saas cardápio',
-    'menu digital',
-  ],
-  authors: [{ name: 'CatalogAI' }],
-  creator: 'CatalogAI',
+  description: `${BRAND.description} 7 dias grátis, com todas as funções liberadas.`,
+  keywords: ['cardápio digital', 'cardápio online', 'pedidos whatsapp', 'delivery próprio', 'programa de fidelidade', 'menu digital'],
+  authors: [{ name: BRAND.name }],
+  creator: BRAND.name,
   manifest: '/manifest.json',
+  // Ícones e título do app instalado: o cardápio de cada loja sobrescreve
+  // com o logo e o nome dela (app/loja/[slug]/page.tsx).
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
-      // SVG puro (não ImageResponse/@vercel/og — quebra o build quando o
-      // caminho do projeto tem acento/espaço, ex: "Cartório Tanguá") com
-      // o mesmo desenho de components/Logo.tsx. Navegadores modernos
-      // preferem o SVG; o .ico acima é o fallback pra quem não suporta.
       { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
     ],
     apple: '/icons/apple-touch-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    title: BRAND.name,
+    statusBarStyle: 'default',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#22c55e',
+  themeColor: BRAND.colors.blue,
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
   // Sem maximumScale travado em 1: bloquear o pinch-to-zoom falha WCAG
-  // 1.4.4 (Resize Text) e prejudica quem tem baixa visão — deixa o
-  // navegador decidir o zoom máximo (padrão dele já é generoso).
+  // 1.4.4 (Resize Text) e prejudica quem tem baixa visão.
 }
 
 export default function RootLayout({
@@ -55,17 +58,15 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={`${display.variable} ${body.variable} ${mono.variable} ${hand.variable}`}>
       <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="CatalogAI" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
         <PwaRegister />
         <GlobalErrorTracker />
         <main className="min-h-screen">{children}</main>
+        <FeedbackHost />
         <Analytics />
         <SpeedInsights />
       </body>

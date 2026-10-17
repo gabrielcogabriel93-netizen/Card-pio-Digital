@@ -3,13 +3,13 @@ import { test, expect } from '@playwright/test'
 test.describe('Smoke tests', () => {
   test('landing page carrega e mostra o CTA principal', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByRole('link', { name: /testar 7 dias grátis/i }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/freguês/i)
+    await expect(page.getByRole('link', { name: /começar 7 dias grátis/i }).first()).toBeVisible()
   })
 
-  test('link "Testar 7 dias grátis" leva para /cadastro', async ({ page }) => {
+  test('link "Começar 7 dias grátis" leva para /cadastro', async ({ page }) => {
     await page.goto('/')
-    await page.getByRole('link', { name: /testar 7 dias grátis/i }).first().click()
+    await page.getByRole('link', { name: /começar 7 dias grátis/i }).first().click()
     await expect(page).toHaveURL(/\/cadastro/)
   })
 
@@ -31,6 +31,11 @@ test.describe('Smoke tests', () => {
     await expect(page.getByText(/cardápio não encontrado/i)).toBeVisible()
   })
 
+  test('login guarda o destino pedido em ?redirect', async ({ page }) => {
+    await page.goto('/painel/pedidos')
+    await expect(page).toHaveURL(/\/login\?redirect=%2Fpainel%2Fpedidos/)
+  })
+
   test('rotas protegidas do painel redirecionam para /login sem sessão', async ({ page }) => {
     await page.goto('/painel')
     await expect(page).toHaveURL(/\/login/)
@@ -46,9 +51,14 @@ test.describe('PWA', () => {
     const response = await request.get('/manifest.json')
     expect(response.ok()).toBeTruthy()
     const manifest = await response.json()
-    expect(manifest.name).toBe('CatalogAI - Cardápio Digital')
+    expect(manifest.name).toBe('Freguês - Pedidos e cardápio digital')
     expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'any')).toBe(true)
     expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'maskable')).toBe(true)
+  })
+
+  test('manifest de loja inexistente responde 404 (não vaza o da plataforma)', async ({ request }) => {
+    const response = await request.get('/loja/loja-que-nao-existe-123456/manifest.webmanifest')
+    expect(response.status()).toBe(404)
   })
 
   test('service worker é servido em /sw.js', async ({ request }) => {

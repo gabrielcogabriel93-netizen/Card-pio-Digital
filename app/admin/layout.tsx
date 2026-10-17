@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { logError } from '@/lib/logger'
 import { Loader2, ArrowLeft } from 'lucide-react'
@@ -11,6 +11,7 @@ import { Loader2, ArrowLeft } from 'lucide-react'
 // Não fica dentro de /painel porque a autorização aqui é outra: não é
 // "dono de um estabelecimento", é "dono da plataforma".
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const router = useRouter()
   const [checking, setChecking] = useState(true)
 
@@ -46,11 +47,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           não de dono-de-estabelecimento, ver comentário acima), e
           nenhuma página aqui dentro linkava de volta pro /painel. */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
           <Link href="/painel" className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
             <ArrowLeft size={16} />
             Voltar ao painel
           </Link>
+          <nav className="flex gap-1 text-sm" aria-label="Admin">
+            {[
+              { href: '/admin', label: 'Visão geral' },
+              { href: '/admin/divulgadores', label: 'Divulgadores' },
+              { href: '/admin/logs', label: 'Logs' },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={pathname === item.href ? 'page' : undefined}
+                className={`px-3 py-1.5 rounded-lg font-medium ${pathname === item.href ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
       {children}

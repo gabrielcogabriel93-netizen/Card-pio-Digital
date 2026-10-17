@@ -6,6 +6,7 @@ import { log, logError } from '@/lib/logger'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Category } from '@/types'
 import { Plus, Edit2, Trash2, X, Loader2, GripVertical } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 export default function CategoriasPage() {
   const [categories, setCategories] = useState<Category[]>([])
@@ -109,14 +110,14 @@ export default function CategoriasPage() {
       setShowModal(false)
     } catch (error: any) {
       logError('painel:categorias', 'erro ao salvar categoria', error)
-      alert('Erro ao salvar: ' + error.message)
+      toast.error('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (category: Category) => {
-    if (!confirm(`Tem certeza que deseja excluir "${category.name}"? Os produtos desta categoria serão removidos dela.`)) return
+    if (!(await confirmDialog(`Tem certeza que deseja excluir "${category.name}"? Os produtos desta categoria serão removidos dela.`))) return
     log('painel:categorias', 'excluindo categoria', { id: category.id, name: category.name })
 
     try {
@@ -131,7 +132,7 @@ export default function CategoriasPage() {
       await loadCategories()
     } catch (error: any) {
       logError('painel:categorias', 'erro ao excluir categoria', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 

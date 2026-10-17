@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { log, logError } from '@/lib/logger'
 import { ArrowLeft, Copy, Loader2, Megaphone, Pencil, Check, X } from 'lucide-react'
 import { getBaseUrl } from '@/lib/baseUrl'
+import { toast } from '@/components/Feedback'
 
 interface DivulgadorRow {
   id: string
@@ -78,7 +79,7 @@ export default function AdminDivulgadoresPage() {
   const savePercentual = async (id: string) => {
     const value = Number(editDraft)
     if (!Number.isFinite(value) || value <= 0 || value > 100) {
-      alert('Percentual inválido')
+      toast('Percentual inválido')
       return
     }
     try {
@@ -93,7 +94,7 @@ export default function AdminDivulgadoresPage() {
       await load()
     } catch (err: any) {
       logError('admin:divulgadores', 'erro ao salvar percentual', err)
-      alert(err.message || 'Erro ao salvar')
+      toast.error(err.message || 'Erro ao salvar')
     }
   }
 
@@ -111,7 +112,7 @@ export default function AdminDivulgadoresPage() {
       await load()
     } catch (err: any) {
       logError('admin:divulgadores', 'erro ao alterar status', err)
-      alert(err.message || 'Erro ao alterar status')
+      toast.error(err.message || 'Erro ao alterar status')
     }
   }
 

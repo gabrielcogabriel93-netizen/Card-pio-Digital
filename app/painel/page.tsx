@@ -6,6 +6,7 @@ import { log, logError } from '@/lib/logger'
 import Link from 'next/link'
 import type { Order, DashboardStats, BusinessType } from '@/types'
 import { paymentMethodLabel } from '@/lib/paymentMethods'
+import { ShareStoreCard } from '@/components/painel/ShareStoreCard'
 import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock, Bike, Store, ChefHat, Layers, Settings, Wallet, CheckCircle2, Circle, ImageIcon, Palette, ListOrdered, QrCode } from 'lucide-react'
 
 const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const [businessType, setBusinessType] = useState<BusinessType>('preparo')
   const [trackingEnabled, setTrackingEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [store, setStore] = useState<{ slug: string; name: string; customDomain: string | null } | null>(null)
   const [onboardingChecklist, setOnboardingChecklist] = useState({
     hasLogo: false,
     hasCustomColor: false,
@@ -58,12 +60,13 @@ export default function Dashboard() {
       // Buscar estabelecimento
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id, business_type, order_tracking_enabled, logo_url, theme_color, pix_key')
+        .select('id, name, slug, custom_domain, business_type, order_tracking_enabled, logo_url, theme_color, pix_key')
         .eq('owner_id', user.id)
         .single()
 
       if (estError) logError('painel:dashboard', 'erro ao buscar estabelecimento', estError)
       if (!est) return
+      setStore({ slug: est.slug, name: est.name, customDomain: est.custom_domain })
 
       const [{ count: categoriesCount }, { count: productsCount }] = await Promise.all([
         supabase.from('categories').select('*', { count: 'exact', head: true }).eq('establishment_id', est.id),
@@ -101,10 +104,9 @@ export default function Dashboard() {
         .gte('created_at', todayStart.toISOString())
 
       const todayRevenue = todayEntries?.reduce((sum, e) => sum + Number(e.amount), 0) || 0
-      const entriesCount = todayEntries?.length || 0
-      const averageTicket = entriesCount > 0 ? todayRevenue / entriesCount : 0
 
-      // Produtos com estoque baixo (menos de 5 unidades)
+      // Estoque baixo OU zerado (antes o zerado ficava de fora do alerta,
+      // justamente o caso mais urgente).
       const { count: lowStock } = await supabase
         .from('products')
         .select('*', { count: 'exact', head: true })
@@ -112,16 +114,16 @@ export default function Dashboard() {
         .eq('track_stock', true)
         .eq('is_active', true)
         .lte('stock_qty', 5)
-        .gt('stock_qty', 0)
 
-      // Pedidos de hoje, pra ver de relance quanto é entrega x retirada x
-      // balcão — ajuda a decidir prioridade (ex: se hoje é dia de muita
-      // entrega, vale reforçar entregador).
+      // Pedidos de hoje: entrega x retirada x balcão e ticket médio (só
+      // pedidos não cancelados; lançamentos manuais não entram na conta).
       const { data: todayOrders } = await supabase
         .from('orders')
-        .select('source, order_type')
+        .select('source, order_type, total, status')
         .eq('establishment_id', est.id)
         .gte('created_at', todayStart.toISOString())
+      const validToday = (todayOrders || []).filter((o) => o.status !== 'cancelled')
+      const averageTicket = validToday.length > 0 ? validToday.reduce((s, o) => s + Number(o.total), 0) / validToday.length : 0
 
       const deliveryToday = todayOrders?.filter(o => o.source === 'online' && o.order_type === 'delivery').length || 0
       const pickupToday = todayOrders?.filter(o => o.source === 'online' && o.order_type === 'pickup').length || 0
@@ -202,7 +204,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="page-title">Dashboard</h1>
+          <h1 className="page-title">Início</h1>
           <p className="text-gray-600 mt-1">Visão geral do seu negócio hoje.</p>
         </div>
         <Link
@@ -260,6 +262,8 @@ export default function Dashboard() {
           </div>
         )
       })()}
+
+      {store && <ShareStoreCard slug={store.slug} name={store.name} customDomain={store.customDomain} />}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

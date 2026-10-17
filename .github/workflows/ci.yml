@@ -45,6 +45,13 @@ jobs:
       - name: Testes unitários (Vitest)
         run: npm run test
 
+      # Aplica todas as migrations num Postgres em memória (PGlite) e testa
+      # as regras de segurança do banco: pedido só pelo place_order, preço
+      # calculado no servidor, dados do cliente com token, aceite/cancelamento
+      # atômicos e permissões das funções internas.
+      - name: Testes do banco (migrations + RLS)
+        run: npm run test:db
+
       - name: Build de produção
         run: npm run build
 

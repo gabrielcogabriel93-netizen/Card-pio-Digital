@@ -39,6 +39,17 @@ export async function createEstablishmentWithUniqueSlug(
 
     if (!error) return data
 
+    // 23505 no índice de dono (migration 044) = a loja deste usuário já foi
+    // criada (clique duplo no cadastro): devolve a existente.
+    if (error.code === '23505' && /owner/.test(`${error.message} ${error.details || ''}`)) {
+      const { data: existing } = await supabase
+        .from('establishments')
+        .select()
+        .eq('owner_id', params.ownerId)
+        .maybeSingle()
+      if (existing) return existing
+    }
+
     // 23505 = unique_violation (slug já existe) -> tenta o próximo sufixo
     if (error.code === '23505') {
       lastError = error

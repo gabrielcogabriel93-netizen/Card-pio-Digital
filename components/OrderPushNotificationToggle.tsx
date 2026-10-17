@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { isPushSupported, subscribeToOrderPush, unsubscribeFromOrderPush, hasLocalOrderPushSubscription } from '@/lib/pushClient'
 import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react'
+import { toast } from '@/components/Feedback'
 
 type Status = 'checking' | 'unsupported' | 'denied' | 'off' | 'on'
 
@@ -36,7 +37,7 @@ export function OrderPushNotificationToggle({ orderId }: { orderId: string }) {
       if (result.ok) {
         setStatus('on')
       } else {
-        alert(result.error || 'Não foi possível ativar as notificações.')
+        toast(result.error || 'Não foi possível ativar as notificações.')
         if (Notification.permission === 'denied') setStatus('denied')
       }
     }

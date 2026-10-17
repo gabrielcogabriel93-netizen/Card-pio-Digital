@@ -11,6 +11,7 @@ import type { Product, Category, CartItem, VariationGroup, VariationOption, Comb
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderModal'
 import { FeatureGate } from '@/components/FeatureGate'
+import { toast } from '@/components/Feedback'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle, Layers } from 'lucide-react'
 
@@ -34,6 +35,8 @@ export default function BalcaoPage() {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('dinheiro')
+  const [discountInput, setDiscountInput] = useState('')
+  const [cashReceived, setCashReceived] = useState('')
   const [showCheckout, setShowCheckout] = useState(false)
   const [attemptedSubmit, setAttemptedSubmit] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -192,7 +195,7 @@ export default function BalcaoPage() {
     if (existingIndex >= 0) {
       const current = cart[existingIndex]
       if (product.track_stock && current.quantity + 1 > product.stock_qty) {
-        alert(`Estoque insuficiente. Disponível: ${product.stock_qty}`)
+        toast.error(`Estoque insuficiente. Disponível: ${product.stock_qty}`)
         setShowVariations(null)
         return
       }
@@ -202,7 +205,7 @@ export default function BalcaoPage() {
       setCart(updated)
     } else {
       if (product.track_stock && product.stock_qty < 1) {
-        alert('Produto sem estoque disponível.')
+        toast.error('Produto sem estoque disponível.')
         setShowVariations(null)
         return
       }
@@ -227,7 +230,7 @@ export default function BalcaoPage() {
     const nextQty = Math.max(1, item.quantity + delta)
 
     if (delta > 0 && nextQty > maxQty) {
-      alert(`Estoque insuficiente. Disponível: ${maxQty}`)
+      toast.error(`Estoque insuficiente. Disponível: ${maxQty}`)
       return
     }
 
@@ -240,13 +243,17 @@ export default function BalcaoPage() {
     setCart(cart.filter((_, i) => i !== index))
   }
 
-  const missingFields = [
-    !customerName.trim() && 'Nome do cliente',
-    !customerPhone.trim() && 'Telefone',
-  ].filter(Boolean) as string[]
+  // Venda presencial: nome e telefone são opcionais (padrão "Consumidor
+  // final"). Telefone informado faz o cliente acumular pontos.
+  const missingFields: string[] = []
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
+  const discountValue = Math.min(Math.max(Number(discountInput.replace(',', '.')) || 0, 0), cartSubtotal)
+  const saleTotal = Math.round((cartSubtotal - discountValue) * 100) / 100
+  const cashValue = Number(cashReceived.replace(',', '.')) || 0
+  const changeDue = paymentMethod === 'dinheiro' && cashValue > 0 ? Math.round((cashValue - saleTotal) * 100) / 100 : null
 
   const handleFinishSaleClick = () => {
-    if (missingFields.length > 0) {
+    if (paymentMethod === 'dinheiro' && cashValue > 0 && cashValue < saleTotal) {
       setAttemptedSubmit(true)
       return
     }
@@ -254,19 +261,22 @@ export default function BalcaoPage() {
   }
 
   const handleFinishSale = async () => {
-    if (!customerName.trim() || !customerPhone.trim()) return
     setSaving(true)
     log('painel:balcao', 'finalizando venda...', { itens: cart.length, paymentMethod })
 
     try {
-      const subtotal = cart.reduce((sum, item) => sum + item.total_price, 0)
-      const total = subtotal
-
+      const total = saleTotal
       const supabase = createClient()
-      const { data: createdOrder, error } = await supabase.from('orders').insert({
+      // Pedido, baixa de estoque (com trava) e financeiro numa transação
+      // só no banco (balcao_sale, migration 045): se o estoque acabou no
+      // meio do caminho, nada é gravado pela metade.
+      const { error } = await supabase.rpc('balcao_sale', { p_payload: {
         establishment_id: establishmentId,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
+        payment_method: paymentMethod,
+        discount: discountValue,
+        change_for: paymentMethod === 'dinheiro' && cashValue > 0 ? cashValue : null,
         items: cart.map(item => ({
           product_id: item.product.id,
           product_name: item.product.name,
@@ -278,49 +288,10 @@ export default function BalcaoPage() {
           combo_id: item.combo?.combo_id ?? null,
           combo_selections: item.combo?.selections,
         })),
-        subtotal,
-        shipping_fee: 0,
-        total,
-        status: 'completed',
-        source: 'balcao',
-        order_type: 'pickup', // venda presencial — não é "entrega" nem tem endereço
-        payment_method: paymentMethod,
-      }).select('id').single()
+      } })
 
-      if (error) throw error
-      log('painel:balcao', 'pedido de balcão criado, baixando estoque...')
+      if (error) throw new Error(error.message)
 
-      // Baixar estoque -- item de combo não tem estoque próprio (preço
-      // fixo, migration 040): baixa de cada produto ESCOLHIDO em cada
-      // slot (sabor/sobremesa/bebida) em vez do "produto" sintético do
-      // combo, que nem existe em `products`.
-      for (const item of cart) {
-        const targets = item.combo
-          ? item.combo.selections.map((sel) => ({
-              product_id: sel.product_id,
-              track_stock: products.find((p) => p.id === sel.product_id)?.track_stock ?? false,
-            }))
-          : [{ product_id: item.product.id, track_stock: item.product.track_stock }]
-
-        for (const target of targets) {
-          if (!target.track_stock) continue
-          const { error: rpcError } = await supabase.rpc('decrement_product_stock', {
-            product_id: target.product_id,
-            quantity: item.quantity,
-          })
-          if (rpcError) logError('painel:balcao', 'erro ao baixar estoque', { item: item.product.name, rpcError })
-        }
-      }
-
-      // Criar entrada financeira
-      const { error: financeError } = await supabase.from('financial_entries').insert({
-        establishment_id: establishmentId,
-        order_id: createdOrder?.id ?? null,
-        type: 'income',
-        amount: total,
-        description: `Venda balcão - ${customerName.trim()}`,
-      })
-      if (financeError) throw financeError
 
       log('painel:balcao', 'venda finalizada com sucesso', { total })
       setLastSale({ items: cart, paymentMethod, total, customerName: customerName.trim() })
@@ -328,13 +299,17 @@ export default function BalcaoPage() {
       setCustomerName('')
       setCustomerPhone('')
       setPaymentMethod('dinheiro')
+      setDiscountInput('')
+      setCashReceived('')
       setShowCheckout(false)
+      // Atualiza o estoque mostrado nos cards.
+      loadData()
 
       setTimeout(() => setLastSale(null), 12000)
     } catch (error: any) {
       logError('painel:balcao', 'erro ao finalizar venda', error)
-      logCritical('painel:balcao:finalizar-venda', error.message, error, establishmentId)
-      alert('Erro ao finalizar venda: ' + error.message)
+      if (!/Estoque insuficiente/.test(error.message)) logCritical('painel:balcao:finalizar-venda', error.message, error, establishmentId)
+      toast.error(error.message || 'Erro ao finalizar venda.')
     } finally {
       setSaving(false)
     }
@@ -531,6 +506,7 @@ export default function BalcaoPage() {
       {/* Pizza Order Modal */}
       {showPizzaOrder && showPizzaOrder.pizza_flavor_id && (
         <PizzaOrderModal
+          productId={showPizzaOrder.id}
           productName={showPizzaOrder.name}
           productImageUrl={showPizzaOrder.image_url}
           pizzaFlavorId={showPizzaOrder.pizza_flavor_id}
@@ -570,33 +546,19 @@ export default function BalcaoPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Finalizar Venda</h2>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do cliente *</label>
-                <input
-                  type="text"
-                  className={`input-field ${attemptedSubmit && !customerName.trim() ? 'border-red-400 focus:border-red-500' : ''}`}
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nome do cliente"
-                  required
-                />
-                {attemptedSubmit && !customerName.trim() && (
-                  <p className="text-xs text-red-600 mt-1">Informe o nome do cliente.</p>
-                )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="b-name" className="block text-sm font-medium text-gray-700 mb-1">Cliente <span className="text-gray-400 font-normal">(opcional)</span></label>
+                  <input id="b-name" type="text" className="input-field" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Consumidor final" />
+                </div>
+                <div>
+                  <label htmlFor="b-phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone <span className="text-gray-400 font-normal">(pontos)</span></label>
+                  <input id="b-phone" type="tel" className="input-field" value={customerPhone} onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))} placeholder="(11) 99999-8888" />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
-                <input
-                  type="tel"
-                  className={`input-field ${attemptedSubmit && !customerPhone.trim() ? 'border-red-400 focus:border-red-500' : ''}`}
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
-                  placeholder="(11) 99999-8888"
-                  required
-                />
-                {attemptedSubmit && !customerPhone.trim() && (
-                  <p className="text-xs text-red-600 mt-1">Informe o telefone.</p>
-                )}
+                <label htmlFor="b-discount" className="block text-sm font-medium text-gray-700 mb-1">Desconto (R$) <span className="text-gray-400 font-normal">(opcional)</span></label>
+                <input id="b-discount" inputMode="decimal" className="input-field" value={discountInput} onChange={(e) => setDiscountInput(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="0,00" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
@@ -610,13 +572,25 @@ export default function BalcaoPage() {
                   ))}
                 </select>
               </div>
+              {paymentMethod === 'dinheiro' && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <label htmlFor="b-cash" className="block text-sm font-medium text-gray-700 mb-1">Valor recebido</label>
+                  <input id="b-cash" inputMode="decimal" className={`input-field ${attemptedSubmit && changeDue !== null && changeDue < 0 ? 'border-red-400' : ''}`} value={cashReceived} onChange={(e) => setCashReceived(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="Ex: 50,00" />
+                  {changeDue !== null && (
+                    <p className={`text-sm mt-2 font-semibold ${changeDue < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                      {changeDue < 0 ? `Faltam ${formatCurrency(-changeDue)}` : `Troco: ${formatCurrency(changeDue)}`}
+                    </p>
+                  )}
+                </div>
+              )}
 
-              <div className="border-t border-gray-200 pt-4">
+              <div className="border-t border-gray-200 pt-4 space-y-1">
+                {discountValue > 0 && (
+                  <div className="flex justify-between text-sm text-gray-600"><span>Desconto</span><span>-{formatCurrency(discountValue)}</span></div>
+                )}
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span className="text-primary-600">
-                    {formatCurrency(cart.reduce((sum, item) => sum + item.total_price, 0))}
-                  </span>
+                  <span className="text-primary-600">{formatCurrency(saleTotal)}</span>
                 </div>
               </div>
 

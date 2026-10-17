@@ -9,6 +9,7 @@ import type { Product, Category, VariationGroup, VariationOption } from '@/types
 import { FeatureGateInline } from '@/components/FeatureGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers, Copy } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 type GroupWithOptions = VariationGroup & { options: VariationOption[] }
 
@@ -180,20 +181,20 @@ export default function ProdutosPage() {
       setNewGroupMultiple(false)
       await loadVariations(editingProduct.id)
     } catch (error: any) {
-      alert('Erro ao criar grupo de variação: ' + error.message)
+      toast.error('Erro ao criar grupo de variação: ' + error.message)
     }
   }
 
   const handleDeleteGroup = async (group: GroupWithOptions) => {
     if (!editingProduct) return
-    if (!confirm(`Excluir o grupo "${group.name}" e todas as suas opções?`)) return
+    if (!(await confirmDialog(`Excluir o grupo "${group.name}" e todas as suas opções?`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('variation_groups').delete().eq('id', group.id)
       if (error) throw error
       await loadVariations(editingProduct.id)
     } catch (error: any) {
-      alert('Erro ao excluir grupo: ' + error.message)
+      toast.error('Erro ao excluir grupo: ' + error.message)
     }
   }
 
@@ -208,8 +209,17 @@ export default function ProdutosPage() {
       if (error) throw error
       await loadVariations(editingProduct.id)
     } catch (error: any) {
-      alert('Erro ao atualizar grupo: ' + error.message)
+      toast.error('Erro ao atualizar grupo: ' + error.message)
     }
+  }
+
+  const handleSetGroupMax = async (group: GroupWithOptions, value: string) => {
+    if (!editingProduct) return
+    const max = value ? Math.max(1, parseInt(value)) : null
+    const supabase = createClient()
+    const { error } = await supabase.from('variation_groups').update({ max_select: max }).eq('id', group.id)
+    if (error) toast.error('Erro ao atualizar grupo: ' + error.message)
+    else await loadVariations(editingProduct.id)
   }
 
   const handleAddOption = async (group: GroupWithOptions) => {
@@ -231,7 +241,7 @@ export default function ProdutosPage() {
       setOptionDrafts({ ...optionDrafts, [group.id]: { name: '', price: '' } })
       await loadVariations(editingProduct.id)
     } catch (error: any) {
-      alert('Erro ao adicionar opção: ' + error.message)
+      toast.error('Erro ao adicionar opção: ' + error.message)
     }
   }
 
@@ -243,7 +253,7 @@ export default function ProdutosPage() {
       if (error) throw error
       await loadVariations(editingProduct.id)
     } catch (error: any) {
-      alert('Erro ao excluir opção: ' + error.message)
+      toast.error('Erro ao excluir opção: ' + error.message)
     }
   }
 
@@ -303,14 +313,14 @@ export default function ProdutosPage() {
       setShowModal(false)
     } catch (error: any) {
       logError('painel:produtos', 'erro ao salvar produto', error)
-      alert('Erro ao salvar: ' + error.message)
+      toast.error('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`Tem certeza que deseja excluir "${product.name}"?`)) return
+    if (!(await confirmDialog(`Tem certeza que deseja excluir "${product.name}"?`))) return
     log('painel:produtos', 'excluindo produto', { id: product.id, name: product.name })
 
     try {
@@ -325,7 +335,7 @@ export default function ProdutosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:produtos', 'erro ao excluir produto', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -369,6 +379,7 @@ export default function ProdutosPage() {
               name: group.name,
               is_required: group.is_required,
               allow_multiple: group.allow_multiple,
+              max_select: group.max_select ?? null,
               display_order: group.display_order,
             })
             .select()
@@ -394,7 +405,7 @@ export default function ProdutosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:produtos', 'erro ao duplicar produto', error)
-      alert('Erro ao duplicar produto: ' + error.message)
+      toast.error('Erro ao duplicar produto: ' + error.message)
     }
   }
 
@@ -417,8 +428,29 @@ export default function ProdutosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:produtos', 'erro ao reordenar produtos', error)
-      alert('Erro ao reordenar produtos: ' + error.message)
+      toast.error('Erro ao reordenar produtos: ' + error.message)
     }
+  }
+
+  // "Acabou hoje": some do cardápio como esgotado até a 0h de amanhã
+  // (horário de Brasília) e volta sozinho, sem mexer no estoque.
+  const isSoldOutToday = (product: Product) => !!product.sold_out_until && new Date(product.sold_out_until) > new Date()
+  const toggleSoldOutToday = async (product: Product) => {
+    let until: string | null = null
+    if (!isSoldOutToday(product)) {
+      const now = new Date()
+      const brt = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+      const offsetMs = now.getTime() - brt.getTime()
+      const midnightBrt = new Date(brt.getFullYear(), brt.getMonth(), brt.getDate() + 1, 0, 0, 0)
+      until = new Date(midnightBrt.getTime() + offsetMs).toISOString()
+    }
+    const supabase = createClient()
+    const { error } = await supabase.from('products').update({ sold_out_until: until }).eq('id', product.id)
+    if (error) {
+      toast.error('Erro ao atualizar produto: ' + error.message)
+      return
+    }
+    await loadData()
   }
 
   const toggleActive = async (product: Product) => {
@@ -433,7 +465,7 @@ export default function ProdutosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:produtos', 'erro ao alterar status do produto', error)
-      alert('Erro ao alterar status do produto: ' + error.message)
+      toast.error('Erro ao alterar status do produto: ' + error.message)
     }
   }
 
@@ -543,6 +575,9 @@ export default function ProdutosPage() {
                     {category && (
                       <span className="text-xs text-gray-500">{category.name}</span>
                     )}
+                    {isSoldOutToday(product) && (
+                      <span className="ml-1.5 text-[11px] font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">Esgotado hoje</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-0.5 ml-2 flex-wrap justify-end">
                     <button
@@ -574,6 +609,13 @@ export default function ProdutosPage() {
                       ) : (
                         <ToggleLeft size={18} className="text-gray-400" />
                       )}
+                    </button>
+                    <button
+                      onClick={() => toggleSoldOutToday(product)}
+                      className={`px-2 py-1 text-[11px] font-semibold rounded ${isSoldOutToday(product) ? 'bg-red-50 text-red-700' : 'hover:bg-gray-100 text-gray-500'}`}
+                      title={isSoldOutToday(product) ? 'Voltar a vender hoje' : 'Marcar como esgotado até amanhã'}
+                    >
+                      {isSoldOutToday(product) ? 'Voltou' : 'Acabou'}
                     </button>
                     <button
                       onClick={() => handleDuplicate(product)}
@@ -852,6 +894,21 @@ export default function ProdutosPage() {
                             />
                             Permitir múltiplas escolhas
                           </label>
+                          {group.allow_multiple && (
+                            <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                              Até
+                              <input
+                                type="number"
+                                min={1}
+                                defaultValue={group.max_select ?? ''}
+                                onBlur={(e) => handleSetGroupMax(group, e.target.value)}
+                                className="w-14 rounded border-gray-300 text-xs py-1 px-1.5"
+                                placeholder="∞"
+                                aria-label="Máximo de escolhas"
+                              />
+                              escolhas
+                            </label>
+                          )}
                         </div>
 
                         <div className="space-y-1.5 mb-2">

@@ -8,7 +8,9 @@ import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
 import { vincularIndicacaoSeHouver } from '@/lib/indicacao'
 import { formatPhoneNumber } from '@/lib/phone'
 import { log, logError } from '@/lib/logger'
+import { translateAuthError } from '@/lib/authErrors'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
+import { BrandLockup } from '@/components/Logo'
 
 export default function CadastroPage() {
   const router = useRouter()
@@ -46,9 +48,9 @@ export default function CadastroPage() {
       return
     }
 
-    if (formData.password.length < 6) {
+    if (formData.password.length < 8) {
       log('cadastro', 'validação falhou: senha curta')
-      setError('A senha deve ter no mínimo 6 caracteres.')
+      setError('A senha deve ter no mínimo 8 caracteres.')
       setLoading(false)
       return
     }
@@ -75,7 +77,7 @@ export default function CadastroPage() {
 
       if (authError) {
         logError('cadastro', 'signUp retornou erro', authError)
-        throw new Error(authError.message)
+        throw new Error(translateAuthError(authError.message))
       }
       if (!authData.user) throw new Error('Erro ao criar usuário.')
       log('cadastro', 'signUp concluído', { userId: authData.user.id, temSessao: !!authData.session })
@@ -116,10 +118,7 @@ export default function CadastroPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="font-bold text-2xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
+            <BrandLockup size={40} textClassName="text-3xl text-ink" />
           </Link>
         </div>
 
@@ -204,7 +203,7 @@ export default function CadastroPage() {
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                     <button
                       type="button"

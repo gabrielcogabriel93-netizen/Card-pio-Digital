@@ -16,6 +16,7 @@ export interface ComboOrderResult {
   unitPrice: number
   comboId: string
   selections: { group_id: string; group_name: string; product_id: string; product_name: string }[]
+  config: { kind: 'combo'; combo_id: string; selections: { group_id: string; product_id: string }[] }
 }
 
 /**
@@ -41,6 +42,11 @@ export function buildComboOrderResult(
       product_id: sel.product.id,
       product_name: sel.product.name,
     })),
+    config: {
+      kind: 'combo',
+      combo_id: combo.id,
+      selections: slotSelections.map((sel) => ({ group_id: sel.group.id, product_id: sel.product.id })),
+    },
   }
 }
 

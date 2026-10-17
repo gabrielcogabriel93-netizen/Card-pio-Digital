@@ -10,6 +10,8 @@ import {
   ChefHat, Package, Layers, Bike, Store as StoreIcon,
   Loader2, ArrowRight, ArrowLeft, CheckCircle2,
 } from 'lucide-react'
+import { toast } from '@/components/Feedback'
+import { BrandLockup } from '@/components/Logo'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   {
@@ -119,7 +121,7 @@ export default function OnboardingPage() {
       router.refresh()
     } catch (err: any) {
       logError('onboarding', 'erro ao salvar onboarding', err)
-      alert('Não foi possível salvar: ' + err.message)
+      toast.error('Não foi possível salvar: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -144,10 +146,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-6">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="font-bold text-2xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
+            <BrandLockup size={40} textClassName="text-3xl text-ink" />
           </Link>
         </div>
 

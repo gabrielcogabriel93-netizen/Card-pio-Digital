@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import {
   Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown, ChevronLeft,
   CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, MessageCircle, Wallet, QrCode,
   PlayCircle, ArrowRight, MoreVertical, Sandwich, Cake, UtensilsCrossed, Truck, Send, RotateCcw, UserX, Layers,
 } from 'lucide-react'
-import { Logo } from '@/components/Logo'
+import { BrandLockup } from '@/components/Logo'
+import { MenuScreen, ProductScreen, CheckoutScreen, TrackingScreen } from '@/components/landing/Mockups'
+import { BRAND } from '@/lib/brand'
 import { COMPLETO_MONTHLY_PRICE, ESSENCIAL_FEATURES, COMPLETO_FEATURES } from '@/lib/plans'
 
 const TESTIMONIALS = [
@@ -81,7 +82,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Como o cliente faz o pedido?',
-    answer: 'Ele acessa o link do seu cardápio e monta o pedido. O CatalogAI já abre o WhatsApp dele com a mensagem pronta — ele só confirma o envio por lá. Ou paga na hora com Pix automático, se você tiver essa opção ativada.',
+    answer: 'Ele acessa o link do seu cardápio e monta o pedido. O Freguês já abre o WhatsApp dele com a mensagem pronta — ele só confirma o envio por lá. Ou paga na hora com Pix automático, se você tiver essa opção ativada.',
   },
   {
     question: 'O pedido chega no meu WhatsApp de forma automática?',
@@ -89,7 +90,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Dá pra usar com iFood ao mesmo tempo?',
-    answer: 'Hoje o CatalogAI é o seu canal de vendas próprio (site + WhatsApp), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
+    answer: 'Hoje o Freguês é o seu canal de vendas próprio (site + WhatsApp), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
   },
   {
     question: 'Preciso de cartão de crédito para testar?',
@@ -110,25 +111,10 @@ const CATEGORIES = [
   { icon: <Store className="w-7 h-7" />, title: 'Pequenos negócios' },
 ]
 
-// Moldura de celular reutilizável — envolve prints reais do produto (não
-// ilustrações) capturados do cardápio de demonstração real
-// (/loja/pizzaria-demo-catalogai), pra mostrar a tela de verdade em vez de
-// um mockup genérico.
-function PhoneMockup({ src, alt, priority = false, size = 'md' }: { src: string; alt: string; priority?: boolean; size?: 'sm' | 'md' }) {
-  const width = size === 'sm' ? 'w-[170px] sm:w-[190px]' : 'w-[240px] sm:w-[280px]'
-  const border = size === 'sm' ? 'border-[7px]' : 'border-[10px]'
-  return (
-    <div className={`relative ${width} rounded-[2.2rem] ${border} border-gray-900 shadow-2xl overflow-hidden bg-gray-900 flex-shrink-0`}>
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-4 bg-gray-900 rounded-b-2xl z-10" />
-      <Image src={src} alt={alt} width={390} height={844} className="w-full h-auto" priority={priority} />
-    </div>
-  )
-}
-
 // Mockup ilustrativo do WhatsApp — não é um print real (o WhatsApp é um app
 // de terceiros, não dá pra capturar isso do nosso produto), mas o texto
 // segue exatamente o mesmo formato que a mensagem real gerada pelo
-// CatalogAI usa (ver handleSendOrder em PublicMenuClient.tsx): nome,
+// Freguês usa (ver handleSendOrder em PublicMenuClient.tsx): nome,
 // telefone, tipo de entrega, endereço, itens, taxa e total.
 function WhatsAppMockup({ compact = false }: { compact?: boolean }) {
   const textSize = compact ? 'text-[9px] leading-tight' : 'text-[11px] leading-snug'
@@ -187,10 +173,9 @@ export default function LandingPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <Logo size={32} className="text-primary-500" />
-              <span className="font-bold text-xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
-            </div>
+            <Link href="/" aria-label={BRAND.name}>
+              <BrandLockup size={32} textClassName="text-2xl text-ink" />
+            </Link>
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8">
@@ -238,24 +223,22 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-green-50" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-amber-50" />
         <div className="absolute top-20 right-20 w-72 h-72 bg-primary-200/30 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 left-20 w-72 h-72 bg-green-200/30 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 left-20 w-72 h-72 bg-amber-200/40 rounded-full blur-3xl" />
 
         <div className={`relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <CheckCircle size={16} />
-              <span>7 dias grátis • Sem taxa por pedido</span>
+              <span>7 dias grátis • Sem comissão nos pedidos pelo seu link</span>
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
-              Seu <span className="text-primary-500">cardápio digital</span>.
-              <br />Seus pedidos.
-              <br />No seu <span className="text-green-500">WhatsApp</span>.
+            <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[0.98] mb-6">
+              Seu cliente vira <span className="text-primary-500">freguês</span><span className="text-comanda">.</span>
             </h1>
             <p className="text-xl text-gray-600 mb-8 max-w-xl mx-auto lg:mx-0">
-              Crie seu cardápio online profissional, receba pedidos automaticamente pelo WhatsApp
-              e facilite a compra dos seus clientes.
+              Cardápio digital com a sua marca, pedido direto sem comissão de aplicativo e pontos
+              de fidelidade que fazem o cliente voltar. Seu balcão no celular de todo mundo.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
@@ -274,15 +257,12 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="relative flex justify-center lg:justify-end items-center h-[420px] sm:h-[480px]">
-            <div className="absolute left-1/2 -translate-x-[85%] sm:-translate-x-[90%] rotate-[-4deg]">
-              <PhoneMockup src="/screenshots/cardapio-inicio.png" alt="Cardápio digital real do CatalogAI, aberto no celular" priority />
+          <div className="relative flex justify-center lg:justify-end items-center h-[520px] sm:h-[600px]" aria-label="Exemplo do cardápio no celular">
+            <div className="absolute left-1/2 -translate-x-[88%] sm:-translate-x-[92%] rotate-[-4deg]">
+              <MenuScreen />
             </div>
-            <div className="absolute left-1/2 translate-x-[-8%] sm:translate-x-[-5%] rotate-[4deg] z-10">
-              <div className="relative w-[190px] sm:w-[220px] h-[400px] sm:h-[460px] rounded-[2.2rem] border-[8px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-gray-900 rounded-b-xl z-10" />
-                <WhatsAppMockup />
-              </div>
+            <div className="absolute left-1/2 translate-x-[-10%] sm:translate-x-[-6%] rotate-[4deg] z-10">
+              <TrackingScreen size="sm" />
             </div>
           </div>
         </div>
@@ -357,22 +337,28 @@ export default function LandingPage() {
               Veja como é fácil receber pedidos
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              As 4 primeiras telas são prints reais do cardápio de demonstração rodando no CatalogAI — não são ilustrações.
+              Do cardápio ao pedido entregue, sem cadastro, sem senha e sem baixar aplicativo.
             </p>
           </div>
 
           <div className="flex flex-wrap justify-center items-start gap-x-3 gap-y-10">
             {[
-              { kind: 'shot' as const, src: '/screenshots/cardapio-inicio.png', label: '1. Cliente acessa o cardápio' },
-              { kind: 'shot' as const, src: '/screenshots/escolhe-produtos.png', label: '2. Escolhe os produtos' },
-              { kind: 'shot' as const, src: '/screenshots/carrinho.png', label: '3. Adiciona ao carrinho' },
-              { kind: 'shot' as const, src: '/screenshots/confirmar-pedido.png', label: '4. Confirma o pedido' },
-              { kind: 'whatsapp' as const, label: '5. Pedido chega no WhatsApp' },
+              { kind: 'menu' as const, label: '1. Abre o link da loja' },
+              { kind: 'product' as const, label: '2. Escolhe e personaliza' },
+              { kind: 'checkout' as const, label: '3. Faz o pedido em 3 toques' },
+              { kind: 'tracking' as const, label: '4. Acompanha até chegar' },
+              { kind: 'whatsapp' as const, label: '5. A loja recebe com alarme' },
             ].map((step, index, arr) => (
               <div key={index} className="flex items-center gap-3">
                 <div className="text-center">
-                  {step.kind === 'shot' ? (
-                    <PhoneMockup src={step.src} alt={step.label} size="sm" />
+                  {step.kind === 'menu' ? (
+                    <MenuScreen size="sm" />
+                  ) : step.kind === 'product' ? (
+                    <ProductScreen size="sm" />
+                  ) : step.kind === 'checkout' ? (
+                    <CheckoutScreen size="sm" />
+                  ) : step.kind === 'tracking' ? (
+                    <TrackingScreen size="sm" />
                   ) : (
                     <div className="relative w-[170px] sm:w-[190px] h-[368px] sm:h-[412px] rounded-[2.2rem] border-[7px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900">
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-gray-900 rounded-b-xl z-10" />
@@ -389,7 +375,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center text-sm text-gray-400 mt-2">
-            A tela 5 é uma ilustração de como a mensagem chega no WhatsApp — o texto segue o mesmo formato que o CatalogAI realmente gera.
+            Na loja, o pedido toca no painel até alguém aceitar e também chega no WhatsApp com o resumo completo.
           </p>
 
           <div className="text-center mt-10">
@@ -429,7 +415,7 @@ export default function LandingPage() {
               {
                 icon: <ShoppingCart className="w-6 h-6" />,
                 title: 'Pedidos via WhatsApp',
-                description: 'Cliente monta o pedido e o CatalogAI já abre o WhatsApp com a mensagem pronta e o link de acompanhamento — ele só confirma o envio, no WhatsApp dele.',
+                description: 'Cliente monta o pedido e o Freguês já abre o WhatsApp com a mensagem pronta e o link de acompanhamento — ele só confirma o envio, no WhatsApp dele.',
                 color: 'bg-blue-100 text-blue-600'
               },
               {
@@ -595,7 +581,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
             <div className="text-center">
               <p className="text-4xl font-bold text-primary-500 mb-1">53</p>
-              <p className="text-gray-600">lojas ativas usando o CatalogAI</p>
+              <p className="text-gray-600">lojas ativas usando o {BRAND.name}</p>
             </div>
             <div className="text-center">
               <p className="text-4xl font-bold text-primary-500 mb-1">+1.500</p>
@@ -603,7 +589,7 @@ export default function LandingPage() {
             </div>
             <div className="text-center">
               <p className="text-4xl font-bold text-primary-500 mb-1">0%</p>
-              <p className="text-gray-600">comissão por pedido — sempre</p>
+              <p className="text-gray-600">de comissão nos pedidos pelo seu link</p>
             </div>
           </div>
 
@@ -655,8 +641,8 @@ export default function LandingPage() {
             </div>
           </div>
           <p className="text-sm text-gray-400 mt-4">
-            WhatsApp vem em todos os planos. Pix automático faz parte do plano Completo — sem taxa de
-            integração extra.
+            WhatsApp vem em todos os planos. Pix automático faz parte do plano Completo, com tarifa de
+            R$ 1 por pedido pago (além da taxa do próprio Mercado Pago).
           </p>
         </div>
       </section>
@@ -669,7 +655,7 @@ export default function LandingPage() {
               Comece grátis <span className="text-primary-500">por 7 dias</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Nos 7 dias de teste, tudo dos dois planos vem liberado. Depois, escolha o que faz sentido pro seu negócio — sem comissão por pedido, em nenhum dos dois.
+              Nos 7 dias de teste, tudo dos dois planos vem liberado. Depois, escolha o que faz sentido para o seu negócio. Sem comissão sobre as suas vendas em nenhum dos dois (o Pix automático opcional cobra R$ 1 por pedido pago).
             </p>
           </div>
 
@@ -791,13 +777,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-3 gap-8 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Logo size={32} className="text-primary-500" />
-                <span className="font-bold text-xl text-white">Catalog<span className="text-primary-500">AI</span></span>
+              <div className="mb-4">
+                <BrandLockup size={32} textClassName="text-2xl text-white" />
               </div>
-              <p className="text-sm">
-                Cardápio digital e pedidos pelo WhatsApp.
-              </p>
+              <p className="text-sm">{BRAND.tagline} Cardápio digital, pedido direto e fidelidade.</p>
             </div>
             <div>
               <h4 className="text-white font-semibold mb-4">Produto</h4>
@@ -817,7 +800,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p>&copy; {new Date().getFullYear()} CatalogAI — um produto GL Digital. Todos os direitos reservados.</p>
+            <p>&copy; {new Date().getFullYear()} {BRAND.name}, um produto GL Digital. Todos os direitos reservados.</p>
             <div className="flex gap-4">
               <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
               <Link href="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>

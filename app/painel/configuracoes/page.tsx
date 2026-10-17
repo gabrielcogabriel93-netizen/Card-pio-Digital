@@ -9,6 +9,10 @@ import { ImageUpload } from '@/components/ImageUpload'
 import { formatPhoneNumber } from '@/lib/phone'
 import { normalizeInstagramInput } from '@/lib/instagram'
 import { PIX_KEY_TYPES } from '@/lib/pix'
+import { publicStoreUrl } from '@/lib/domains'
+import { CustomDomainCard } from '@/components/painel/CustomDomainCard'
+import { toast, confirmDialog } from '@/components/Feedback'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import type { Establishment, BusinessType, BillingMode, OrderAutomationMode } from '@/types'
 import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink, Hand, Bot, Gift } from 'lucide-react'
 
@@ -19,7 +23,9 @@ const BUSINESS_TYPES: { value: BusinessType; title: string; description: string;
 ]
 
 export default function ConfiguracoesPage() {
+  const { hasCompletoAccess } = useSubscription()
   const [establishment, setEstablishment] = useState<Establishment | null>(null)
+  const [pausedUntil, setPausedUntil] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -52,6 +58,11 @@ export default function ConfiguracoesPage() {
     auto_completed_minutes_delivery: '30',
     abandoned_cart_minutes: '15',
     inactive_customer_days: '20',
+    delivery_time_min: '',
+    delivery_time_max: '',
+    min_order_value: '',
+    google_review_url: '',
+    hide_platform_badge: false,
   })
   const [mpStatus, setMpStatus] = useState<{ connected: boolean; email: string | null } | null>(null)
   const [mpStatusLoading, setMpStatusLoading] = useState(true)
@@ -115,7 +126,7 @@ export default function ConfiguracoesPage() {
 
   const handleDisconnectMp = async () => {
     if (!establishment?.id) return
-    if (!confirm('Desconectar o Mercado Pago? A Pix automática some do cardápio até você conectar de novo.')) return
+    if (!(await confirmDialog({ title: 'Desconectar o Mercado Pago?', message: 'O Pix automático some do cardápio até você conectar de novo.', confirmLabel: 'Desconectar', danger: true }))) return
     setMpActionLoading(true)
     try {
       const response = await fetch('/api/mercadopago/disconnect', {
@@ -127,7 +138,7 @@ export default function ConfiguracoesPage() {
       await loadMpStatus(establishment.id)
     } catch (error: any) {
       logError('painel:configuracoes', 'erro ao desconectar Mercado Pago', error)
-      alert('Erro ao desconectar: ' + error.message)
+      toast.error('Erro ao desconectar: ' + error.message)
     } finally {
       setMpActionLoading(false)
     }
@@ -180,7 +191,13 @@ export default function ConfiguracoesPage() {
           auto_completed_minutes_delivery: String(data.auto_completed_minutes_delivery ?? 30),
           abandoned_cart_minutes: String(data.abandoned_cart_minutes ?? 15),
           inactive_customer_days: String(data.inactive_customer_days ?? 20),
+          delivery_time_min: data.delivery_time_min != null ? String(data.delivery_time_min) : '',
+          delivery_time_max: data.delivery_time_max != null ? String(data.delivery_time_max) : '',
+          min_order_value: data.min_order_value != null ? String(data.min_order_value) : '',
+          google_review_url: data.google_review_url || '',
+          hide_platform_badge: !!data.hide_platform_badge,
         })
+        setPausedUntil(data.paused_until || null)
         if (data.opening_hours) {
           setOpeningHours(data.opening_hours as Record<string, { open: string; close: string }>)
         }
@@ -196,7 +213,7 @@ export default function ConfiguracoesPage() {
     e.preventDefault()
 
     if (!formData.offers_delivery && !formData.offers_pickup) {
-      alert('Ative pelo menos uma opção: entrega ou retirada no local.')
+      toast.error('Ative pelo menos uma opção: entrega ou retirada no local.')
       return
     }
 
@@ -230,7 +247,6 @@ export default function ConfiguracoesPage() {
           pix_key: formData.pix_key.trim() || null,
           pix_key_type: formData.pix_key.trim() ? formData.pix_key_type : null,
           pix_city: formData.pix_city.trim() || null,
-          custom_domain: formData.custom_domain.trim().toLowerCase() || null,
           billing_mode: formData.billing_mode,
           order_automation_mode: formData.order_automation_mode,
           auto_confirm_minutes: parseInt(formData.auto_confirm_minutes) || 0,
@@ -239,22 +255,49 @@ export default function ConfiguracoesPage() {
           auto_completed_minutes_delivery: parseInt(formData.auto_completed_minutes_delivery) || 0,
           abandoned_cart_minutes: parseInt(formData.abandoned_cart_minutes) || 15,
           inactive_customer_days: parseInt(formData.inactive_customer_days) || 20,
+          delivery_time_min: formData.delivery_time_min ? parseInt(formData.delivery_time_min) : null,
+          delivery_time_max: formData.delivery_time_max ? parseInt(formData.delivery_time_max) : null,
+          min_order_value: formData.min_order_value ? parseFloat(formData.min_order_value.replace(',', '.')) : null,
+          google_review_url: formData.google_review_url.trim() || null,
+          hide_platform_badge: formData.hide_platform_badge,
         })
         .eq('owner_id', user.id)
 
       if (error) throw error
       log('painel:configuracoes', 'configurações salvas com sucesso')
-      alert('Configurações salvas com sucesso!')
+      toast.success('Configurações salvas')
     } catch (error: any) {
       logError('painel:configuracoes', 'erro ao salvar configurações', error)
-      alert('Erro ao salvar: ' + error.message)
+      toast.error('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
     }
   }
 
+  const storeUrl = () =>
+    publicStoreUrl({
+      slug: formData.slug,
+      customDomain: establishment?.custom_domain,
+      rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
+      baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+    })
+
+  // Pausa rápida ("cozinha cheia"): salva na hora, sem esperar o botão
+  // Salvar lá embaixo. O cardápio mostra "Pausada, volta às HH:MM".
+  const setPause = async (minutes: number | null) => {
+    const value = minutes ? new Date(Date.now() + minutes * 60000).toISOString() : null
+    const supabase = createClient()
+    const { error } = await supabase.from('establishments').update({ paused_until: value }).eq('id', establishment?.id || '')
+    if (error) {
+      toast.error('Não foi possível pausar agora.')
+      return
+    }
+    setPausedUntil(value)
+    toast.success(minutes ? `Pedidos pausados por ${minutes} min` : 'Pedidos liberados de novo')
+  }
+
   const copyLink = () => {
-    const link = `${window.location.origin}/loja/${formData.slug}`
+    const link = storeUrl()
     navigator.clipboard.writeText(link)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -310,7 +353,7 @@ export default function ConfiguracoesPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm text-gray-500">Link público do cardápio</p>
             <p className="font-medium text-gray-900 truncate">
-              {typeof window !== 'undefined' && `${window.location.origin}/loja/${formData.slug}`}
+              {typeof window !== 'undefined' && storeUrl()}
             </p>
           </div>
           <button onClick={copyLink} className="btn-secondary text-sm">
@@ -324,26 +367,33 @@ export default function ConfiguracoesPage() {
         </div>
       </div>
 
-      {/* Domínio próprio */}
+      {/* Pausa rápida */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Domínio próprio (avançado)</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Use um domínio seu (ex: cardapio.minhaloja.com.br) pra abrir seu cardápio, em vez do link acima.
-        </p>
-        <input
-          type="text"
-          className="input-field mb-3"
-          placeholder="cardapio.minhaloja.com.br"
-          value={formData.custom_domain}
-          onChange={(e) => setFormData({ ...formData, custom_domain: e.target.value })}
-        />
-        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
-          <p>Preencher aqui sozinho não ativa nada. Também é preciso, manualmente:</p>
-          <p>1. No DNS do seu domínio, criar um registro CNAME apontando para <code className="bg-white px-1 rounded border">cname.vercel-dns.com</code>.</p>
-          <p>2. Adicionar esse mesmo domínio em Vercel → seu projeto → Settings → Domains.</p>
-          <p>Sem os dois passos acima, o domínio não vai funcionar mesmo salvo aqui.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Cozinha cheia?</h2>
+            <p className="text-sm text-gray-500">
+              {pausedUntil && new Date(pausedUntil) > new Date()
+                ? `Pedidos pausados até ${new Date(pausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`
+                : 'Pause os pedidos online por um tempo. O cardápio volta sozinho.'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {pausedUntil && new Date(pausedUntil) > new Date() ? (
+              <button type="button" onClick={() => setPause(null)} className="btn-primary text-sm">Voltar a receber</button>
+            ) : (
+              [20, 60].map((m) => (
+                <button key={m} type="button" onClick={() => setPause(m)} className="btn-secondary text-sm">Pausar {m === 60 ? '1 h' : `${m} min`}</button>
+              ))
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Domínio próprio (plano Completo) */}
+      {establishment && (
+        <CustomDomainCard hasCompletoAccess={hasCompletoAccess} initialDomain={establishment.custom_domain || null} />
+      )}
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Basic Info */}
@@ -401,6 +451,39 @@ export default function ConfiguracoesPage() {
                 Aparece como link no perfil da loja que o cliente vê no cardápio. Pode colar o @, o nome de usuário ou o link completo.
               </p>
             </div>
+
+            {formData.offers_delivery && (
+              <div className="grid grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <label htmlFor="dt-min" className="block text-sm font-medium text-gray-700 mb-1">Entrega em (mín.)</label>
+                  <input id="dt-min" type="number" min="0" className="input-field" value={formData.delivery_time_min} onChange={(e) => setFormData({ ...formData, delivery_time_min: e.target.value })} placeholder="30" />
+                </div>
+                <div>
+                  <label htmlFor="dt-max" className="block text-sm font-medium text-gray-700 mb-1">até (min)</label>
+                  <input id="dt-max" type="number" min="0" className="input-field" value={formData.delivery_time_max} onChange={(e) => setFormData({ ...formData, delivery_time_max: e.target.value })} placeholder="45" />
+                </div>
+                <p className="col-span-2 text-xs text-gray-500 -mt-1">Aparece no topo do cardápio: “30–45 min”.</p>
+              </div>
+            )}
+
+            <div className="max-w-md">
+              <label htmlFor="min-order" className="block text-sm font-medium text-gray-700 mb-1">Pedido mínimo (R$)</label>
+              <input id="min-order" inputMode="decimal" className="input-field max-w-[160px]" value={formData.min_order_value} onChange={(e) => setFormData({ ...formData, min_order_value: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Sem mínimo" />
+            </div>
+
+            <div>
+              <label htmlFor="google-review" className="block text-sm font-medium text-gray-700 mb-1">Link de avaliação no Google <span className="font-normal text-gray-400">(opcional)</span></label>
+              <input id="google-review" type="url" className="input-field" value={formData.google_review_url} onChange={(e) => setFormData({ ...formData, google_review_url: e.target.value })} placeholder="https://g.page/r/..." />
+              <p className="text-xs text-gray-500 mt-1">Quem der 4 ou 5 estrelas no pedido é convidado a avaliar sua loja no Google.</p>
+            </div>
+
+            <label className={`flex items-start gap-3 p-3 rounded-lg border ${hasCompletoAccess ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+              <input type="checkbox" className="mt-1 rounded text-primary-500" checked={formData.hide_platform_badge} disabled={!hasCompletoAccess} onChange={(e) => setFormData({ ...formData, hide_platform_badge: e.target.checked })} />
+              <span>
+                <span className="block text-sm font-medium text-gray-800">Esconder o selo “pedidos por freguês” no rodapé</span>
+                <span className="block text-xs text-gray-500">Seu cardápio fica 100% com a sua marca.{!hasCompletoAccess && ' Disponível no plano Completo.'}</span>
+              </span>
+            </label>
 
             {formData.offers_delivery && (
               <div>
@@ -912,9 +995,26 @@ export default function ConfiguracoesPage() {
           </p>
 
           <div className="space-y-3">
-            {weekDays.map((day) => (
-              <div key={day.key} className="flex items-center gap-4">
+            {weekDays.map((day) => {
+              const closed = !openingHours[day.key]
+              return (
+              <div key={day.key} className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <span className="w-28 text-sm font-medium text-gray-700">{day.label}</span>
+                <label className="flex items-center gap-1.5 text-sm text-gray-600 w-24">
+                  <input
+                    type="checkbox"
+                    className="rounded text-primary-500"
+                    checked={closed}
+                    onChange={(e) => {
+                      const next = { ...openingHours }
+                      if (e.target.checked) delete next[day.key]
+                      else next[day.key] = { open: '08:00', close: '22:00' }
+                      setOpeningHours(next)
+                    }}
+                  />
+                  Fechado
+                </label>
+                {!closed && (<>
                 <input
                   type="time"
                   className="input-field w-32"
@@ -938,8 +1038,10 @@ export default function ConfiguracoesPage() {
                     })
                   }
                 />
+                </>)}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

@@ -10,6 +10,9 @@
 // pequena sem medir o consumo primeiro.
 
 require('dotenv').config()
+const fs = require('fs')
+const path = require('path')
+const crypto = require('crypto')
 const express = require('express')
 const cors = require('cors')
 const wppconnect = require('@wppconnect-team/wppconnect')
@@ -34,8 +37,17 @@ function getSession(id) {
   return sessions.get(id) || { status: 'disconnected', qrCode: null, client: null }
 }
 
+// Comparação em tempo constante (não vaza, pelo tempo de resposta,
+// quantos caracteres do segredo bateram).
+function secretMatches(received) {
+  if (typeof received !== 'string') return false
+  const a = Buffer.from(received)
+  const b = Buffer.from(API_SECRET)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
 function requireAuth(req, res, next) {
-  if (req.headers['x-api-secret'] !== API_SECRET) {
+  if (!secretMatches(req.headers['x-api-secret'])) {
     return res.status(401).json({ error: 'Não autorizado' })
   }
   next()
@@ -136,6 +148,24 @@ app.post('/sessions/:id/send', async (req, res) => {
   }
 })
 
+// Ao reiniciar (deploy, queda da VPS), as sessões ficavam só em memória
+// e todo lojista aparecia "desconectado" até clicar de novo. Os tokens de
+// login ficam em disco (folderNameToken), então dá para religar sozinho
+// cada sessão que já tinha sido pareada, sem pedir QR de novo.
+function restoreSavedSessions() {
+  const dir = path.join(process.cwd(), 'tokens')
+  if (!fs.existsSync(dir)) return
+  const ids = fs.readdirSync(dir).filter((name) => /^[0-9a-f-]{36}$/i.test(name))
+  ids.forEach((id, index) => {
+    // Escalona para não abrir todos os Chromium ao mesmo tempo.
+    setTimeout(() => {
+      console.log(`[${id}] restaurando sessão salva`)
+      startSession(id)
+    }, index * 4000)
+  })
+}
+
 app.listen(PORT, () => {
   console.log(`Servidor WhatsApp rodando na porta ${PORT}`)
+  restoreSavedSessions()
 })

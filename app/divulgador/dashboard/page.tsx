@@ -96,7 +96,7 @@ export default function DivulgadorDashboardPage() {
         <h1 className="page-title">Olá, {data.nome.split(' ')[0]}</h1>
         <p className="text-gray-600 mt-1">
           Você ganha {data.percentualComissao}% de comissão, todo mês, de forma recorrente, enquanto o
-          estabelecimento que você indicou continuar assinando o CatalogAI. Quanto mais estabelecimentos
+          estabelecimento que você indicou continuar assinando o Freguês. Quanto mais estabelecimentos
           ativos você trouxer, maior sua renda mensal.
         </p>
       </div>

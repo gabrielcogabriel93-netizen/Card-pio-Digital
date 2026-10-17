@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { compressImage } from '@/lib/image'
+import { compressImage, extensionForBlob } from '@/lib/image'
 import { log, logError } from '@/lib/logger'
 import { SmartImage } from '@/components/SmartImage'
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
@@ -52,12 +52,14 @@ export function ImageUpload({
 
     try {
       const supabase = createClient()
-      const compressed = await compressImage(file)
+      // Logo sai em PNG (512px): mantém transparência e funciona na imagem
+      // de prévia do link e no ícone do app instalado da loja.
+      const compressed = folder === 'logo' ? await compressImage(file, 512, 0.9, 'png') : await compressImage(file)
       log('upload', 'imagem comprimida', { compressedSize: compressed.size })
 
-      const path = `${establishmentId}/${folder}/${crypto.randomUUID()}.jpg`
+      const path = `${establishmentId}/${folder}/${crypto.randomUUID()}.${extensionForBlob(compressed)}`
       const { error: uploadError } = await supabase.storage.from('uploads').upload(path, compressed, {
-        contentType: 'image/jpeg',
+        contentType: compressed.type || 'image/jpeg',
         upsert: true,
       })
 

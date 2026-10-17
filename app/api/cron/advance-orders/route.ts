@@ -46,12 +46,17 @@ export async function POST(request: NextRequest) {
     // 2 minutos" um pedido que ainda vai se somar a outros na mesma
     // comanda. resolveNextAutomaticStatus também só aceita
     // orderType 'delivery'/'pickup', sem 'mesa'.
+    // Só pedidos das últimas 24h: pendência mais antiga que isso não é
+    // automatizável (ver AUTOMATION_MAX_PENDING_AGE_MINUTES) e ler o
+    // histórico inteiro a cada minuto não escala.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data: orders, error: ordersError } = await admin
       .from('orders')
       .select('*')
       .in('establishment_id', establishmentIds)
       .in('status', ['pending', 'confirmed', 'preparing'])
       .neq('source', 'mesa')
+      .gte('created_at', since)
 
     if (ordersError) throw ordersError
     if (!orders || orders.length === 0) {
@@ -86,10 +91,20 @@ export async function POST(request: NextRequest) {
       )
       if (!nextStatus) continue
 
-      // UPDATE condicional no status que lemos: se outra execução do cron
-      // (ou uma ação manual do lojista) já mexeu nesse pedido nesse meio
-      // tempo, essa linha não bate mais e a gente simplesmente pula —
-      // evita duplicar financeiro/estoque/notificação.
+      // Primeiro aceite: status, financeiro e estoque juntos numa
+      // transação no banco (service_accept_order, com trava de linha).
+      if (order.status === 'pending') {
+        try {
+          const accepted = await applyAutomaticOrderConfirmation(admin, order.id, nextStatus as 'confirmed' | 'completed', establishment)
+          if (accepted) advanced++
+        } catch {
+          // já logado dentro da função; segue para o próximo pedido
+        }
+        continue
+      }
+
+      // Demais etapas: UPDATE condicional no status que lemos -- se outra
+      // execução (ou o lojista) já mexeu no pedido, a linha não bate e pula.
       const { data: updated, error: updateError } = await admin
         .from('orders')
         .update({ status: nextStatus })
@@ -104,11 +119,7 @@ export async function POST(request: NextRequest) {
       }
       if (!updated) continue
 
-      if (order.status === 'pending') {
-        await applyAutomaticOrderConfirmation(admin, updated as Order, nextStatus as 'confirmed' | 'completed', establishment)
-      } else {
-        await applyStatusOnly(updated as Order, nextStatus as 'preparing' | 'completed', establishment)
-      }
+      await applyStatusOnly(updated as Order, nextStatus as 'preparing' | 'completed', establishment)
       advanced++
     }
 

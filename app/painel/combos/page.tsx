@@ -7,6 +7,7 @@ import { ImageUpload } from '@/components/ImageUpload'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Combo, ComboGroup, Product, PizzaSize } from '@/types'
 import { Plus, Edit2, Trash2, ChevronDown, ChevronUp, X, Loader2, ToggleLeft, ToggleRight, Layers, Info, Package } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 type GroupWithProducts = ComboGroup & { productIds: string[] }
 
@@ -102,7 +103,7 @@ export default function CombosPage() {
       )
     } catch (error: any) {
       logError('painel:combos', 'erro ao carregar grupos do combo', error)
-      alert('Erro ao carregar grupos do combo: ' + error.message)
+      toast.error('Erro ao carregar grupos do combo: ' + error.message)
     } finally {
       setLoadingGroups(false)
     }
@@ -142,7 +143,7 @@ export default function CombosPage() {
     if (formData.is_active) {
       const problem = validateReadyToActivate()
       if (problem) {
-        alert(problem)
+        toast(problem)
         return
       }
     }
@@ -175,14 +176,14 @@ export default function CombosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:combos', 'erro ao salvar combo', error)
-      alert('Erro ao salvar combo: ' + error.message)
+      toast.error('Erro ao salvar combo: ' + error.message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDeleteCombo = async (combo: Combo) => {
-    if (!confirm(`Excluir o combo "${combo.name}"? Isso remove todos os grupos e vínculos de produtos dele.`)) return
+    if (!(await confirmDialog(`Excluir o combo "${combo.name}"? Isso remove todos os grupos e vínculos de produtos dele.`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('combos').delete().eq('id', combo.id)
@@ -190,7 +191,7 @@ export default function CombosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:combos', 'erro ao excluir combo', error)
-      alert('Erro ao excluir combo: ' + error.message)
+      toast.error('Erro ao excluir combo: ' + error.message)
     }
   }
 
@@ -209,17 +210,17 @@ export default function CombosPage() {
         if (groupsError) throw groupsError
 
         if (!groupsData || groupsData.length === 0) {
-          alert('Adicione pelo menos um grupo antes de ativar o combo.')
+          toast('Adicione pelo menos um grupo antes de ativar o combo.')
           return
         }
         for (const g of groupsData as unknown as { name: string; is_pizza_slot: boolean; fixed_pizza_size_id: string | null; combo_group_products: { count: number }[] }[]) {
           const count = g.combo_group_products?.[0]?.count ?? 0
           if (count === 0) {
-            alert(`O grupo "${g.name}" precisa ter pelo menos um produto elegível.`)
+            toast(`O grupo "${g.name}" precisa ter pelo menos um produto elegível.`)
             return
           }
           if (g.is_pizza_slot && !g.fixed_pizza_size_id) {
-            alert(`O grupo "${g.name}" é um slot de pizza e precisa de um tamanho fixo definido.`)
+            toast(`O grupo "${g.name}" é um slot de pizza e precisa de um tamanho fixo definido.`)
             return
           }
         }
@@ -230,7 +231,7 @@ export default function CombosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:combos', 'erro ao alterar status do combo', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 
@@ -250,14 +251,14 @@ export default function CombosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:combos', 'erro ao reordenar combos', error)
-      alert('Erro ao reordenar: ' + error.message)
+      toast.error('Erro ao reordenar: ' + error.message)
     }
   }
 
   const handleAddGroup = async () => {
     if (!editingCombo || !newGroupName.trim()) return
     if (newGroupIsPizza && !newGroupSizeId) {
-      alert('Escolha o tamanho fixo da pizza para este grupo.')
+      toast('Escolha o tamanho fixo da pizza para este grupo.')
       return
     }
     try {
@@ -278,13 +279,13 @@ export default function CombosPage() {
       await loadGroups(editingCombo.id)
     } catch (error: any) {
       logError('painel:combos', 'erro ao criar grupo', error)
-      alert('Erro ao criar grupo: ' + error.message)
+      toast.error('Erro ao criar grupo: ' + error.message)
     }
   }
 
   const handleDeleteGroup = async (group: GroupWithProducts) => {
     if (!editingCombo) return
-    if (!confirm(`Excluir o grupo "${group.name}"?`)) return
+    if (!(await confirmDialog(`Excluir o grupo "${group.name}"?`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('combo_groups').delete().eq('id', group.id)
@@ -292,7 +293,7 @@ export default function CombosPage() {
       await loadGroups(editingCombo.id)
     } catch (error: any) {
       logError('painel:combos', 'erro ao excluir grupo', error)
-      alert('Erro ao excluir grupo: ' + error.message)
+      toast.error('Erro ao excluir grupo: ' + error.message)
     }
   }
 
@@ -315,7 +316,7 @@ export default function CombosPage() {
       await loadGroups(editingCombo.id)
     } catch (error: any) {
       logError('painel:combos', 'erro ao atualizar produtos do grupo', error)
-      alert('Erro ao atualizar produtos do grupo: ' + error.message)
+      toast.error('Erro ao atualizar produtos do grupo: ' + error.message)
     }
   }
 

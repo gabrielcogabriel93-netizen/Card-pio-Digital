@@ -1,5 +1,5 @@
 // ============================================================
-// Tipos TypeScript para o CatalogAI
+// Tipos TypeScript do app
 // ============================================================
 
 // Tipo de negócio, definido no quiz de onboarding (ou depois em
@@ -85,6 +85,16 @@ export interface Establishment {
   auto_preparing_minutes?: number
   auto_completed_minutes_pickup?: number
   auto_completed_minutes_delivery?: number
+  // Migration 044: tempo de entrega exibido no topo do cardápio, pedido
+  // mínimo, pausa temporária ("cozinha cheia"), fuso, selo removível
+  // (plano Completo) e link de avaliação no Google.
+  delivery_time_min?: number | null
+  delivery_time_max?: number | null
+  min_order_value?: number | null
+  paused_until?: string | null
+  timezone?: string
+  hide_platform_badge?: boolean
+  google_review_url?: string | null
 }
 
 // Estabelecimento como visto pelo cardápio público — vem da view
@@ -122,6 +132,8 @@ export interface Product {
   // Quando preenchido, o cadastro de variações genérico (variation_groups)
   // não se aplica — tamanhos/sabores/adicionais vêm do sistema de pizza.
   pizza_flavor_id?: string | null
+  // "Acabou hoje" (migration 044): esgotado até esta data, sem mexer no estoque.
+  sold_out_until?: string | null
   // Relações
   category?: Category
   variation_groups?: VariationGroup[]
@@ -152,6 +164,8 @@ export interface VariationGroup {
   name: string
   is_required: boolean
   allow_multiple: boolean
+  // Limite de escolhas em grupo de múltipla escolha ("escolha até 3").
+  max_select?: number | null
   display_order: number
   options?: VariationOption[]
 }
@@ -303,7 +317,19 @@ export interface OrderItem {
     product_id: string
     product_name: string
   }[]
+  // Observação do cliente para o item ("sem cebola").
+  note?: string | null
+  // Seleção original por ids (migration 045) -- é o que permite
+  // "pedir de novo" e o servidor recalcular o preço.
+  config?: OrderItemConfig
 }
+
+// Item como o cardápio envia para place_order (só ids e quantidades --
+// o preço é sempre calculado pelo banco).
+export type OrderItemConfig =
+  | { kind: 'product'; product_id: string; option_ids?: string[] }
+  | { kind: 'pizza'; product_id: string; size_id: string; flavor_ids: string[]; additional_ids?: string[] }
+  | { kind: 'combo'; combo_id: string; selections: { group_id: string; product_id: string }[] }
 
 // Endereço de entrega estruturado (preenchido só quando order_type = 'delivery')
 export interface DeliveryAddress {
@@ -384,6 +410,9 @@ export interface CustomerAddress {
 export interface CustomerProfile {
   customer_id: string
   name: string
+  // false = o telefone tem cadastro, mas este aparelho ainda não foi
+  // confirmado (migration 045): nenhum dado pessoal vem junto.
+  verified?: boolean
   birth_date?: string | null
   // Saldo de pontos de fidelidade (migration 038). 0 pra quem nunca
   // ganhou pontos, não confundir com "programa desativado" — essa
@@ -434,6 +463,17 @@ export interface Order {
   // trigger (migration 029), usado pela automação por tempo pra saber
   // se já passou do prazo configurado pra avançar de etapa.
   status_changed_at?: string
+  // Migration 044: horário de cada etapa e tempo estimado no aceite.
+  accepted_at?: string | null
+  dispatched_at?: string | null
+  completed_at?: string | null
+  cancelled_at?: string | null
+  eta_minutes?: number | null
+  change_for?: number | null
+  discount_source?: 'coupon' | 'loyalty' | 'birthday' | 'manual' | null
+  priced_by_server?: boolean
+  customer_rating?: number | null
+  customer_review?: string | null
 }
 
 // Cupom de desconto
@@ -528,6 +568,10 @@ export interface CartItem<P = Product> {
   }[]
   unit_price: number
   total_price: number
+  // Observação do cliente para o item.
+  note?: string
+  // Seleção por ids, enviada ao servidor para recalcular o preço.
+  config?: OrderItemConfig
   // Preenchido só quando `product` é o "produto sintético" que
   // representa um combo no carrinho (ver addComboItemToCart em
   // PublicMenuClient.tsx e balcao/page.tsx) -- carrega o id real do

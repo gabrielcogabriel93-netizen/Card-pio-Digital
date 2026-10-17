@@ -35,6 +35,28 @@ export default function PlanosPage() {
   const [loadingSub, setLoadingSub] = useState(true)
   const [startingCheckout, setStartingCheckout] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [openingPortal, setOpeningPortal] = useState(false)
+  const [returnMessage, setReturnMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get('assinatura')
+    if (status === 'sucesso') setReturnMessage('Pagamento recebido! Sua assinatura é ativada em instantes.')
+    else if (status === 'alterada') setReturnMessage('Plano alterado. A diferença proporcional aparece na próxima fatura.')
+    else if (status === 'cancelada') setReturnMessage('Você saiu do pagamento antes de concluir. Nada foi cobrado.')
+  }, [])
+
+  const openPortal = async () => {
+    setOpeningPortal(true)
+    try {
+      const res = await fetch('/api/subscription/portal', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao abrir o portal')
+      window.location.href = data.url
+    } catch (err: any) {
+      setCheckoutError(err.message)
+      setOpeningPortal(false)
+    }
+  }
 
   useEffect(() => {
     const loadSubscription = async () => {
@@ -152,6 +174,22 @@ export default function PlanosPage() {
         )}
       </div>
 
+      {returnMessage && (
+        <div className="bg-primary-50 text-primary-800 p-3 rounded-lg text-sm">{returnMessage}</div>
+      )}
+
+      {subscription?.status === 'active' && (
+        <div className="card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold text-gray-900">Cartão, faturas e cancelamento</p>
+            <p className="text-sm text-gray-600">Troque o cartão, baixe notas e cancele quando quiser, sem falar com ninguém.</p>
+          </div>
+          <button onClick={openPortal} disabled={openingPortal} className="btn-secondary flex-shrink-0">
+            {openingPortal ? <Loader2 size={18} className="animate-spin" /> : <><CreditCard size={18} /> Gerenciar assinatura</>}
+          </button>
+        </div>
+      )}
+
       {checkoutError && (
         <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{checkoutError}</div>
       )}
@@ -164,7 +202,9 @@ export default function PlanosPage() {
             { tier: 'completo' as PlanTier, name: 'Completo', price: COMPLETO_MONTHLY_PRICE, features: COMPLETO_FEATURES },
           ]
         ).map((plan) => {
-          const isCurrent = subscription?.planTier === plan.tier
+          // "Plano atual" só para quem já paga: no teste grátis todo mundo
+          // nasce com plan_tier 'essencial', e o botão de assinar sumia.
+          const isCurrent = subscription?.status === 'active' && subscription.planTier === plan.tier
           return (
             <div
               key={plan.tier}
@@ -199,7 +239,7 @@ export default function PlanosPage() {
                   ) : (
                     <>
                       <CreditCard size={18} />
-                      {plan.tier === 'completo' ? 'Fazer upgrade' : 'Assinar'}
+                      {subscription?.status === 'active' ? (plan.tier === 'completo' ? 'Mudar para o Completo' : 'Mudar para o Essencial') : `Assinar o ${plan.name}`}
                     </>
                   )}
                 </button>
@@ -217,7 +257,7 @@ export default function PlanosPage() {
       </p>
 
       <a
-        href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do CatalogAI.')}`}
+        href={`https://wa.me/${CONTACT_WHATSAPP}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre a assinatura do Freguês.')}`}
         target="_blank"
         rel="noopener noreferrer"
         className="btn-secondary inline-flex"

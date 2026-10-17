@@ -2,8 +2,13 @@
  * Redimensiona e comprime uma imagem no navegador antes do upload — reduz
  * bastante o tamanho de fotos tiradas direto do celular (que costumam vir
  * com vários MB) sem exigir nenhuma lib externa.
+ *
+ * Sai em WebP: menor que JPEG e, ao contrário dele, mantém transparência
+ * (logo em PNG com fundo transparente não ganha mais fundo preto).
+ * Navegador sem suporte a WebP no canvas cai para PNG quando a imagem
+ * original tem transparência, ou JPEG quando não tem.
  */
-export function compressImage(file: File, maxWidth = 1280, quality = 0.82): Promise<Blob> {
+export function compressImage(file: File, maxWidth = 1280, quality = 0.82, format: 'webp' | 'png' = 'webp'): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
 
@@ -23,12 +28,29 @@ export function compressImage(file: File, maxWidth = 1280, quality = 0.82): Prom
         }
 
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const mayHaveAlpha = file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif'
+
+        if (format === 'png') {
+          canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Falha ao comprimir a imagem.'))), 'image/png')
+          return
+        }
+
         canvas.toBlob(
           (blob) => {
-            if (blob) resolve(blob)
-            else reject(new Error('Falha ao comprimir a imagem.'))
+            if (blob && blob.type === 'image/webp') {
+              resolve(blob)
+              return
+            }
+            canvas.toBlob(
+              (fallback) => {
+                if (fallback) resolve(fallback)
+                else reject(new Error('Falha ao comprimir a imagem.'))
+              },
+              mayHaveAlpha ? 'image/png' : 'image/jpeg',
+              quality
+            )
           },
-          'image/jpeg',
+          'image/webp',
           quality
         )
       }
@@ -40,4 +62,11 @@ export function compressImage(file: File, maxWidth = 1280, quality = 0.82): Prom
     reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'))
     reader.readAsDataURL(file)
   })
+}
+
+/** Extensão do arquivo a partir do tipo do blob comprimido. */
+export function extensionForBlob(blob: Blob): string {
+  if (blob.type === 'image/webp') return 'webp'
+  if (blob.type === 'image/png') return 'png'
+  return 'jpg'
 }

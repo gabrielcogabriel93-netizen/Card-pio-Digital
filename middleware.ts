@@ -3,6 +3,18 @@ import type { NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { updateSession } from '@/lib/supabase/middleware'
 import { isPlatformAdminEmail } from '@/lib/platformAdmin'
+import { storeSlugFromSubdomain } from '@/lib/domains'
+
+// No domínio da loja (próprio ou subdomínio), só estas rotas viram
+// páginas da loja; o resto (/pedido/[id], /api, /offline...) segue igual.
+// Antes TODA rota era reescrita para /loja/slug/..., e o link de
+// acompanhamento /pedido/[id] caía numa página que não existe.
+function storeRewritePath(slug: string, pathname: string): string | null {
+  if (pathname === '/') return `/loja/${slug}`
+  if (pathname === '/pedidos') return `/loja/${slug}/pedidos`
+  if (pathname === '/manifest.webmanifest') return `/loja/${slug}/manifest.webmanifest`
+  return null
+}
 
 // Domínio próprio (migration 024): se o lojista apontou um domínio dele
 // pro app (CNAME + cadastro manual na Vercel, ver README), qualquer
@@ -74,15 +86,32 @@ export async function middleware(request: NextRequest) {
   const isKnownHost =
     !rootDomain ||
     hostname === rootDomain ||
+    hostname === `www.${rootDomain}` ||
     hostname === 'localhost' ||
     hostname.endsWith('.vercel.app')
+
+  // Subdomínio automático da plataforma: bellamassa.dominio -> /loja/bellamassa.
+  const subdomainSlug = storeSlugFromSubdomain(hostname, rootDomain)
+  if (subdomainSlug) {
+    const target = storeRewritePath(subdomainSlug, pathname)
+    if (target) {
+      const url = request.nextUrl.clone()
+      url.pathname = target
+      return NextResponse.rewrite(url)
+    }
+    return NextResponse.next()
+  }
 
   if (!isKnownHost && !pathname.startsWith('/api') && !pathname.startsWith('/loja')) {
     const slug = await resolveCustomDomainSlug(hostname)
     if (slug) {
-      const url = request.nextUrl.clone()
-      url.pathname = `/loja/${slug}${pathname === '/' ? '' : pathname}`
-      return NextResponse.rewrite(url)
+      const target = storeRewritePath(slug, pathname)
+      if (target) {
+        const url = request.nextUrl.clone()
+        url.pathname = target
+        return NextResponse.rewrite(url)
+      }
+      return NextResponse.next()
     }
   }
 
@@ -109,7 +138,6 @@ export async function middleware(request: NextRequest) {
 
   if (isProtectedRoute) {
     if (!user) {
-      console.log(`[middleware] ${pathname} protegida, sem usuário -> redirecionando para /login`)
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirect', pathname)
       return NextResponse.redirect(redirectUrl)
@@ -120,16 +148,16 @@ export async function middleware(request: NextRequest) {
   // separado do lojista/admin -- por isso não entra em isProtectedRoute
   // acima (que redireciona pra /login) e ganha o redirecionamento dele.
   if (pathname.startsWith('/divulgador/dashboard') && !user) {
-    console.log(`[middleware] ${pathname} protegida, sem usuário -> redirecionando para /divulgador/login`)
     const redirectUrl = new URL('/divulgador/login', request.url)
     redirectUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Redirecionar usuário logado para o painel se tentar acessar login/cadastro
-  if (user && (pathname === '/login' || pathname === '/cadastro')) {
-    console.log(`[middleware] usuário já logado em ${pathname} -> redirecionando para /painel`)
-    return NextResponse.redirect(new URL('/painel', request.url))
+  // Usuário logado em login/cadastro vai para o destino DELE: divulgador
+  // ia para /painel e caía em "completar cadastro" de loja.
+  if (user && supabase && (pathname === '/login' || pathname === '/cadastro')) {
+    const target = (await resolveLoggedInHomeRoute(supabase, user)) || (pathname === '/login' ? null : '/painel')
+    if (target) return NextResponse.redirect(new URL(target, request.url))
   }
 
   // Rastreio de indicação de divulgador (migration 034): o link que o

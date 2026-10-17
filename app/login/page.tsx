@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { useEscapeKey } from '@/lib/useEscapeKey'
+import { translateAuthError, safeRedirectPath } from '@/lib/authErrors'
 import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
+import { BrandLockup } from '@/components/Logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -41,13 +43,19 @@ export default function LoginPage() {
         }
         log('login', 'resultado da verificação de sessão', { temSessao: !!data.session })
         if (data.session) {
-          log('login', 'sessão já existente, redirecionando para /painel')
-          router.push('/painel')
+          router.push(destinationAfterLogin())
           router.refresh()
         }
       })
       .catch((err) => logError('login', 'exceção ao verificar sessão existente', err))
   }, [router])
+
+  // "/" leva cada tipo de conta ao lugar certo (middleware.ts): admin,
+  // lojista ou divulgador. ?redirect= volta para a página que pediu login.
+  const destinationAfterLogin = () => {
+    if (typeof window === 'undefined') return '/'
+    return safeRedirectPath(new URLSearchParams(window.location.search).get('redirect'), '/')
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,17 +73,16 @@ export default function LoginPage() {
 
       if (error) {
         logError('login', 'signInWithPassword retornou erro', error)
-        setError(error.message)
+        setError(translateAuthError(error.message))
         return
       }
 
       log('login', 'login bem-sucedido', { userId: data.user?.id })
-      log('login', 'redirecionando para /painel...')
-      router.push('/painel')
+      router.push(destinationAfterLogin())
       router.refresh()
     } catch (err: any) {
       logError('login', 'exceção inesperada no login', err)
-      setError(err?.message || 'Erro inesperado ao entrar. Tente novamente.')
+      setError(translateAuthError(err?.message))
     } finally {
       // Garante que o botão nunca fique preso girando, mesmo se algo
       // acima lançar uma exceção não prevista.
@@ -115,10 +122,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="font-bold text-2xl text-gray-900">Catalog<span className="text-primary-500">AI</span></span>
+            <BrandLockup size={40} textClassName="text-3xl text-ink" />
           </Link>
         </div>
 

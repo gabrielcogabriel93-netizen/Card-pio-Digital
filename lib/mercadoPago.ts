@@ -8,6 +8,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { encryptSecret, decryptSecret, isEncrypted } from './secretBox'
 
 const MP_API_BASE = 'https://api.mercadopago.com'
 
@@ -100,12 +101,19 @@ export async function getValidAccessToken(admin: SupabaseClient, establishmentId
   // Renova um pouco antes de vencer pra não correr risco de usar um token
   // que expira entre a checagem e a chamada de verdade.
   if (expiresAt - Date.now() > 5 * 60 * 1000) {
-    return account.access_token
+    // Token antigo ainda em texto puro: aproveita e grava cifrado.
+    if (!isEncrypted(account.access_token)) {
+      await admin
+        .from('mercadopago_accounts')
+        .update({ access_token: encryptSecret(account.access_token), refresh_token: encryptSecret(decryptSecret(account.refresh_token)) })
+        .eq('establishment_id', establishmentId)
+    }
+    return decryptSecret(account.access_token)
   }
 
   let refreshed: OAuthTokenResponse
   try {
-    refreshed = await refreshAccessToken(account.refresh_token)
+    refreshed = await refreshAccessToken(decryptSecret(account.refresh_token))
   } catch (err) {
     // Refresh falhou de vez (token revogado, app desconectado pelo lojista
     // direto no Mercado Pago, etc.) — desativa a conexão em vez de deixar
@@ -120,8 +128,8 @@ export async function getValidAccessToken(admin: SupabaseClient, establishmentId
   const { error: updateError } = await admin
     .from('mercadopago_accounts')
     .update({
-      access_token: refreshed.access_token,
-      refresh_token: refreshed.refresh_token,
+      access_token: encryptSecret(refreshed.access_token),
+      refresh_token: encryptSecret(refreshed.refresh_token),
       expires_at: newExpiresAt,
     })
     .eq('establishment_id', establishmentId)
@@ -149,7 +157,7 @@ export async function getPlatformAccessToken(admin: SupabaseClient): Promise<str
   if (settings.platform_access_token && settings.platform_token_expires_at) {
     const expiresAt = new Date(settings.platform_token_expires_at).getTime()
     if (expiresAt - Date.now() > 5 * 60 * 1000) {
-      return settings.platform_access_token
+      return decryptSecret(settings.platform_access_token)
     }
   }
 
@@ -163,7 +171,7 @@ export async function getPlatformAccessToken(admin: SupabaseClient): Promise<str
   const newExpiresAt = new Date(Date.now() + token.expires_in * 1000).toISOString()
   await admin
     .from('platform_settings')
-    .update({ platform_access_token: token.access_token, platform_token_expires_at: newExpiresAt })
+    .update({ platform_access_token: encryptSecret(token.access_token), platform_token_expires_at: newExpiresAt })
     .eq('id', true)
 
   return token.access_token

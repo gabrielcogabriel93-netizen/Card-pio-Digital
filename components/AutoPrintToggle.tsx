@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logError } from '@/lib/logger'
 import { Printer, Loader2, Pencil, Check, X } from 'lucide-react'
+import { toast } from '@/components/Feedback'
 
 interface AutoPrintToggleProps {
   establishmentId: string
@@ -33,7 +34,7 @@ export function AutoPrintToggle({ establishmentId, autoPrintEnabled, printerLabe
       })
     } catch (err) {
       logError('painel:pedidos', 'erro ao salvar impressão automática', err)
-      alert('Erro ao salvar configuração de impressão.')
+      toast.error('Erro ao salvar configuração de impressão.')
     } finally {
       setBusy(false)
     }

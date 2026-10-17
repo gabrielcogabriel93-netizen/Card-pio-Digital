@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { BrandLockup } from '@/components/Logo'
 import { createClient } from '@/lib/supabase/client'
 import { logError } from '@/lib/logger'
 import { Loader2, LogOut } from 'lucide-react'
@@ -58,12 +59,8 @@ export default function DivulgadorDashboardLayout({ children }: { children: Reac
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/divulgador/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
-            <span className="font-bold text-gray-900">
-              Catalog<span className="text-primary-500">AI</span> <span className="text-gray-400 font-normal">· divulgador</span>
-            </span>
+            <BrandLockup size={28} textClassName="text-xl text-ink" />
+            <span className="text-gray-400 text-sm">· divulgador</span>
           </Link>
           <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5">
             <LogOut size={16} />

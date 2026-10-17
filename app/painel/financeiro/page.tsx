@@ -7,6 +7,7 @@ import { downloadCsv } from '@/lib/csv'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { FinancialEntry } from '@/types'
 import { DollarSign, TrendingUp, TrendingDown, Calendar, Loader2, ArrowLeft, ArrowRight, Plus, X, Download } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 type Period = 'today' | 'week' | 'month' | 'custom'
 
@@ -33,7 +34,7 @@ export default function FinanceiroPage() {
   }
 
   const handleDeleteEntry = async (entry: FinancialEntry) => {
-    if (!confirm('Excluir este lançamento?')) return
+    if (!(await confirmDialog('Excluir este lançamento?'))) return
     log('painel:financeiro', 'excluindo lançamento', { id: entry.id })
     try {
       const supabase = createClient()
@@ -43,7 +44,7 @@ export default function FinanceiroPage() {
       await loadEntries()
     } catch (error: any) {
       logError('painel:financeiro', 'erro ao excluir lançamento', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -69,7 +70,7 @@ export default function FinanceiroPage() {
       await loadEntries()
     } catch (error: any) {
       logError('painel:financeiro', 'erro ao salvar lançamento', error)
-      alert('Erro ao salvar lançamento: ' + error.message)
+      toast.error('Erro ao salvar lançamento: ' + error.message)
     } finally {
       setSaving(false)
     }

@@ -1,23 +1,22 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { createPublicClient } from '@/lib/supabase/public'
-import type { PublicEstablishment, Category, PublicProduct, PublicCombo } from '@/types'
+import type { Category, PublicProduct, PublicCombo } from '@/types'
 import PublicMenuClient from './PublicMenuClient'
 import { getBaseUrl } from '@/lib/baseUrl'
+import { getPublicEstablishment } from '@/lib/storePublicData'
+import { publicStoreUrl } from '@/lib/domains'
 import { Store } from 'lucide-react'
 
-// Recarrega os dados do cardápio a cada 30s no máximo — rápido o
-// suficiente para refletir mudanças de produto/preço, mas evita bater no
-// banco a cada visita (cardápios costumam ter bastante tráfego repetido).
+// Página estática regenerada a cada 30s (ISR). O ?mesa= do QR de mesa é
+// lido no navegador (PublicMenuClient) para não forçar renderização
+// dinâmica em toda visita.
 export const revalidate = 30
 
-async function getEstablishment(slug: string): Promise<PublicEstablishment | null> {
-  const supabase = createPublicClient()
-  const { data } = await supabase
-    .from('public_establishments')
-    .select('*')
-    .eq('slug', slug)
-    .single()
-  return data
+// Nenhuma loja pré-gerada no build: cada uma é gerada no primeiro acesso
+// e fica em cache (renovada a cada 30s).
+export const dynamicParams = true
+export function generateStaticParams() {
+  return []
 }
 
 async function getMenu(establishmentId: string) {
@@ -29,14 +28,9 @@ async function getMenu(establishmentId: string) {
     supabase.from('combos').select('*').eq('establishment_id', establishmentId).eq('is_active', true).order('display_order'),
   ])
 
-  // "Mais vendido" é dado real (pedidos aceitos dos últimos 30 dias),
-  // calculado no banco — nunca inventado. Se a loja é nova e não tem
-  // histórico suficiente, simplesmente não marca ninguém.
+  // "Mais pedido" é dado real (pedidos aceitos dos últimos 30 dias).
   const bestsellerIds = new Set((bestsellers || []).map((b: { product_id: string }) => b.product_id))
-  const productsWithBestsellers = ((products || []) as PublicProduct[]).map((p) => ({
-    ...p,
-    is_bestseller: bestsellerIds.has(p.id),
-  }))
+  const productsWithBestsellers = ((products || []) as PublicProduct[]).map((p) => ({ ...p, is_bestseller: bestsellerIds.has(p.id) }))
 
   return {
     categories: (categories || []) as Category[],
@@ -45,52 +39,56 @@ async function getMenu(establishmentId: string) {
   }
 }
 
+export async function generateViewport({ params }: { params: { slug: string } }): Promise<Viewport> {
+  const establishment = await getPublicEstablishment(params.slug)
+  return { themeColor: establishment?.theme_color || '#ffffff', viewportFit: 'cover' }
+}
+
+// Link com a cara da loja: o título é só o nome dela (sem "| plataforma"),
+// a prévia usa a imagem gerada em opengraph-image.tsx, e o ícone/app
+// instalado usam o logo e o nome da loja.
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const establishment = await getEstablishment(params.slug)
+  const establishment = await getPublicEstablishment(params.slug)
+  if (!establishment) return { title: { absolute: 'Cardápio não encontrado' }, robots: { index: false } }
 
-  if (!establishment) {
-    return { title: 'Cardápio não encontrado' }
-  }
-
-  // Descrição configurada pelo lojista (Configurações > Dados do
-  // Estabelecimento) tem prioridade — é o que ele quer que apareça
-  // quando compartilha o link. Sem ela, cai numa descrição genérica.
-  const description = establishment.description?.trim()
-    || `Confira o cardápio de ${establishment.name} e faça seu pedido direto pelo WhatsApp.`
+  const description =
+    establishment.description?.trim() || `Peça online na ${establishment.name}: cardápio completo, entrega e retirada.`
+  const url = publicStoreUrl({
+    slug: establishment.slug,
+    customDomain: establishment.custom_domain,
+    rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
+    baseUrl: getBaseUrl(),
+  })
+  const icon = establishment.logo_url || undefined
 
   return {
-    title: establishment.name,
+    title: { absolute: `${establishment.name} · Peça online` },
     description,
+    alternates: { canonical: url },
+    manifest: `/loja/${establishment.slug}/manifest.webmanifest`,
+    icons: icon ? { icon, apple: icon, shortcut: icon } : undefined,
+    appleWebApp: { capable: true, title: establishment.name, statusBarStyle: 'default' },
     openGraph: {
-      title: establishment.name,
+      title: `${establishment.name} · Peça online`,
       description,
-      images: establishment.logo_url ? [{ url: establishment.logo_url }] : undefined,
+      url,
+      siteName: establishment.name,
       type: 'website',
+      locale: 'pt_BR',
     },
-    twitter: {
-      card: 'summary',
-      title: establishment.name,
-      description,
-      images: establishment.logo_url ? [establishment.logo_url] : undefined,
-    },
+    twitter: { card: 'summary_large_image', title: establishment.name, description },
   }
 }
 
-export default async function PublicMenuPage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string }
-  searchParams: { mesa?: string }
-}) {
-  const establishment = await getEstablishment(params.slug)
+export default async function PublicMenuPage({ params }: { params: { slug: string } }) {
+  const establishment = await getPublicEstablishment(params.slug)
 
   if (!establishment) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center">
           <Store size={48} className="text-gray-300 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Cardápio não encontrado</h1>
+          <h1 className="font-display text-xl font-bold text-gray-900 mb-2">Cardápio não encontrado</h1>
           <p className="text-gray-600">O link que você acessou não existe ou foi desativado.</p>
         </div>
       </div>
@@ -99,16 +97,12 @@ export default async function PublicMenuPage({
 
   const { categories, products, combos } = await getMenu(establishment.id)
 
-  // Dados estruturados (schema.org) pra buscadores entenderem que é um
-  // estabelecimento comercial com cardápio — LocalBusiness serve pra
-  // qualquer tipo de loja (não só restaurante), já que o app atende
-  // desde pizzaria até loja de roupa.
-  const baseUrl = getBaseUrl()
+  // Dados estruturados (schema.org) para buscadores.
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     name: establishment.name,
-    url: `${baseUrl}/loja/${establishment.slug}`,
+    url: publicStoreUrl({ slug: establishment.slug, customDomain: establishment.custom_domain, rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN, baseUrl: getBaseUrl() }),
     ...(establishment.logo_url && { image: establishment.logo_url }),
     ...(establishment.description && { description: establishment.description }),
     ...(establishment.address && { address: establishment.address }),
@@ -120,15 +114,9 @@ export default async function PublicMenuPage({
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
-      <PublicMenuClient
-        establishment={establishment}
-        categories={categories}
-        products={products}
-        combos={combos}
-        tableIdParam={searchParams?.mesa || null}
-      />
+      <PublicMenuClient establishment={establishment} categories={categories} products={products} combos={combos} />
     </>
   )
 }

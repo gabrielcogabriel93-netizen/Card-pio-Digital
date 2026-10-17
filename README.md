@@ -1,9 +1,39 @@
-# CatalogAI
+# Freguês
 
 Plataforma multi-tenant de cardápio digital: cada lojista cria sua conta, monta o
 cardápio (categorias, produtos e variações), recebe pedidos online com envio
 automático para o WhatsApp, atende no balcão/PDV e acompanha o financeiro —
-tudo em um único painel.
+tudo em um único painel. A marca (nome, cores) fica em `lib/brand.ts`.
+
+## Atualização da auditoria (migrations 044, 045 e 046): como implantar
+
+As migrations mudam como o pedido é gravado: o cardápio deixa de inserir
+direto na tabela `orders` e passa a chamar `place_order`, que calcula preço,
+desconto e frete no banco. Siga esta ordem:
+
+1. **Variáveis novas na Vercel** (ver `.env.local.example`): `SECRETS_ENCRYPTION_KEY`
+   (obrigatória, `openssl rand -hex 32`), `NEXT_PUBLIC_ROOT_DOMAIN` e, se quiser
+   domínio próprio em 1 clique, `VERCEL_TOKEN` / `VERCEL_PROJECT_ID`.
+2. **SQL Editor do Supabase, ANTES do deploy:** rode `044_estrutura_melhorias.sql` e
+   depois `045_pedido_seguro.sql`. As duas convivem com o app antigo no ar (testado
+   em `db-tests/transicao.test.mjs`). Se a 044 avisar "Há donos com mais de uma
+   loja", resolva as duplicadas e rode de novo.
+3. **Deploy do app** (push na branch de produção).
+4. **SQL Editor, DEPOIS que o deploy estiver no ar:** rode `046_fechar_acesso_antigo.sql`.
+   Ela fecha a gravação direta de pedidos e as funções antigas de cliente.
+5. **Stripe:** em Settings → Billing → Customer portal, ative o portal (botão
+   "Gerenciar assinatura"). Assinaturas de divulgador criadas antes desta versão
+   foram feitas com o split invertido: corrija cada uma no painel da Stripe
+   (Subscription → Update → transfer_data com `amount_percent`).
+6. **Subdomínio por loja (opcional):** DNS curinga `*.seudominio` apontando
+   para a Vercel e o domínio curinga adicionado no projeto.
+7. **Servidor de WhatsApp:** atualize `whatsapp-server/` (reconexão automática
+   das sessões ao reiniciar).
+
+Erros: tudo que falha (servidor e navegador) aparece em **/admin/logs**.
+
+Testes: `npm test` (unitários), `npm run test:db` (aplica todas as migrations
+num Postgres em memória e testa as regras de segurança) e `npm run test:e2e`.
 
 ## Stack
 

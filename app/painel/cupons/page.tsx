@@ -8,6 +8,7 @@ import type { Coupon } from '@/types'
 import { FeatureGate } from '@/components/FeatureGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Edit2, Trash2, X, Loader2, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 export default function CuponsPage() {
   const { hasCompletoAccess } = useSubscription()
@@ -126,14 +127,14 @@ export default function CuponsPage() {
     } catch (error: any) {
       logError('painel:cupons', 'erro ao salvar cupom', error)
       const message = error.code === '23505' ? 'Já existe um cupom com esse código.' : error.message
-      alert('Erro ao salvar: ' + message)
+      toast.error('Erro ao salvar: ' + message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (coupon: Coupon) => {
-    if (!confirm(`Excluir o cupom "${coupon.code}"?`)) return
+    if (!(await confirmDialog(`Excluir o cupom "${coupon.code}"?`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('coupons').delete().eq('id', coupon.id)
@@ -141,7 +142,7 @@ export default function CuponsPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:cupons', 'erro ao excluir cupom', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -153,7 +154,7 @@ export default function CuponsPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:cupons', 'erro ao alterar status do cupom', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 

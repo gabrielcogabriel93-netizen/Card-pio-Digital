@@ -10,6 +10,7 @@ import type { RestaurantTable, Order } from '@/types'
 import { FeatureGate } from '@/components/FeatureGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Edit2, Trash2, X, Loader2, Table2, ToggleLeft, ToggleRight, QrCode, Printer, Clock, Receipt } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 interface OpenTab {
   id: string
@@ -154,7 +155,7 @@ export default function MesasPage() {
     } catch (error: any) {
       logError('painel:mesas', 'erro ao salvar mesa', error)
       const message = error.code === '23505' ? 'Já existe uma mesa com esse nome.' : error.message
-      alert('Erro ao salvar: ' + message)
+      toast.error('Erro ao salvar: ' + message)
     } finally {
       setSaving(false)
     }
@@ -168,12 +169,12 @@ export default function MesasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:mesas', 'erro ao alterar status da mesa', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 
   const handleCloseTab = async (tab: OpenTab) => {
-    if (!confirm(`Fechar a conta da ${tab.table_label}? Isso vai gerar as entradas financeiras dos pedidos concluídos.`)) return
+    if (!(await confirmDialog(`Fechar a conta da ${tab.table_label}? Isso vai gerar as entradas financeiras dos pedidos concluídos.`))) return
     setClosingTabId(tab.id)
     try {
       const supabase = createClient()
@@ -183,7 +184,7 @@ export default function MesasPage() {
       await loadOpenTabs(establishmentId)
     } catch (error: any) {
       logError('painel:mesas', 'erro ao fechar comanda', error)
-      alert('Não foi possível fechar a conta: ' + error.message)
+      toast.error('Não foi possível fechar a conta: ' + error.message)
     } finally {
       setClosingTabId(null)
     }

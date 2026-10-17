@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { constructWebhookEvent, calculateCommissionAmount } from '@/lib/stripe'
+import { constructWebhookEvent, calculateCommissionAmount, resolveInvoiceServicePeriodEnd } from '@/lib/stripe'
 import { log, logError } from '@/lib/logger'
 import type { PlanTier } from '@/lib/plans'
 
@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 
 // A Stripe chama essa rota toda vez que algo muda numa assinatura da
 // MENSALIDADE DA PLATAFORMA (o que o estabelecimento paga pro
-// CatalogAI) -- não tem nenhuma relação com o pagamento que cada
+// Freguês) -- não tem nenhuma relação com o pagamento que cada
 // estabelecimento recebe dos próprios clientes (isso é
 // app/api/mercadopago/webhook, continua 100% Mercado Pago).
 //
@@ -130,7 +130,13 @@ async function handleInvoicePaymentSucceeded(admin: SupabaseClient, invoice: Str
 
   if (!establishment) return
 
-  const periodEnd = invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null
+  // Fim do período de SERVIÇO (linhas da fatura), não invoice.period_end
+  // -- ver resolveInvoiceServicePeriodEnd em lib/stripe.ts. Fallback para
+  // o período da própria assinatura.
+  const servicePeriodEnd =
+    resolveInvoiceServicePeriodEnd(invoice) ||
+    (subscription.items?.data?.[0]?.current_period_end ? new Date(subscription.items.data[0].current_period_end * 1000) : null)
+  const periodEnd = servicePeriodEnd ? servicePeriodEnd.toISOString() : null
 
   const { error: updateError } = await admin
     .from('establishments')
@@ -143,6 +149,7 @@ async function handleInvoicePaymentSucceeded(admin: SupabaseClient, invoice: Str
   await recordCommissionIfReferred(admin, {
     establishmentId: establishment.id,
     invoice,
+    percentualNoCheckout: Number(subscription.metadata?.divulgadorPercentual) || null,
   })
 }
 
@@ -158,7 +165,7 @@ async function handleInvoicePaymentSucceeded(admin: SupabaseClient, invoice: Str
 // tabela): reenvio do mesmo evento pela Stripe nunca duplica a comissão.
 async function recordCommissionIfReferred(
   admin: SupabaseClient,
-  { establishmentId, invoice }: { establishmentId: string; invoice: Stripe.Invoice }
+  { establishmentId, invoice, percentualNoCheckout }: { establishmentId: string; invoice: Stripe.Invoice; percentualNoCheckout: number | null }
 ) {
   const { data: indicacao } = await admin
     .from('indicacoes')
@@ -171,7 +178,9 @@ async function recordCommissionIfReferred(
   if (!divulgador?.stripe_onboarding_completo) return // sem onboarding completo, checkout não aplicou split nenhum
 
   const valorAssinatura = invoice.amount_paid / 100
-  const percentualAplicado = Number(divulgador.percentual_comissao)
+  // O percentual gravado no checkout é o que a Stripe usou de verdade no
+  // split; o atual de divulgadores só vale para assinaturas antigas.
+  const percentualAplicado = percentualNoCheckout ?? Number(divulgador.percentual_comissao)
   const valorComissao = calculateCommissionAmount(valorAssinatura, percentualAplicado)
 
   const { error } = await admin.from('comissoes').insert({

@@ -76,6 +76,8 @@ const nextConfig = {
     remotePatterns,
   },
   experimental: {
+    // instrumentation.ts: erros sem tratamento no servidor vão para /admin/logs.
+    instrumentationHook: true,
     serverActions: {
       bodySizeLimit: '5mb',
     },

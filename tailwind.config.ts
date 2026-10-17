@@ -8,7 +8,19 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        // Fontes carregadas por next/font em app/layout.tsx.
+        sans: ['var(--font-body)', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-body)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'Consolas', 'monospace'],
+        hand: ['var(--font-hand)', 'cursive'],
+      },
       colors: {
+        // Cores fixas da marca da plataforma (lib/brand.ts) -- nunca
+        // usadas no cardápio da loja, que segue a cor dela (primary-*).
+        ink: '#14172B',
+        comanda: '#FFD43B',
+        caneta: '#2340E0',
         // Lê de CSS custom properties (definidas em globals.css com o
         // verde padrão) em vez de hex fixo. Isso permite que o cardápio
         // público de cada loja sobrescreva essas variáveis com a cor de

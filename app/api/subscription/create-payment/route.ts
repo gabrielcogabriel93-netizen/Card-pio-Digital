@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createSubscriptionCheckoutSession } from '@/lib/stripe'
+import { createSubscriptionCheckoutSession, getStripeClient } from '@/lib/stripe'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
 import { COMPLETO_MONTHLY_PRICE, type PlanTier } from '@/lib/plans'
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const { data: establishment, error: estError } = await admin
       .from('establishments')
-      .select('id, name, stripe_customer_id')
+      .select('id, name, stripe_customer_id, stripe_subscription_id, plan_tier')
       .eq('owner_id', user.id)
       .maybeSingle()
 
@@ -75,6 +75,35 @@ export async function POST(request: NextRequest) {
         : null
 
     const amount = tier === 'completo' ? COMPLETO_MONTHLY_PRICE : Number(settings.monthly_price)
+
+    // Já existe assinatura ativa: troca o plano NA MESMA assinatura (com
+    // proporcional) em vez de abrir um checkout novo, que criaria uma
+    // segunda cobrança mensal. O webhook grava o novo plan_tier quando a
+    // fatura proporcional for paga.
+    if (establishment.stripe_subscription_id) {
+      const stripe = getStripeClient()
+      const current = await stripe.subscriptions.retrieve(establishment.stripe_subscription_id).catch(() => null)
+      if (current && ['active', 'trialing', 'past_due'].includes(current.status)) {
+        if (current.metadata?.tier === tier) {
+          return NextResponse.json({ error: 'Você já está neste plano.' }, { status: 400 })
+        }
+        const item = current.items.data[0]
+        await stripe.subscriptions.update(current.id, {
+          items: [{
+            id: item.id,
+            price_data: {
+              currency: 'brl',
+              product: typeof item.price.product === 'string' ? item.price.product : item.price.product.id,
+              unit_amount: Math.round(amount * 100),
+              recurring: { interval: 'month' },
+            },
+          }],
+          proration_behavior: 'always_invoice',
+          metadata: { ...current.metadata, tier },
+        })
+        return NextResponse.json({ changed: true, url: `${getBaseUrl()}/painel/planos?assinatura=alterada` })
+      }
+    }
 
     const baseUrl = getBaseUrl()
     const { url } = await createSubscriptionCheckoutSession({

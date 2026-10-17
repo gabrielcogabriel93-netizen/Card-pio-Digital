@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logError } from '@/lib/logger'
 import { Copy, Loader2, CheckCircle2, XCircle, X } from 'lucide-react'
+import { toast } from '@/components/Feedback'
 
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutos — validade típica do Pix do MP
@@ -87,7 +88,7 @@ export function MercadoPagoPixCheckout({ orderId, amount, qrCode, qrCodeBase64, 
       setState('waiting')
     } catch (err) {
       logError('mercadopago:checkout', 'erro ao tentar pagamento novamente', err)
-      alert('Não foi possível gerar um novo Pix. Tente novamente em instantes.')
+      toast.error('Não foi possível gerar um novo Pix. Tente novamente em instantes.')
     } finally {
       setRetrying(false)
     }

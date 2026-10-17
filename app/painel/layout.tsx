@@ -8,7 +8,7 @@ import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { SubscriptionPaywall } from '@/components/SubscriptionPaywall'
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext'
-import { Logo } from '@/components/Logo'
+import { BrandLockup } from '@/components/Logo'
 import type { PlanTier } from '@/lib/plans'
 import {
   LayoutDashboard,
@@ -33,30 +33,65 @@ import {
   Gift,
   Table2,
   Layers,
+  ExternalLink,
+  Megaphone,
 } from 'lucide-react'
 
-// requiresCompleto: item continua sempre visível na nav (pedido
-// explícito -- nunca esconder sem explicação); só ganha um badge "Completo"
-// quando a loja não tem acesso, ver render abaixo. O bloqueio de
-// verdade acontece dentro de cada página (FeatureGate), não aqui.
-const navigation = [
-  { name: 'Dashboard', href: '/painel', icon: LayoutDashboard },
-  { name: 'Produtos', href: '/painel/produtos', icon: Package },
-  { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
-  { name: 'Combos', href: '/painel/combos', icon: Layers },
-  { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
-  { name: 'Cupons', href: '/painel/cupons', icon: Tag, requiresCompleto: true },
-  { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift, requiresCompleto: true },
-  { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
-  { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store, requiresCompleto: true },
-  { name: 'Mesas', href: '/painel/mesas', icon: Table2, requiresCompleto: true },
-  { name: 'Bairros', href: '/painel/bairros', icon: MapPin },
-  { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
-  { name: 'Relatórios', href: '/painel/relatorios', icon: TrendingUp, requiresCompleto: true },
-  { name: 'WhatsApp', href: '/painel/whatsapp', icon: MessageCircle },
-  { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
-  { name: 'Planos', href: '/painel/planos', icon: Sparkles },
-  { name: 'Tutorial', href: '/painel/tutorial', icon: BookOpen },
+// Menu agrupado pelo que o lojista quer fazer (antes eram 17 itens
+// soltos, com Pedidos em oitavo). requiresCompleto: item continua sempre
+// visível (nunca esconder sem explicação); só ganha um selo "Completo"
+// quando a loja não tem acesso. O bloqueio de verdade acontece dentro de
+// cada página (FeatureGate), não aqui.
+type NavItem = { name: string; href: string; icon: any; requiresCompleto?: boolean }
+const navigationGroups: { title: string | null; items: NavItem[] }[] = [
+  {
+    title: null,
+    items: [
+      { name: 'Pedidos', href: '/painel/pedidos', icon: ShoppingCart },
+      { name: 'Início', href: '/painel', icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: 'Vendas',
+    items: [
+      { name: 'Balcão / PDV', href: '/painel/balcao', icon: Store, requiresCompleto: true },
+      { name: 'Mesas', href: '/painel/mesas', icon: Table2, requiresCompleto: true },
+    ],
+  },
+  {
+    title: 'Cardápio',
+    items: [
+      { name: 'Produtos', href: '/painel/produtos', icon: Package },
+      { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
+      { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
+      { name: 'Combos', href: '/painel/combos', icon: Layers },
+      { name: 'Bairros e entrega', href: '/painel/bairros', icon: MapPin },
+    ],
+  },
+  {
+    title: 'Clientes e divulgação',
+    items: [
+      { name: 'Divulgar minha loja', href: '/painel/divulgar', icon: Megaphone },
+      { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift, requiresCompleto: true },
+      { name: 'Cupons', href: '/painel/cupons', icon: Tag, requiresCompleto: true },
+      { name: 'WhatsApp', href: '/painel/whatsapp', icon: MessageCircle },
+    ],
+  },
+  {
+    title: 'Gestão',
+    items: [
+      { name: 'Financeiro', href: '/painel/financeiro', icon: DollarSign },
+      { name: 'Relatórios', href: '/painel/relatorios', icon: TrendingUp, requiresCompleto: true },
+    ],
+  },
+  {
+    title: 'Conta',
+    items: [
+      { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
+      { name: 'Planos', href: '/painel/planos', icon: Sparkles },
+      { name: 'Tutorial', href: '/painel/tutorial', icon: BookOpen },
+    ],
+  },
 ]
 
 export default function PainelLayout({
@@ -69,6 +104,7 @@ export default function PainelLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userName, setUserName] = useState<string>('')
   const [establishmentName, setEstablishmentName] = useState<string>('')
+  const [establishmentSlug, setEstablishmentSlug] = useState<string>('')
   const [themeColor, setThemeColor] = useState<string | null>(null)
   // null = ainda checando; depois disso, sempre um objeto (mesmo que
   // blocked: false) — só assim dá pra distinguir "ainda carregando" de
@@ -117,7 +153,7 @@ export default function PainelLayout({
         // Buscar nome do estabelecimento
         const { data: est, error: estError } = await supabase
           .from('establishments')
-          .select('name, onboarding_completed, theme_color')
+          .select('name, slug, onboarding_completed, theme_color')
           .eq('owner_id', user.id)
           .maybeSingle()
 
@@ -131,6 +167,7 @@ export default function PainelLayout({
           }
           log('painel:layout', 'estabelecimento carregado', { name: est.name })
           setEstablishmentName(est.name)
+          setEstablishmentSlug(est.slug)
           setThemeColor(est.theme_color || null)
 
           const { data: subStatus, error: subError } = await supabase.rpc('get_my_subscription_status')
@@ -206,14 +243,9 @@ export default function PainelLayout({
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <Link href="/painel" className="flex items-center gap-2">
-              <Logo size={32} className="text-primary-500" />
-              <div>
-                <span className="font-bold text-gray-900">CatalogAI</span>
-                {establishmentName && (
-                  <p className="text-xs text-gray-500 truncate max-w-[140px]">{establishmentName}</p>
-                )}
-              </div>
+            <Link href="/painel" className="flex flex-col gap-1 min-w-0">
+              <BrandLockup size={28} textClassName="text-lg text-ink" />
+              {establishmentName && <p className="text-xs text-gray-500 truncate max-w-[180px]">{establishmentName}</p>}
             </Link>
             <button
               className="lg:hidden p-1 rounded hover:bg-gray-100"
@@ -225,32 +257,45 @@ export default function PainelLayout({
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href ||
-                (item.href !== '/painel' && pathname.startsWith(item.href))
-              const showLockBadge = item.requiresCompleto && subscription && !subscription.hasCompletoAccess
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <item.icon size={20} />
-                  <span className="flex-1">{item.name}</span>
-                  {showLockBadge && (
-                    <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                      Completo
-                    </span>
-                  )}
-                </Link>
-              )
-            })}
+          <nav className="flex-1 px-3 py-3 overflow-y-auto" aria-label="Menu do painel">
+            {establishmentSlug && (
+              <a
+                href={`/loja/${establishmentSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-3 flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-ink text-white text-sm font-semibold hover:opacity-90"
+              >
+                Ver minha loja <ExternalLink size={15} />
+              </a>
+            )}
+            {navigationGroups.map((group) => (
+              <div key={group.title || 'top'} className="mb-3">
+                {group.title && <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{group.title}</p>}
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = pathname === item.href || (item.href !== '/painel' && pathname.startsWith(item.href))
+                    const showLockBadge = item.requiresCompleto && subscription && !subscription.hasCompletoAccess
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <item.icon size={18} />
+                        <span className="flex-1">{item.name}</span>
+                        {showLockBadge && (
+                          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0">Completo</span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
             {isPlatformAdmin && (
               <Link
                 href="/admin"
@@ -298,10 +343,7 @@ export default function PainelLayout({
             >
               <Menu size={24} />
             </button>
-            <div className="flex items-center gap-2">
-              <Logo size={32} className="text-primary-500" />
-              <span className="font-bold text-gray-900">CatalogAI</span>
-            </div>
+            <BrandLockup size={26} textClassName="text-lg text-ink" />
             <div className="w-10" /> {/* Spacer */}
           </div>
         </div>

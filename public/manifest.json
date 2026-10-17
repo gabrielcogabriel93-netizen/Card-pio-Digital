@@ -1,36 +1,23 @@
 {
-  "name": "CatalogAI - Cardápio Digital",
-  "short_name": "CatalogAI",
-  "description": "Cardápio digital com pedidos direto no WhatsApp.",
+  "id": "/",
+  "name": "Freguês - Pedidos e cardápio digital",
+  "short_name": "Freguês",
+  "description": "Pedidos da sua loja, cardápio digital e fidelidade num só lugar.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#22c55e",
+  "background_color": "#F6F7FB",
+  "theme_color": "#2340E0",
   "orientation": "portrait-primary",
+  "lang": "pt-BR",
+  "categories": ["business", "food"],
   "icons": [
-    {
-      "src": "/icons/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-maskable-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-maskable-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Pedidos", "url": "/painel/pedidos", "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }] }
   ]
 }

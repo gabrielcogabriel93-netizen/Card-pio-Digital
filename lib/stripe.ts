@@ -4,7 +4,7 @@
 // STRIPE_SECRET_KEY.
 //
 // Usado só pra COBRANÇA DA MENSALIDADE DA PLATAFORMA (o que o
-// estabelecimento paga pro CatalogAI) + split de comissão pro
+// estabelecimento paga pro Freguês) + split de comissão pro
 // divulgador. O pagamento que cada estabelecimento recebe dos PRÓPRIOS
 // clientes continua 100% Mercado Pago (lib/mercadoPago.ts), sem relação
 // nenhuma com este arquivo.
@@ -15,6 +15,7 @@
 // justificar a dependência.
 
 import Stripe from 'stripe'
+import { BRAND } from '@/lib/brand'
 
 let cachedClient: Stripe | null = null
 
@@ -140,8 +141,20 @@ export async function createSubscriptionCheckoutSession(
   }
 
   if (params.divulgadorConnect) {
-    subscriptionData.application_fee_percent = params.divulgadorConnect.percentualComissao
-    subscriptionData.transfer_data = { destination: params.divulgadorConnect.stripeAccountId }
+    // transfer_data.amount_percent = parte da fatura que vai para o
+    // divulgador; o restante fica na plataforma. (Antes usava
+    // application_fee_percent junto com destination, o que invertia o
+    // split: o divulgador recebia 100% menos a comissão.) O percentual
+    // também vai nos metadados para o webhook registrar exatamente o
+    // número usado aqui, mesmo que o admin mude o percentual depois.
+    subscriptionData.transfer_data = {
+      destination: params.divulgadorConnect.stripeAccountId,
+      amount_percent: params.divulgadorConnect.percentualComissao,
+    }
+    subscriptionData.metadata = {
+      ...subscriptionData.metadata,
+      divulgadorPercentual: String(params.divulgadorConnect.percentualComissao),
+    }
   }
 
   const planLabel = params.tier === 'completo' ? 'Completo' : 'Essencial'
@@ -155,7 +168,7 @@ export async function createSubscriptionCheckoutSession(
       {
         price_data: {
           currency: 'brl',
-          product_data: { name: `Assinatura CatalogAI (${planLabel}) - ${params.establishmentName}` },
+          product_data: { name: `Assinatura ${BRAND.name} (${planLabel}) - ${params.establishmentName}` },
           unit_amount: Math.round(params.amount * 100),
           recurring: { interval: 'month' },
         },
@@ -173,6 +186,28 @@ export async function createSubscriptionCheckoutSession(
   }
 
   return { url: session.url, sessionId: session.id }
+}
+
+/**
+ * Portal do cliente da Stripe: trocar cartão, ver faturas e cancelar a
+ * assinatura sem precisar falar com o suporte.
+ */
+export async function createBillingPortalSession(customerId: string, returnUrl: string): Promise<string> {
+  const stripe = getStripeClient()
+  const session = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl })
+  return session.url
+}
+
+/**
+ * Fim do período pago de uma fatura de assinatura. `invoice.period_end`
+ * NÃO serve: em fatura de assinatura ele olha um período para trás (na
+ * primeira fatura é igual à data de criação), e gravar isso bloqueava o
+ * lojista logo depois de pagar. O período de serviço vem das linhas.
+ */
+export function resolveInvoiceServicePeriodEnd(invoice: { lines?: { data?: { period?: { end?: number | null } | null }[] } | null }): Date | null {
+  const ends = (invoice.lines?.data || []).map((line) => line.period?.end || 0).filter((end) => end > 0)
+  if (ends.length === 0) return null
+  return new Date(Math.max(...ends) * 1000)
 }
 
 /**

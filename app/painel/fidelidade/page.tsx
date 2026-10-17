@@ -8,6 +8,7 @@ import type { LoyaltySettings, LoyaltyReward, LoyaltyBenefitType } from '@/types
 import { FeatureGate } from '@/components/FeatureGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { Plus, Edit2, Trash2, X, Loader2, Gift, ToggleLeft, ToggleRight } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -109,10 +110,10 @@ export default function FidelidadePage() {
       if (error) throw error
       setSettings(data)
       log('painel:fidelidade', 'configurações salvas com sucesso')
-      alert('Configurações do programa salvas com sucesso!')
+      toast('Configurações do programa salvas com sucesso!')
     } catch (error: any) {
       logError('painel:fidelidade', 'erro ao salvar configurações', error)
-      alert('Erro ao salvar: ' + error.message)
+      toast.error('Erro ao salvar: ' + error.message)
     } finally {
       setSavingSettings(false)
     }
@@ -174,14 +175,14 @@ export default function FidelidadePage() {
       setShowModal(false)
     } catch (error: any) {
       logError('painel:fidelidade', 'erro ao salvar recompensa', error)
-      alert('Erro ao salvar: ' + error.message)
+      toast.error('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDeleteReward = async (reward: LoyaltyReward) => {
-    if (!confirm(`Excluir a recompensa "${reward.name}"?`)) return
+    if (!(await confirmDialog(`Excluir a recompensa "${reward.name}"?`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('loyalty_rewards').delete().eq('id', reward.id)
@@ -189,7 +190,7 @@ export default function FidelidadePage() {
       await loadData()
     } catch (error: any) {
       logError('painel:fidelidade', 'erro ao excluir recompensa', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -201,7 +202,7 @@ export default function FidelidadePage() {
       await loadData()
     } catch (error: any) {
       logError('painel:fidelidade', 'erro ao alterar status da recompensa', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 

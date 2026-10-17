@@ -3,7 +3,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getPayment, getValidAccessToken, verifyWebhookSignature } from '@/lib/mercadoPago'
 import { resolveAutoConfirmStatus, applyAutomaticOrderConfirmation } from '@/lib/orderAutoConfirm'
 import { log, logError } from '@/lib/logger'
-import type { Order } from '@/types'
 
 export const runtime = 'nodejs'
 
@@ -72,22 +71,35 @@ export async function POST(request: NextRequest) {
     if (payment.status === 'approved') {
       const newStatus = resolveAutoConfirmStatus(establishment?.order_tracking_enabled ?? true)
 
-      const { data: updatedOrder, error: updateError } = await admin
+      // 1) Marca como pago (uma vez só, condicional em 'pending').
+      const { data: paidOrder, error: updateError } = await admin
         .from('orders')
-        .update({ payment_status: 'approved', status: newStatus })
+        .update({ payment_status: 'approved' })
         .eq('id', order.id)
         .eq('payment_status', 'pending')
-        .select()
+        .select('id, status')
         .maybeSingle()
       if (updateError) throw updateError
 
-      // maybeSingle() sem linha = outra chamada do webhook já processou
-      // esse pagamento antes — não repete os efeitos colaterais.
-      if (updatedOrder) {
-        await applyAutomaticOrderConfirmation(admin, updatedOrder as Order, newStatus, {
-          whatsapp_notifications_enabled: establishment?.whatsapp_notifications_enabled ?? false,
-        })
-        log('api:mercadopago:webhook', 'pedido confirmado automaticamente', { orderId: order.id, newStatus })
+      if (paidOrder) {
+        if (paidOrder.status === 'pending') {
+          // 2) Aceite automático: status + financeiro + comissão + estoque
+          // numa transação. Pedido que o lojista já cancelou NÃO volta a
+          // ficar ativo (antes o webhook mudava o status mesmo assim).
+          await applyAutomaticOrderConfirmation(admin, order.id, newStatus, {
+            whatsapp_notifications_enabled: establishment?.whatsapp_notifications_enabled ?? false,
+          })
+          log('api:mercadopago:webhook', 'pedido confirmado automaticamente', { orderId: order.id, newStatus })
+        } else if (paidOrder.status === 'cancelled') {
+          // Pago depois de cancelado: o dinheiro entrou na conta do lojista
+          // e precisa de estorno manual no Mercado Pago. Fica registrado.
+          await admin.from('error_logs').insert({
+            establishment_id: order.establishment_id,
+            scope: 'mercadopago:pago-apos-cancelar',
+            message: 'Pix aprovado para um pedido já cancelado: faça o estorno pelo painel do Mercado Pago.',
+            detail: { orderId: order.id, paymentId: dataId },
+          })
+        }
       }
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       await admin

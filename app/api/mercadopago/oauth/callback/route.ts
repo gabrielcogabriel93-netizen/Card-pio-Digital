@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { exchangeCodeForToken, getUserInfo } from '@/lib/mercadoPago'
+import { encryptSecret } from '@/lib/secretBox'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
 
@@ -48,8 +49,8 @@ export async function GET(request: NextRequest) {
         {
           establishment_id: stateRow.establishment_id,
           mp_user_id: String(tokenResponse.user_id),
-          access_token: tokenResponse.access_token,
-          refresh_token: tokenResponse.refresh_token,
+          access_token: encryptSecret(tokenResponse.access_token),
+          refresh_token: encryptSecret(tokenResponse.refresh_token),
           public_key: tokenResponse.public_key || null,
           email,
           expires_at: new Date(Date.now() + tokenResponse.expires_in * 1000).toISOString(),

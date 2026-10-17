@@ -6,6 +6,7 @@ import { log, logError } from '@/lib/logger'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { DeliveryNeighborhood } from '@/types'
 import { Plus, Edit2, Trash2, X, Loader2, MapPin, ToggleLeft, ToggleRight } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 export default function BairrosPage() {
   const [neighborhoods, setNeighborhoods] = useState<DeliveryNeighborhood[]>([])
@@ -67,7 +68,7 @@ export default function BairrosPage() {
     } catch (error: any) {
       logError('painel:bairros', 'erro ao alternar taxa por bairro', error)
       setUseNeighborhoodFee(!next)
-      alert('Erro ao alterar: ' + error.message)
+      toast.error('Erro ao alterar: ' + error.message)
     }
   }
 
@@ -110,14 +111,14 @@ export default function BairrosPage() {
       setShowModal(false)
     } catch (error: any) {
       logError('painel:bairros', 'erro ao salvar bairro', error)
-      alert('Erro ao salvar: ' + error.message)
+      toast.error('Erro ao salvar: ' + error.message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (n: DeliveryNeighborhood) => {
-    if (!confirm(`Excluir o bairro "${n.name}"?`)) return
+    if (!(await confirmDialog(`Excluir o bairro "${n.name}"?`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('delivery_neighborhoods').delete().eq('id', n.id)
@@ -125,7 +126,7 @@ export default function BairrosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:bairros', 'erro ao excluir bairro', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -137,7 +138,7 @@ export default function BairrosPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:bairros', 'erro ao alterar status do bairro', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 

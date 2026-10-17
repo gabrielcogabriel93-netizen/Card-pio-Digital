@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createPixPayment, getPayment, getValidAccessToken } from '@/lib/mercadoPago'
-import { validateOrderPricingFloor } from '@/lib/orderPricing'
+import { validateOrderForPixCharge } from '@/lib/orderPricing'
 import { MERCADOPAGO_MIN_ORDER_TOTAL } from '@/lib/paymentMethods'
 import { getBaseUrl } from '@/lib/baseUrl'
 import { logError } from '@/lib/logger'
@@ -57,12 +57,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Piso de preço: o carrinho é montado inteiramente no navegador do
-    // cliente, então nada impede alguém de mandar um total manipulado
-    // direto pro banco antes de chegar aqui. Confere um piso mínimo antes
-    // de gerar uma cobrança de verdade no Mercado Pago — ver
-    // lib/orderPricing.ts pro que exatamente é (e não é) validado.
-    const pricingCheck = await validateOrderPricingFloor(admin, order)
+    // Desde a migration 045 o pedido só nasce pelo place_order, que
+    // calcula o preço no banco. Aqui só confere que foi isso mesmo e que a
+    // conta fecha antes de gerar uma cobrança de verdade.
+    const pricingCheck = validateOrderForPixCharge(order)
     if (!pricingCheck.valid) {
       logError('api:mercadopago:create-payment', 'pedido rejeitado por preço inconsistente', {
         orderId: order.id,

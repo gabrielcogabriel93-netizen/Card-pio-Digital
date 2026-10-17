@@ -5,6 +5,8 @@ import { log, logError } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 
+const INDICACAO_JANELA_MS = 24 * 60 * 60 * 1000
+
 // Chamada logo depois que um estabelecimento é criado (app/cadastro e
 // app/completar-cadastro, os dois únicos lugares que criam uma loja),
 // com o código do cookie `ref` (se existir -- ver middleware.ts). Nunca
@@ -37,11 +39,20 @@ export async function POST(request: NextRequest) {
 
     const { data: establishment } = await admin
       .from('establishments')
-      .select('id')
+      .select('id, created_at')
       .eq('owner_id', user.id)
       .maybeSingle()
     if (!establishment) {
       return NextResponse.json({ error: 'Estabelecimento não encontrado' }, { status: 404 })
+    }
+
+    // Indicação vale só para loja recém-criada: sem essa janela, qualquer
+    // loja antiga podia ser "indicada" depois, gerando comissão para um
+    // divulgador que não trouxe o cliente.
+    const ageMs = Date.now() - new Date(establishment.created_at).getTime()
+    if (ageMs > INDICACAO_JANELA_MS) {
+      log('api:indicacao:vincular', 'loja fora da janela de indicação', { establishmentId: establishment.id })
+      return NextResponse.json({ linked: false })
     }
 
     const { data: divulgador } = await admin

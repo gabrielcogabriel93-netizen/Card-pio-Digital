@@ -10,6 +10,7 @@ import {
   Plus, Edit2, Trash2, X, Loader2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown,
   Pizza as PizzaIcon, Sparkles, Ruler, Layers, Info,
 } from 'lucide-react'
+import { toast, confirmDialog } from '@/components/Feedback'
 
 type Tab = 'tamanhos' | 'sabores' | 'adicionais'
 
@@ -153,7 +154,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', `erro ao reordenar ${table}`, error)
-      alert('Erro ao reordenar: ' + error.message)
+      toast.error('Erro ao reordenar: ' + error.message)
     }
   }
 
@@ -204,14 +205,14 @@ export default function PizzasPage() {
       setShowSizeModal(false)
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao salvar tamanho', error)
-      alert('Erro ao salvar tamanho: ' + error.message)
+      toast.error('Erro ao salvar tamanho: ' + error.message)
     } finally {
       setSavingSize(false)
     }
   }
 
   const handleDeleteSize = async (size: PizzaSize) => {
-    if (!confirm(`Excluir o tamanho "${size.name}"? Isso também remove os preços de sabores e adicionais cadastrados pra esse tamanho.`)) return
+    if (!(await confirmDialog(`Excluir o tamanho "${size.name}"? Isso também remove os preços de sabores e adicionais cadastrados pra esse tamanho.`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('pizza_sizes').delete().eq('id', size.id)
@@ -219,7 +220,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao excluir tamanho', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -231,7 +232,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do tamanho', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 
@@ -302,7 +303,7 @@ export default function PizzasPage() {
       setShowFlavorModal(false)
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao salvar sabor', error)
-      alert('Erro ao salvar sabor: ' + error.message)
+      toast.error('Erro ao salvar sabor: ' + error.message)
     } finally {
       setSavingFlavor(false)
     }
@@ -312,7 +313,7 @@ export default function PizzasPage() {
     const warning = linkedFlavorIds.has(flavor.id)
       ? `O sabor "${flavor.name}" está vinculado a um produto do catálogo. Excluir o sabor desconecta o produto do sistema de pizza (ele continua existindo, mas sem tamanhos/sabores/adicionais). Excluir mesmo assim?`
       : `Excluir o sabor "${flavor.name}"?`
-    if (!confirm(warning)) return
+    if (!(await confirmDialog(warning))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('pizza_flavors').delete().eq('id', flavor.id)
@@ -320,7 +321,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao excluir sabor', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -332,7 +333,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do sabor', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 
@@ -400,14 +401,14 @@ export default function PizzasPage() {
       setShowAdditionalModal(false)
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao salvar adicional', error)
-      alert('Erro ao salvar adicional: ' + error.message)
+      toast.error('Erro ao salvar adicional: ' + error.message)
     } finally {
       setSavingAdditional(false)
     }
   }
 
   const handleDeleteAdditional = async (additional: PizzaAdditional) => {
-    if (!confirm(`Excluir o adicional "${additional.name}"?`)) return
+    if (!(await confirmDialog(`Excluir o adicional "${additional.name}"?`))) return
     try {
       const supabase = createClient()
       const { error } = await supabase.from('pizza_additionals').delete().eq('id', additional.id)
@@ -415,7 +416,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao excluir adicional', error)
-      alert('Erro ao excluir: ' + error.message)
+      toast.error('Erro ao excluir: ' + error.message)
     }
   }
 
@@ -427,7 +428,7 @@ export default function PizzasPage() {
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do adicional', error)
-      alert('Erro ao alterar status: ' + error.message)
+      toast.error('Erro ao alterar status: ' + error.message)
     }
   }
 
@@ -438,12 +439,12 @@ export default function PizzasPage() {
 
   const handleGeneratePendingProducts = async () => {
     if (pendingFlavors.length === 0) {
-      alert('Nenhum sabor novo pra gerar — todos os sabores ativos já têm um produto no catálogo.')
+      toast('Nenhum sabor novo pra gerar — todos os sabores ativos já têm um produto no catálogo.')
       return
     }
-    if (!confirm(
+    if (!(await confirmDialog(
       `Gerar ${pendingFlavors.length} produto(s), um por sabor? Eles entram INATIVOS pra você revisar (foto, descrição, categoria) antes de publicar no cardápio.`
-    )) return
+    ))) return
 
     setGenerating(true)
     try {
@@ -472,11 +473,11 @@ export default function PizzasPage() {
       if (error) throw error
 
       log('painel:pizzas', 'produtos de pizza gerados', { total: rows.length })
-      alert(`${rows.length} produto(s) gerado(s) como pendente! Vá em Produtos pra revisar e ativar.`)
+      toast(`${rows.length} produto(s) gerado(s) como pendente! Vá em Produtos pra revisar e ativar.`)
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao gerar produtos pendentes', error)
-      alert('Erro ao gerar produtos: ' + error.message)
+      toast.error('Erro ao gerar produtos: ' + error.message)
     } finally {
       setGenerating(false)
     }
