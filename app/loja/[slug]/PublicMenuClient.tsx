@@ -86,17 +86,23 @@ export default function PublicMenuClient({
   categories,
   products,
   combos,
+  renderedAt,
 }: {
   establishment: PublicEstablishment
   categories: Category[]
   products: PublicProduct[]
   combos: PublicCombo[]
+  // Hora em que o servidor montou a página (que fica em cache). A primeira
+  // renderização no navegador usa a MESMA hora, senão "Aberto · fecha às"
+  // sai diferente do HTML e o React quebra a hidratação (erro #425).
+  renderedAt: string
 }) {
   const supabase = useMemo(() => createClient(), [])
 
   // ---------- Loja ----------
-  const [now, setNow] = useState(() => new Date())
+  const [now, setNow] = useState(() => new Date(renderedAt))
   useEffect(() => {
+    setNow(new Date())
     const t = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(t)
   }, [])

@@ -1,12 +1,18 @@
 'use client'
 
 import { useEffect } from 'react'
-import { logCritical } from '@/lib/logger'
+import { logCritical, logWarning } from '@/lib/logger'
+import { isChunkLoadError, reloadOnceForChunkError } from '@/lib/chunkReload'
 
 // Última rede de segurança: erro no próprio layout raiz (onde app/error.tsx
 // não alcança). Registra na aba Logs do admin e mostra uma tela simples.
 export default function RootGlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
+    if (isChunkLoadError(error)) {
+      if (reloadOnceForChunkError()) return
+      logWarning('error-boundary:versao-antiga', error.message, error)
+      return
+    }
     logCritical('error-boundary:global', error.message || 'Erro no layout raiz', { message: error.message, stack: error.stack, digest: error.digest })
   }, [error])
 

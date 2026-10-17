@@ -117,7 +117,7 @@ export default async function PublicMenuPage({ params }: { params: { slug: strin
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
-      <PublicMenuClient establishment={establishment} categories={categories} products={products} combos={combos} />
+      <PublicMenuClient establishment={establishment} categories={categories} products={products} combos={combos} renderedAt={new Date().toISOString()} />
     </>
   )
 }

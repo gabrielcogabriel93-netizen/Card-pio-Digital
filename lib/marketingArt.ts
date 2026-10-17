@@ -29,6 +29,13 @@ export const ART_SIZES: Record<ArtKind, { w: number; h: number; label: string }>
 
 const rgb = (t: string) => `rgb(${t.split(' ').join(',')})`
 
+// A biblioteca do QR Code só aceita cor em hex ("#rrggbb").
+export function rgbToHex(color: string): string {
+  const parts = color.match(/\d+/g)
+  if (!color.startsWith('rgb') || !parts || parts.length < 3) return color
+  return '#' + parts.slice(0, 3).map((n) => Math.min(255, Number(n)).toString(16).padStart(2, '0')).join('')
+}
+
 function cssFont(variable: string, fallback: string) {
   if (typeof window === 'undefined') return fallback
   const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
@@ -82,7 +89,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 // QR com correção de erro alta, para caber o logo da loja no centro.
 async function drawQr(ctx: CanvasRenderingContext2D, url: string, x: number, y: number, size: number, logo: HTMLImageElement | null, dark: string) {
   const qrCanvas = document.createElement('canvas')
-  await QRCode.toCanvas(qrCanvas, url, { errorCorrectionLevel: 'H', margin: 1, width: size, color: { dark, light: '#ffffff' } })
+  await QRCode.toCanvas(qrCanvas, url, { errorCorrectionLevel: 'H', margin: 1, width: size, color: { dark: rgbToHex(dark), light: '#ffffff' } })
   ctx.fillStyle = '#ffffff'
   roundRect(ctx, x - size * 0.06, y - size * 0.06, size * 1.12, size * 1.12, size * 0.08)
   ctx.fill()

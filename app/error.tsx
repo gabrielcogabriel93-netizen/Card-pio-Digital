@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { logCritical } from '@/lib/logger'
+import { logCritical, logWarning } from '@/lib/logger'
+import { isChunkLoadError, reloadOnceForChunkError } from '@/lib/chunkReload'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 
 export default function GlobalError({
@@ -13,6 +14,12 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
+    // Arquivo de uma versão anterior (deploy novo): recarrega e segue.
+    if (isChunkLoadError(error)) {
+      if (reloadOnceForChunkError()) return
+      logWarning('error-boundary:versao-antiga', error.message, error)
+      return
+    }
     logCritical('error-boundary:root', error.message, error)
   }, [error])
 

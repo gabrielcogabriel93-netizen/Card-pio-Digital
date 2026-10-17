@@ -67,10 +67,13 @@ test.describe('PWA', () => {
     expect(response.headers()['content-type']).toContain('javascript')
   })
 
-  test('página /offline (fallback do service worker) carrega e mostra CTA', async ({ page }) => {
-    await page.goto('/offline')
+  test('página offline (fallback do service worker) é HTML puro, sem JS do Next', async ({ page }) => {
+    const chunks: string[] = []
+    page.on('request', (r) => { if (r.url().includes('/_next/')) chunks.push(r.url()) })
+    await page.goto('/offline.html')
     await expect(page.getByRole('heading', { name: /sem conexão/i })).toBeVisible()
-    await expect(page.getByRole('link', { name: /tentar novamente/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /tentar de novo/i })).toBeVisible()
+    expect(chunks).toEqual([])
   })
 })
 

@@ -63,7 +63,7 @@ function shouldReport(key: string): boolean {
 
 // Erros esperados de uso (loja fechada, estoque, cupom) não são falhas do
 // sistema e não precisam poluir a aba de logs.
-const EXPECTED = /Muitas consultas|Muitos pedidos|fechada agora|esgotad|Estoque insuficiente|Cupom (inválido|não encontrado|expirado|esgotado|inativo)|Você já usou|Confirme seu telefone|Código (incorreto|expirado)|Informe |Escolha |pedido mínimo/i
+const EXPECTED = /Muitas consultas|Muitos pedidos|fechada agora|esgotad|Estoque insuficiente|Cupom (inválido|não encontrado|expirado|esgotado|inativo)|Você já usou|Confirme seu telefone|Código (incorreto|expirado)|Informe |Escolha |pedido mínimo|Invalid login credentials|Email not confirmed|User already registered|Password should be|For security purposes, you can only request/i
 
 async function persist(level: LogLevel, scope: string, message: string, detail: unknown, establishmentId?: string | null) {
   const full = [message, describe(detail)].filter(Boolean).join(': ').slice(0, 1000)

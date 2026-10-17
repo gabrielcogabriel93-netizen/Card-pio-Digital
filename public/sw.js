@@ -3,11 +3,12 @@
 // (JS/CSS/ícones); tudo mais (páginas, dados do Supabase) vai sempre para a
 // rede, já que cardápio, pedidos e painel mudam a todo momento e não podem
 // ficar desatualizados por causa de cache. Navegação sem rede cai numa
-// página de fallback offline pré-cacheada (ver /offline).
+// página offline pré-cacheada: HTML estático puro (public/offline.html),
+// sem JS do Next, para nunca apontar para arquivos de um deploy antigo.
 
-const CACHE_NAME = 'fregues-v4'
+const CACHE_NAME = 'fregues-v5'
 const STATIC_ASSET_PATTERN = /\/_next\/static\/|\/icons\//
-const OFFLINE_URL = '/offline'
+const OFFLINE_URL = '/offline.html'
 
 self.addEventListener('install', (event) => {
   // Pré-cacheia a página offline na instalação — precisa estar disponível
