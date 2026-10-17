@@ -15,6 +15,7 @@ import { toast, confirmDialog } from '@/components/Feedback'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import type { Establishment, BusinessType, BillingMode, OrderAutomationMode } from '@/types'
 import { Save, Loader2, Copy, Share2, Clock, ChefHat, Package, Layers, Bike, Store as StoreIcon, CheckCircle2, QrCode, Zap, Unlink, Hand, Bot, Gift } from 'lucide-react'
+import { DEFAULT_STORE_COLOR, storeColor } from '@/lib/brand'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   { value: 'preparo', title: 'Tem preparo', description: 'Comida, lanches, bebidas montadas na hora.', icon: ChefHat },
@@ -36,7 +37,7 @@ export default function ConfiguracoesPage() {
     address: '',
     instagram_url: '',
     description: '',
-    theme_color: '#22c55e',
+    theme_color: DEFAULT_STORE_COLOR as string,
     logo_url: '',
     is_open: true,
     delivery_fee: '0',
@@ -169,7 +170,7 @@ export default function ConfiguracoesPage() {
           address: data.address || '',
           instagram_url: data.instagram_url || '',
           description: data.description || '',
-          theme_color: data.theme_color || '#22c55e',
+          theme_color: storeColor(data.theme_color),
           logo_url: data.logo_url || '',
           is_open: data.is_open ?? true,
           delivery_fee: String(data.delivery_fee ?? 0),

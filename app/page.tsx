@@ -380,7 +380,7 @@ export default function LandingPage() {
 
           <div className="text-center mt-10">
             <a
-              href="/loja/pizzaria-demo-catalogai"
+              href="/loja/pizzaria-demo"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary text-lg px-8 py-4 inline-flex"

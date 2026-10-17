@@ -6,6 +6,7 @@ import { getBaseUrl } from '@/lib/baseUrl'
 import { getPublicEstablishment } from '@/lib/storePublicData'
 import { publicStoreUrl } from '@/lib/domains'
 import { Store } from 'lucide-react'
+import { storeColor } from '@/lib/brand'
 
 // Página estática regenerada a cada 30s (ISR). O ?mesa= do QR de mesa é
 // lido no navegador (PublicMenuClient) para não forçar renderização
@@ -41,7 +42,7 @@ async function getMenu(establishmentId: string) {
 
 export async function generateViewport({ params }: { params: { slug: string } }): Promise<Viewport> {
   const establishment = await getPublicEstablishment(params.slug)
-  return { themeColor: establishment?.theme_color || '#ffffff', viewportFit: 'cover' }
+  return { themeColor: storeColor(establishment?.theme_color), viewportFit: 'cover' }
 }
 
 // Link com a cara da loja: o título é só o nome dela (sem "| plataforma"),

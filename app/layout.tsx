@@ -5,7 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import PwaRegister from '@/components/PwaRegister'
 import GlobalErrorTracker from '@/components/GlobalErrorTracker'
 import { FeedbackHost } from '@/components/Feedback'
-import { BRAND } from '@/lib/brand'
+import { BRAND, iconUrl } from '@/lib/brand'
 import './globals.css'
 
 // Tipografia da marca: Bricolage Grotesque nos títulos, Figtree no texto,
@@ -29,12 +29,12 @@ export const metadata: Metadata = {
   // com o logo e o nome dela (app/loja/[slug]/page.tsx).
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/icon.svg', type: 'image/svg+xml' },
-      { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: iconUrl('/favicon.ico'), sizes: 'any' },
+      { url: iconUrl('/icon.svg'), type: 'image/svg+xml' },
+      { url: iconUrl('/icons/favicon-32x32.png'), sizes: '32x32', type: 'image/png' },
+      { url: iconUrl('/icons/icon-192x192.png'), sizes: '192x192', type: 'image/png' },
     ],
-    apple: '/icons/apple-touch-icon.png',
+    apple: iconUrl('/icons/apple-touch-icon.png'),
   },
   appleWebApp: {
     capable: true,

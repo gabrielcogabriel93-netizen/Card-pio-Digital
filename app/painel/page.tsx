@@ -8,6 +8,7 @@ import type { Order, DashboardStats, BusinessType } from '@/types'
 import { paymentMethodLabel } from '@/lib/paymentMethods'
 import { ShareStoreCard } from '@/components/painel/ShareStoreCard'
 import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock, Bike, Store, ChefHat, Layers, Settings, Wallet, CheckCircle2, Circle, ImageIcon, Palette, ListOrdered, QrCode } from 'lucide-react'
+import { isCustomStoreColor } from '@/lib/brand'
 
 const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
   preparo: 'Com preparo',
@@ -75,7 +76,7 @@ export default function Dashboard() {
 
       setOnboardingChecklist({
         hasLogo: !!est.logo_url,
-        hasCustomColor: !!est.theme_color && est.theme_color !== '#22c55e',
+        hasCustomColor: isCustomStoreColor(est.theme_color),
         hasCategory: (categoriesCount || 0) > 0,
         hasProduct: (productsCount || 0) > 0,
         hasPix: !!est.pix_key,

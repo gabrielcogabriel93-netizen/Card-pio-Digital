@@ -17,3 +17,22 @@ export const BRAND = {
     success: '#0B8A5F',
   },
 } as const
+
+// Navegador guarda favicon por semanas: trocar a versão força todo mundo
+// a baixar os ícones de novo (usar em toda URL de /icons, favicon e svg).
+export const ICON_VERSION = '2'
+export const iconUrl = (path: string) => `${path}?v=${ICON_VERSION}`
+
+// Cor padrão da marca antiga. Loja que nunca escolheu cor ficou com ela
+// gravada; a partir de agora vale o azul Freguês no lugar.
+export const LEGACY_STORE_COLOR = '#22c55e'
+export const DEFAULT_STORE_COLOR = BRAND.colors.blue
+
+export function storeColor(color: string | null | undefined): string {
+  if (!color || color.trim().toLowerCase() === LEGACY_STORE_COLOR) return DEFAULT_STORE_COLOR
+  return color
+}
+
+export function isCustomStoreColor(color: string | null | undefined): boolean {
+  return storeColor(color).toLowerCase() !== DEFAULT_STORE_COLOR.toLowerCase()
+}

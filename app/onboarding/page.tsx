@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/Feedback'
 import { BrandLockup } from '@/components/Logo'
+import { DEFAULT_STORE_COLOR, storeColor } from '@/lib/brand'
 
 const BUSINESS_TYPES: { value: BusinessType; title: string; description: string; icon: any }[] = [
   {
@@ -42,7 +43,7 @@ export default function OnboardingPage() {
   const [businessType, setBusinessType] = useState<BusinessType>('preparo')
   const [offersDelivery, setOffersDelivery] = useState(true)
   const [offersPickup, setOffersPickup] = useState(true)
-  const [themeColor, setThemeColor] = useState('#22c55e')
+  const [themeColor, setThemeColor] = useState<string>(DEFAULT_STORE_COLOR)
 
   useEffect(() => {
     checkExisting()
@@ -75,7 +76,7 @@ export default function OnboardingPage() {
         router.push('/painel')
         return
       }
-      if (est.theme_color) setThemeColor(est.theme_color)
+      setThemeColor(storeColor(est.theme_color))
     } catch (err) {
       logError('onboarding', 'exceção ao verificar estabelecimento', err)
     } finally {
@@ -130,7 +131,7 @@ export default function OnboardingPage() {
   const handleSkip = () => {
     // Defaults sensatos pra quem só quer chegar logo no painel — tudo
     // isso pode ser mudado depois em Configurações sem perda nenhuma.
-    finishOnboarding({ business_type: 'preparo', offers_delivery: true, offers_pickup: true, theme_color: '#22c55e' })
+    finishOnboarding({ business_type: 'preparo', offers_delivery: true, offers_pickup: true, theme_color: DEFAULT_STORE_COLOR })
   }
 
   if (checking) {

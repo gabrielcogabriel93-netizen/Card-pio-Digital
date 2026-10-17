@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPublicEstablishment } from '@/lib/storePublicData'
+import { iconUrl, storeColor } from '@/lib/brand'
 
 // App instalável DA LOJA: quem coloca o cardápio na tela inicial ganha um
 // ícone com o logo e o nome da loja, que abre direto no cardápio. Antes o
@@ -21,8 +22,8 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
         { src: establishment.logo_url, sizes: '512x512', purpose: 'any' },
       ]
     : [
-        { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: iconUrl('/icons/icon-192x192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: iconUrl('/icons/icon-512x512.png'), sizes: '512x512', type: 'image/png', purpose: 'any' },
       ]
 
   return NextResponse.json(
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
       scope: startUrl === '/' ? '/' : `/loja/${establishment.slug}`,
       display: 'standalone',
       background_color: '#ffffff',
-      theme_color: establishment.theme_color || '#ffffff',
+      theme_color: storeColor(establishment.theme_color),
       orientation: 'portrait-primary',
       lang: 'pt-BR',
       icons,

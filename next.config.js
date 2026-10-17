@@ -82,6 +82,10 @@ const nextConfig = {
       bodySizeLimit: '5mb',
     },
   },
+  // Loja demo renomeada na migration 048 (marca antiga no endereço).
+  async redirects() {
+    return [{ source: '/loja/pizzaria-demo-catalogai/:path*', destination: '/loja/pizzaria-demo/:path*', permanent: false }]
+  },
   async headers() {
     return [
       {

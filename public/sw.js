@@ -5,7 +5,7 @@
 // ficar desatualizados por causa de cache. Navegação sem rede cai numa
 // página de fallback offline pré-cacheada (ver /offline).
 
-const CACHE_NAME = 'fregues-v3'
+const CACHE_NAME = 'fregues-v4'
 const STATIC_ASSET_PATTERN = /\/_next\/static\/|\/icons\//
 const OFFLINE_URL = '/offline'
 
@@ -84,8 +84,8 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       // Notificação do cliente leva o logo da loja (lib/orderPush.ts).
-      icon: data.icon || '/icons/icon-192x192.png',
-      badge: '/icons/badge-96x96.png',
+      icon: data.icon || '/icons/icon-192x192.png?v=2',
+      badge: '/icons/badge-96x96.png?v=2',
       tag: data.url,
       renotify: true,
       data: { url: data.url || '/painel/pedidos' },

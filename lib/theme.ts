@@ -9,8 +9,7 @@
 const STOPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const
 export type ThemeShades = Record<(typeof STOPS)[number], string>
 
-// Fallback: verde padrão do app (mesmo valor de tailwind.config.ts / globals.css).
-const DEFAULT_COLOR = '#22c55e'
+import { storeColor } from './brand'
 
 function hexToRgb(hex: string): [number, number, number] | null {
   const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim())
@@ -89,7 +88,8 @@ const MIN_CONTRAST_WITH_WHITE = 3
  * consistente e sempre legível.
  */
 export function generateColorShades(hex: string | null | undefined): ThemeShades {
-  const rgb = hexToRgb(hex || '') || hexToRgb(DEFAULT_COLOR)!
+  // Sem cor (ou com o verde padrão antigo): azul Freguês.
+  const rgb = hexToRgb(storeColor(hex)) || hexToRgb(storeColor(null))!
   const [h, s] = rgbToHsl(...rgb)
   let baseL = rgbToHsl(...rgb)[2]
 

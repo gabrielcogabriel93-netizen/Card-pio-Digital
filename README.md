@@ -5,7 +5,7 @@ cardápio (categorias, produtos e variações), recebe pedidos online com envio
 automático para o WhatsApp, atende no balcão/PDV e acompanha o financeiro —
 tudo em um único painel. A marca (nome, cores) fica em `lib/brand.ts`.
 
-## Atualização da auditoria (migrations 044 a 047): como implantar
+## Atualização da auditoria (migrations 044 a 048): como implantar
 
 As migrations mudam como o pedido é gravado: o cardápio deixa de inserir
 direto na tabela `orders` e passa a chamar `place_order`, que calcula preço,
@@ -22,6 +22,8 @@ desconto e frete no banco. Siga esta ordem:
 3. **Deploy do app** (push na branch de produção).
 4. **SQL Editor, DEPOIS que o deploy estiver no ar:** rode `046_fechar_acesso_antigo.sql`.
    Ela fecha a gravação direta de pedidos e as funções antigas de cliente.
+   Rode também `048_marca_fregues.sql` (cor padrão antiga vira o azul Freguês e
+   a loja demo perde o nome antigo; o endereço antigo da demo redireciona).
 5. **Stripe:** em Settings → Billing → Customer portal, ative o portal (botão
    "Gerenciar assinatura"). Assinaturas de divulgador criadas antes desta versão
    foram feitas com o split invertido: corrija cada uma no painel da Stripe
