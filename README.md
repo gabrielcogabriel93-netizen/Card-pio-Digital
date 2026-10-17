@@ -5,7 +5,7 @@ cardápio (categorias, produtos e variações), recebe pedidos online com envio
 automático para o WhatsApp, atende no balcão/PDV e acompanha o financeiro —
 tudo em um único painel. A marca (nome, cores) fica em `lib/brand.ts`.
 
-## Atualização da auditoria (migrations 044, 045 e 046): como implantar
+## Atualização da auditoria (migrations 044 a 047): como implantar
 
 As migrations mudam como o pedido é gravado: o cardápio deixa de inserir
 direto na tabela `orders` e passa a chamar `place_order`, que calcula preço,
@@ -15,7 +15,8 @@ desconto e frete no banco. Siga esta ordem:
    (obrigatória, `openssl rand -hex 32`), `NEXT_PUBLIC_ROOT_DOMAIN` e, se quiser
    domínio próprio em 1 clique, `VERCEL_TOKEN` / `VERCEL_PROJECT_ID`.
 2. **SQL Editor do Supabase, ANTES do deploy:** rode `044_estrutura_melhorias.sql` e
-   depois `045_pedido_seguro.sql`. As duas convivem com o app antigo no ar (testado
+   depois `045_pedido_seguro.sql` e `047_balcao_na_fila.sql` (venda de balcão
+   pode ir para a fila da aba Pedidos). As três convivem com o app antigo no ar (testado
    em `db-tests/transicao.test.mjs`). Se a 044 avisar "Há donos com mais de uma
    loja", resolva as duplicadas e rode de novo.
 3. **Deploy do app** (push na branch de produção).

@@ -163,6 +163,10 @@ export default function PedidosPage() {
                   new Notification('Novo pedido!', { body: `${newOrder.customer_name} · ${formatBRL(Number(newOrder.total))}`, tag: newOrder.id })
                 } catch {}
               }
+            } else if (newOrder.status !== 'completed' && autoPrintRef.current === true) {
+              // Venda de balcão mandada para a fila: imprime a comanda da
+              // cozinha, sem campainha (foi o próprio lojista que lançou).
+              setPrintOrder({ ...newOrder })
             }
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Order

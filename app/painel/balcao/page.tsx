@@ -13,11 +13,12 @@ import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderM
 import { FeatureGate } from '@/components/FeatureGate'
 import { toast } from '@/components/Feedback'
 import { useSubscription } from '@/contexts/SubscriptionContext'
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle, Layers } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, Loader2, CheckCircle, AlertCircle, Layers, ChefHat } from 'lucide-react'
 
 // Valor de filterCategory reservado pra mostrar a lista de combos em vez
 // de produtos -- não colide com nenhum id real de categoria (UUID).
 const COMBOS_FILTER = '__combos__'
+const KITCHEN_KEY = 'painel:balcao-cozinha'
 
 export default function BalcaoPage() {
   const { hasCompletoAccess } = useSubscription()
@@ -40,8 +41,24 @@ export default function BalcaoPage() {
   const [showCheckout, setShowCheckout] = useState(false)
   const [attemptedSubmit, setAttemptedSubmit] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [lastSale, setLastSale] = useState<{ items: CartItem[]; paymentMethod: string; total: number; customerName: string } | null>(null)
+  const [lastSale, setLastSale] = useState<{ items: CartItem[]; paymentMethod: string; total: number; customerName: string; toKitchen: boolean } | null>(null)
   const [establishmentId, setEstablishmentId] = useState<string>('')
+  // Vai para a fila da aba Pedidos (cozinha) em vez de nascer concluída.
+  // A escolha fica salva no aparelho.
+  const [sendToKitchen, setSendToKitchen] = useState(true)
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(KITCHEN_KEY) === '0') setSendToKitchen(false)
+    } catch {}
+  }, [])
+
+  const toggleKitchen = (next: boolean) => {
+    setSendToKitchen(next)
+    try {
+      localStorage.setItem(KITCHEN_KEY, next ? '1' : '0')
+    } catch {}
+  }
 
   useEscapeKey(() => setShowCheckout(false), showCheckout)
 
@@ -277,6 +294,7 @@ export default function BalcaoPage() {
         payment_method: paymentMethod,
         discount: discountValue,
         change_for: paymentMethod === 'dinheiro' && cashValue > 0 ? cashValue : null,
+        send_to_kitchen: sendToKitchen,
         items: cart.map(item => ({
           product_id: item.product.id,
           product_name: item.product.name,
@@ -294,7 +312,7 @@ export default function BalcaoPage() {
 
 
       log('painel:balcao', 'venda finalizada com sucesso', { total })
-      setLastSale({ items: cart, paymentMethod, total, customerName: customerName.trim() })
+      setLastSale({ items: cart, paymentMethod, total, customerName: customerName.trim(), toKitchen: sendToKitchen })
       setCart([])
       setCustomerName('')
       setCustomerPhone('')
@@ -594,6 +612,14 @@ export default function BalcaoPage() {
                 </div>
               </div>
 
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary-600" checked={sendToKitchen} onChange={(e) => toggleKitchen(e.target.checked)} />
+                <span className="text-sm">
+                  <span className="font-medium text-gray-900 flex items-center gap-1.5"><ChefHat size={15} /> Enviar para a fila de pedidos</span>
+                  <span className="block text-gray-500">Aparece na aba Pedidos para a cozinha preparar. Desmarque para itens já entregues na hora.</span>
+                </span>
+              </label>
+
               {attemptedSubmit && missingFields.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
                   <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
@@ -624,7 +650,7 @@ export default function BalcaoPage() {
           <div className="flex items-center justify-between gap-2 bg-green-500 text-white px-4 py-2.5 rounded-t-xl">
             <span className="flex items-center gap-2 font-medium text-sm">
               <CheckCircle size={18} />
-              Venda finalizada!
+              {lastSale.toKitchen ? 'Venda enviada para a fila!' : 'Venda finalizada!'}
             </span>
             <button onClick={() => setLastSale(null)} className="text-white/80 hover:text-white" aria-label="Fechar resumo">
               <X size={16} />

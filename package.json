@@ -9,7 +9,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:db": "node db-tests/pedido-seguro.test.mjs && node db-tests/transicao.test.mjs"
+    "test:db": "node db-tests/pedido-seguro.test.mjs && node db-tests/transicao.test.mjs && node db-tests/balcao-fila.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
