@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { saveCustomerToken } from '@/lib/customerStorage'
 import { ShieldCheck, Loader2 } from 'lucide-react'
@@ -16,16 +16,31 @@ export function VerifyPhone({
   phone,
   onVerified,
   compact = false,
+  fallback = null,
 }: {
   establishmentId: string
   phone: string
   onVerified: (token: string) => void
   compact?: boolean
+  // O que mostrar quando a loja não consegue mandar o código agora.
+  fallback?: React.ReactNode
 }) {
   const [step, setStep] = useState<'idle' | 'sent'>('idle')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Só aparece se a loja consegue mandar o código agora; sem WhatsApp
+  // conectado o cliente segue o pedido normalmente, sem um botão inútil.
+  const [available, setAvailable] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/customer/otp?establishment_id=${encodeURIComponent(establishmentId)}`)
+      .then((r) => r.json())
+      .then((d) => alive && setAvailable(!!d.available))
+      .catch(() => alive && setAvailable(false))
+    return () => { alive = false }
+  }, [establishmentId])
 
   const sendCode = async () => {
     setLoading(true)
@@ -69,6 +84,9 @@ export function VerifyPhone({
       setLoading(false)
     }
   }
+
+  if (available === null) return null
+  if (!available) return <>{fallback}</>
 
   return (
     <div className={`rounded-xl bg-primary-50 border border-primary-100 ${compact ? 'p-3' : 'p-4'}`}>

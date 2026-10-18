@@ -191,7 +191,16 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
         </form>
 
         {needsVerify && (
-          <VerifyPhone establishmentId={store.id} phone={phone} onVerified={() => { setNeedsVerify(false); search(phone) }} />
+          <VerifyPhone
+            establishmentId={store.id}
+            phone={phone}
+            onVerified={() => { setNeedsVerify(false); search(phone) }}
+            fallback={
+              <p className="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-700">
+                Por segurança, seus pedidos aparecem no aparelho em que você comprou. Se precisar de algo, chame a loja no WhatsApp.
+              </p>
+            }
+          />
         )}
 
         {orders && orders.length === 0 && (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { whatsappServer } from '@/lib/whatsappServer'
-import { logError } from '@/lib/logger'
+import { whatsappServer, isWhatsappServerConfigured, WHATSAPP_NOT_CONFIGURED } from '@/lib/whatsappServer'
+import { logError, logWarning } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 
@@ -10,6 +10,20 @@ export const runtime = 'nodejs'
 // confirmado (verify_customer_otp, chamado direto do navegador), o
 // aparelho recebe um token e passa a ver endereços, pontos e pedidos.
 // O código é gerado e guardado (com hash) no banco; esta rota só entrega.
+// O cardápio só oferece "Receber código" se a loja consegue mandar
+// mensagem agora (servidor configurado e WhatsApp da loja conectado).
+export async function GET(request: NextRequest) {
+  const establishmentId = request.nextUrl.searchParams.get('establishment_id') || ''
+  const noStore = { headers: { 'Cache-Control': 'no-store' } }
+  if (!establishmentId || !isWhatsappServerConfigured()) return NextResponse.json({ available: false }, noStore)
+  try {
+    const { status } = await whatsappServer.status(establishmentId, 4000)
+    return NextResponse.json({ available: status === 'connected' }, noStore)
+  } catch {
+    return NextResponse.json({ available: false }, noStore)
+  }
+}
+
 export async function POST(request: NextRequest) {
   let body: { establishment_id?: string; phone?: string }
   try {
@@ -58,7 +72,12 @@ export async function POST(request: NextRequest) {
       `${establishment.name}: seu código de confirmação é ${code}. Ele vale por 10 minutos. Não compartilhe com ninguém.`
     )
   } catch (err) {
-    logError('api:customer:otp', 'erro ao enviar código pelo WhatsApp', err)
+    // Falta de configuração é ajuste da plataforma, não falha do código.
+    if (err instanceof Error && err.message.startsWith(WHATSAPP_NOT_CONFIGURED)) {
+      logWarning('api:customer:otp', 'servidor WhatsApp não configurado na Vercel (WHATSAPP_SERVER_URL / WHATSAPP_SERVER_SECRET)')
+    } else {
+      logError('api:customer:otp', 'erro ao enviar código pelo WhatsApp', err, establishmentId)
+    }
     return NextResponse.json(
       { error: 'A loja não está com o envio pelo WhatsApp ativo agora. Faça seu pedido normalmente: seus pontos continuam somando.' },
       { status: 503 }

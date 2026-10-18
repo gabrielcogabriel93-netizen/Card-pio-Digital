@@ -7,7 +7,13 @@ interface StatusResponse {
   qrCode: string | null
 }
 
-async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
+export const WHATSAPP_NOT_CONFIGURED = 'Servidor WhatsApp não configurado'
+
+export function isWhatsappServerConfigured() {
+  return !!process.env.WHATSAPP_SERVER_URL && !!process.env.WHATSAPP_SERVER_SECRET
+}
+
+async function call<T>(path: string, options: RequestInit = {}, timeoutMs = 15000): Promise<T> {
   const baseUrl = process.env.WHATSAPP_SERVER_URL
   const secret = process.env.WHATSAPP_SERVER_SECRET
 
@@ -23,6 +29,8 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...(options.headers || {}),
     },
     cache: 'no-store',
+    // Servidor fora do ar não pode prender a rota (nem o cliente) esperando.
+    signal: AbortSignal.timeout(timeoutMs),
   })
 
   const data = await response.json().catch(() => ({}))
@@ -33,7 +41,7 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const whatsappServer = {
-  status: (establishmentId: string) => call<StatusResponse>(`/sessions/${establishmentId}/status`),
+  status: (establishmentId: string, timeoutMs?: number) => call<StatusResponse>(`/sessions/${establishmentId}/status`, {}, timeoutMs),
   start: (establishmentId: string) => call<StatusResponse>(`/sessions/${establishmentId}/start`, { method: 'POST' }),
   logout: (establishmentId: string) => call<{ ok: boolean }>(`/sessions/${establishmentId}/logout`, { method: 'POST' }),
   send: (establishmentId: string, phone: string, message: string) =>
