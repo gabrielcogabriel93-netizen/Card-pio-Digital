@@ -27,7 +27,7 @@ import {
   BookOpen,
   MapPin,
   TrendingUp,
-  MessageCircle,
+  Bell,
   Pizza,
   ShieldCheck,
   Gift,
@@ -74,7 +74,7 @@ const navigationGroups: { title: string | null; items: NavItem[] }[] = [
       { name: 'Divulgar minha loja', href: '/painel/divulgar', icon: Megaphone },
       { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift, requiresCompleto: true },
       { name: 'Cupons', href: '/painel/cupons', icon: Tag, requiresCompleto: true },
-      { name: 'WhatsApp', href: '/painel/whatsapp', icon: MessageCircle },
+      { name: 'Notificações', href: '/painel/notificacoes', icon: Bell },
     ],
   },
   {

@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getWebPush } from '@/lib/webpush'
 import { STATUS_NOTIFICATION_MESSAGES, type NotifiableStep } from '@/lib/orderStatusMessages'
-import { logError } from '@/lib/logger'
+import { sendToTargets, targetsForPhone, type PushTarget } from '@/lib/customerPush'
 
 export interface OrderPushResult {
   sent: number
@@ -20,7 +19,8 @@ function currentStep(order: { status: string; dispatched_at: string | null }): N
 }
 
 /**
- * Push para quem ativou notificações num PEDIDO (página /pedido/[id]).
+ * Aviso de status do pedido (substitui o WhatsApp). Vai para quem ativou
+ * na página do pedido E para os aparelhos do cliente com o app da loja.
  * O texto vem sempre do estado atual do pedido no banco (nunca do
  * chamador) e leva o nome e o logo da loja: o cliente vê a marca dela.
  */
@@ -29,7 +29,7 @@ export async function sendOrderPush(orderId: string): Promise<OrderPushResult> {
 
   const { data: order, error: orderError } = await admin
     .from('orders')
-    .select('id, status, order_type, eta_minutes, dispatched_at, establishments(name, logo_url)')
+    .select('id, status, order_type, eta_minutes, dispatched_at, source, customer_phone, establishment_id, establishments(name, logo_url)')
     .eq('id', orderId)
     .maybeSingle()
 
@@ -40,41 +40,28 @@ export async function sendOrderPush(orderId: string): Promise<OrderPushResult> {
   const message = step ? STATUS_NOTIFICATION_MESSAGES[step]?.(order as any) : null
   if (!message) return { sent: 0, removed: 0, total: 0, message: 'Sem notificação pra esse status' }
 
-  const { data: subscriptions, error: subsError } = await admin
+  const { data: orderSubs, error: subsError } = await admin
     .from('order_push_subscriptions')
-    .select('*')
+    .select('id, endpoint, p256dh, auth')
     .eq('order_id', order.id)
-
   if (subsError) throw subsError
-  if (!subscriptions || subscriptions.length === 0) return { sent: 0, removed: 0, total: 0, message: 'Nenhuma inscrição ativa para esse pedido' }
+
+  const deviceTargets = order.source === 'online' ? await targetsForPhone(admin, order.establishment_id, order.customer_phone) : []
+  const targets: PushTarget[] = [...(orderSubs || []), ...deviceTargets]
+  if (targets.length === 0) return { sent: 0, removed: 0, total: 0, message: 'Nenhum aparelho para avisar' }
 
   const store = (order as any).establishments as { name?: string; logo_url?: string | null } | null
-  const payload = JSON.stringify({
+  const result = await sendToTargets(admin, targets, {
     title: store?.name || 'Atualização do seu pedido',
-    body: message,
+    body: `${message} · Pedido #${order.id.slice(0, 6).toUpperCase()}`,
     url: `/pedido/${order.id}`,
-    icon: store?.logo_url || undefined,
+    icon: store?.logo_url,
+    tag: `pedido-${order.id}`,
   })
 
-  const webpush = getWebPush()
-  let sent = 0
-  const staleIds: string[] = []
-
-  await Promise.all(
-    subscriptions.map(async (sub) => {
-      try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload)
-        sent++
-      } catch (err: any) {
-        if (err?.statusCode === 404 || err?.statusCode === 410) staleIds.push(sub.id)
-        else logError('push:order', 'erro ao enviar push', err)
-      }
-    })
-  )
-
-  if (staleIds.length > 0) {
-    await admin.from('order_push_subscriptions').delete().in('id', staleIds)
+  // Inscrição por pedido que não existe mais sai da tabela do pedido também.
+  if (result.staleEndpoints.length > 0 && orderSubs?.length) {
+    await admin.from('order_push_subscriptions').delete().eq('order_id', order.id).in('endpoint', result.staleEndpoints)
   }
-
-  return { sent, removed: staleIds.length, total: subscriptions.length }
+  return { sent: result.sent, removed: result.removed, total: targets.length }
 }

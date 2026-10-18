@@ -6,7 +6,7 @@
 // página offline pré-cacheada: HTML estático puro (public/offline.html),
 // sem JS do Next, para nunca apontar para arquivos de um deploy antigo.
 
-const CACHE_NAME = 'fregues-v5'
+const CACHE_NAME = 'fregues-v6'
 const STATIC_ASSET_PATTERN = /\/_next\/static\/|\/icons\//
 const OFFLINE_URL = '/offline.html'
 
@@ -70,9 +70,9 @@ self.addEventListener('fetch', (event) => {
   }
 })
 
-// Notificações de novo pedido (ver app/api/push/send). Chega mesmo com
-// o app fechado — é literalmente o motivo de existir um service worker
-// pra isso, uma aba aberta não seria avisada de outro jeito.
+// Notificações: novo pedido para o lojista (app/api/push/send), status do
+// pedido e mensagens da loja para o cliente (lib/customerPush.ts). Chegam
+// mesmo com o app fechado.
 self.addEventListener('push', (event) => {
   let data = { title: 'Novo pedido!', body: 'Você recebeu um novo pedido.', url: '/painel/pedidos' }
   try {
@@ -87,9 +87,11 @@ self.addEventListener('push', (event) => {
       // Notificação do cliente leva o logo da loja (lib/orderPush.ts).
       icon: data.icon || '/icons/icon-192x192.png?v=2',
       badge: '/icons/badge-96x96.png?v=2',
-      tag: data.url,
+      // Foto do produto em destaque (Android e computador mostram grande).
+      image: data.image || undefined,
+      tag: data.tag || data.url,
       renotify: true,
-      data: { url: data.url || '/painel/pedidos' },
+      data: { url: data.url || '/painel/pedidos', campaignId: data.campaignId || null },
     })
   )
 })
@@ -99,13 +101,26 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const targetUrl = event.notification.data?.url || '/painel/pedidos'
+  const campaignId = event.notification.data?.campaignId
+
+  // Clique em mensagem da loja conta no painel (Notificações → histórico).
+  const track = campaignId
+    ? fetch('/api/push/click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: campaignId }),
+      }).catch(() => {})
+    : Promise.resolve()
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(targetUrl) && 'focus' in client) return client.focus()
-      }
-      if (self.clients.openWindow) return self.clients.openWindow(targetUrl)
-    })
+    Promise.all([
+      track,
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(targetUrl) && 'focus' in client) return client.focus()
+        }
+        if (self.clients.openWindow) return self.clients.openWindow(targetUrl)
+      }),
+    ])
   )
 })

@@ -228,3 +228,98 @@ export async function drawArt(canvas: HTMLCanvasElement, input: ArtInput): Promi
   ctx.font = `600 32px ${body}`
   ctx.fillText(shortUrl, w / 2, btnY + 108)
 }
+
+// ============================================================
+// Arte do produto (sugestão do dia): a foto do próprio produto em
+// destaque, com a marca da loja, a chamada e o preço.
+// ============================================================
+
+export interface ProductArtInput {
+  format: 'post' | 'story'
+  storeName: string
+  url: string
+  themeColor: string | null | undefined
+  logoUrl?: string | null
+  productImageUrl?: string | null
+  headline: string
+  subline: string
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const scale = Math.max(w / img.width, h / img.height)
+  const sw = w / scale
+  const sh = h / scale
+  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h)
+}
+
+export async function drawProductArt(canvas: HTMLCanvasElement, input: ProductArtInput): Promise<void> {
+  const w = 1080
+  const h = input.format === 'story' ? 1920 : 1350
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  const shades = generateColorShades(input.themeColor)
+  const main = rgb(shades[500])
+  const dark = rgb(shades[800])
+  const display = cssFont('--font-display', 'Arial Black, sans-serif')
+  const body = cssFont('--font-body', 'Arial, sans-serif')
+  const [logo, photo] = await Promise.all([
+    input.logoUrl ? loadImage(input.logoUrl) : Promise.resolve(null),
+    input.productImageUrl ? loadImage(input.productImageUrl) : Promise.resolve(null),
+  ])
+  const shortUrl = input.url.replace(/^https?:\/\//, '')
+  const pad = 80
+
+  // Fundo na cor da loja.
+  const grad = ctx.createLinearGradient(0, 0, 0, h)
+  grad.addColorStop(0, main)
+  grad.addColorStop(1, dark)
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, w, h)
+
+  // Foto do produto ocupando o topo, esmaecendo na cor da loja.
+  const photoH = Math.round(h * (input.format === 'story' ? 0.56 : 0.58))
+  if (photo) {
+    drawCover(ctx, photo, 0, 0, w, photoH)
+    const fade = ctx.createLinearGradient(0, photoH * 0.55, 0, photoH)
+    fade.addColorStop(0, 'rgba(0,0,0,0)')
+    fade.addColorStop(1, main)
+    ctx.fillStyle = fade
+    ctx.fillRect(0, 0, w, photoH)
+  }
+
+  // Selo da loja no canto.
+  drawLogoBadge(ctx, logo, input.storeName, pad, pad, 120, main, display)
+  ctx.font = `700 40px ${display}`
+  const nameW = ctx.measureText(input.storeName).width
+  ctx.fillStyle = 'rgba(20,23,43,0.55)'
+  roundRect(ctx, pad + 136, pad + 34, Math.min(nameW + 48, w - pad * 2 - 136), 64, 32)
+  ctx.fill()
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'left'
+  ctx.fillText(input.storeName, pad + 160, pad + 78, w - pad * 2 - 180)
+
+  // Chamada e produto/preço.
+  const headlineSize = input.format === 'story' ? 110 : 96
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `800 ${headlineSize}px ${display}`
+  const top = photo ? photoH - headlineSize * 0.4 : (input.format === 'story' ? 560 : 420)
+  const after = drawText(ctx, input.headline, pad, top, w - pad * 2, headlineSize * 1.02)
+  ctx.font = `600 48px ${body}`
+  ctx.globalAlpha = 0.95
+  drawText(ctx, input.subline, pad, after + 24, w - pad * 2, 58)
+  ctx.globalAlpha = 1
+
+  // Botão "Peça aqui".
+  const btnH = 130
+  const btnY = h - pad - btnH
+  ctx.fillStyle = '#FFD43B'
+  roundRect(ctx, pad, btnY, w - pad * 2, btnH, 34)
+  ctx.fill()
+  ctx.fillStyle = '#14172B'
+  ctx.textAlign = 'center'
+  ctx.font = `800 54px ${display}`
+  ctx.fillText('Peça aqui →', w / 2, btnY + 64)
+  ctx.font = `600 32px ${body}`
+  ctx.fillText(shortUrl, w / 2, btnY + 108, w - pad * 2 - 40)
+}

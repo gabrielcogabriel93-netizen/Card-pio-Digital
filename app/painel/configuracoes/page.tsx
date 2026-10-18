@@ -770,8 +770,8 @@ export default function ConfiguracoesPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Carrinho abandonado</h2>
           <p className="text-sm text-gray-500 mb-4">
             Quando um cliente chega a informar o telefone na etapa de finalizar pedido mas não confirma o
-            envio, o pedido entra na lista de &quot;Carrinhos abandonados&quot; em WhatsApp, pra você chamar
-            de volta.
+            envio, o pedido entra na lista de &quot;Carrinhos abandonados&quot; em Notificações, pra você
+            lembrar o cliente com um aviso no celular dele.
           </p>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -791,8 +791,8 @@ export default function ConfiguracoesPage() {
         <div className="card">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Clientes inativos</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Clientes que já pediram antes mas não voltam a pedir aparecem numa lista em WhatsApp, com um
-            botão pra chamar de volta.
+            Clientes que já pediram antes mas não voltam a pedir aparecem em Notificações, com um
+            botão pra chamar de volta por aviso no celular.
           </p>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

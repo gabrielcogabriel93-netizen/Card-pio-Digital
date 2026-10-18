@@ -6,6 +6,7 @@ import { logError } from '@/lib/logger'
 import { publicStoreUrl } from '@/lib/domains'
 import { drawArt, ART_SIZES, type ArtKind } from '@/lib/marketingArt'
 import { toast } from '@/components/Feedback'
+import { DailySuggestion } from '@/components/painel/DailySuggestion'
 import { Download, Loader2, Copy } from 'lucide-react'
 
 interface StoreForArt {
@@ -110,8 +111,10 @@ export default function DivulgarPage() {
     <div className="space-y-6">
       <div>
         <h1 className="page-title">Divulgar minha loja</h1>
-        <p className="text-gray-600 mt-1">Artes prontas com a sua marca e o QR Code do seu cardápio. Edite o texto, baixe e use.</p>
+        <p className="text-gray-600 mt-1">Todo dia uma sugestão nova com a foto dos seus produtos, e artes prontas com a sua marca e o QR Code do cardápio.</p>
       </div>
+
+      <DailySuggestion store={store} url={url} />
 
       <div className="card flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">

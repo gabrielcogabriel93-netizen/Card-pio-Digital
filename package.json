@@ -9,9 +9,10 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:db": "node db-tests/pedido-seguro.test.mjs && node db-tests/transicao.test.mjs && node db-tests/balcao-fila.test.mjs"
+    "test:db": "node db-tests/pedido-seguro.test.mjs && node db-tests/transicao.test.mjs && node db-tests/balcao-fila.test.mjs && node db-tests/app-loja.test.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.43.0",
     "@vercel/analytics": "^2.0.1",
@@ -23,7 +24,8 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "stripe": "^22.4.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",

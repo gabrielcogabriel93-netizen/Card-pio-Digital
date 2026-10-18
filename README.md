@@ -1,11 +1,12 @@
 # Freguês
 
 Plataforma multi-tenant de cardápio digital: cada lojista cria sua conta, monta o
-cardápio (categorias, produtos e variações), recebe pedidos online com envio
-automático para o WhatsApp, atende no balcão/PDV e acompanha o financeiro —
-tudo em um único painel. A marca (nome, cores) fica em `lib/brand.ts`.
+cardápio (categorias, produtos e variações), recebe pedidos online no painel na
+hora, atende no balcão/PDV e acompanha o financeiro. O cliente instala o app DA
+LOJA (logo, nome e cor dela) e recebe o status do pedido e as mensagens da loja
+por notificação, sem WhatsApp. A marca da plataforma fica em `lib/brand.ts`.
 
-## Atualização da auditoria (migrations 044 a 048): como implantar
+## Atualização da auditoria (migrations 044 a 049): como implantar
 
 As migrations mudam como o pedido é gravado: o cardápio deixa de inserir
 direto na tabela `orders` e passa a chamar `place_order`, que calcula preço,
@@ -23,15 +24,20 @@ desconto e frete no banco. Siga esta ordem:
 4. **SQL Editor, DEPOIS que o deploy estiver no ar:** rode `046_fechar_acesso_antigo.sql`.
    Ela fecha a gravação direta de pedidos e as funções antigas de cliente.
    Rode também `048_marca_fregues.sql` (cor padrão antiga vira o azul Freguês e
-   a loja demo perde o nome antigo; o endereço antigo da demo redireciona).
+   a loja demo perde o nome antigo; o endereço antigo da demo redireciona) e
+   `049_app_da_loja_notificacoes.sql` (aparelhos dos clientes, mensagens da loja,
+   sugestão do dia e confirmação de aparelho pelo número do pedido). A 049 pode
+   rodar a qualquer momento; sem ela, o app da loja e a página Notificações
+   ficam sem dados.
 5. **Stripe:** em Settings → Billing → Customer portal, ative o portal (botão
    "Gerenciar assinatura"). Assinaturas de divulgador criadas antes desta versão
    foram feitas com o split invertido: corrija cada uma no painel da Stripe
    (Subscription → Update → transfer_data com `amount_percent`).
 6. **Subdomínio por loja (opcional):** DNS curinga `*.seudominio` apontando
    para a Vercel e o domínio curinga adicionado no projeto.
-7. **Servidor de WhatsApp:** atualize `whatsapp-server/` (reconexão automática
-   das sessões ao reiniciar).
+7. **IA da sugestão do dia (opcional):** sem chave, o gerador próprio escreve as
+   sugestões de graça. `ANTHROPIC_API_KEY` usa a Claude (pago por uso);
+   `GEMINI_API_KEY` usa o Gemini (tem cota gratuita).
 
 Erros: tudo que falha (servidor e navegador) aparece em **/admin/logs**.
 
@@ -59,12 +65,13 @@ num Postgres em memória e testa as regras de segurança) e `npm run test:e2e`.
   - Configurações: dados da loja, horário de funcionamento, loja aberta/fechada, link público, cor do tema (aplicada de verdade no cardápio, com trava de contraste automática), tipo de negócio, entrega/retirada
   - Cupons: percentual, valor fixo ou frete grátis
   - Relatórios (`/painel/relatorios`): produtos mais vendidos, horário de pico e ticket médio por período
-  - WhatsApp (`/painel/whatsapp`): conecta o número da loja via QR Code (WPPConnect, servidor separado) e liga notificações automáticas 1-para-1 de status de pedido pro cliente, além de mensagem manual pros aniversariantes do dia
+  - Notificações (`/painel/notificacoes`): mensagens da loja para os clientes no celular deles (todos, quem pediu nos últimos 30 dias, sumidos, aniversariantes ou um cliente), com foto do produto, histórico de entregues e cliques, lembrete de carrinho abandonado e a lista de aparelhos (app instalado, avisos ativos)
+  - Divulgar (`/painel/divulgar`): sugestão do dia com a foto de um produto (post e story prontos, legenda, hashtags e texto de notificação) e artes com QR Code
   - Domínio próprio (em Configurações): a loja pode apontar um domínio dela pro cardápio público, além do link padrão
   - Planos: aviso de sistema gratuito + CTA de "planos pagos em breve" + doação via PIX
   - Tutorial: como cada funcionalidade do painel funciona
 - **Onboarding** (`/onboarding`): quiz de 3 perguntas logo após o cadastro que já deixa o painel configurado pro tipo de negócio
-- **Cardápio público** (`/loja/[slug]`): navegação por categoria, variações, carrinho persistente, entrega (com busca de CEP e bairro por lista) ou retirada, e envio do pedido pronto via WhatsApp com link de acompanhamento
+- **Cardápio público** (`/loja/[slug]`): navegação por categoria, variações, carrinho persistente, entrega (com busca de CEP e bairro por lista) ou retirada, e convite para instalar o app da loja e ativar os avisos do pedido (no iPhone, com o passo a passo de "Adicionar à Tela de Início")
 - **Meus Pedidos** (`/loja/[slug]/pedidos`): cliente consulta o histórico de pedidos pelo telefone, sem cadastro
 - **Recuperação de senha** (`/login` → `/redefinir-senha`)
 - **SEO**: sitemap dinâmico (`/sitemap.xml`), `robots.txt` dinâmico e dados estruturados (JSON-LD) por loja
@@ -116,10 +123,6 @@ NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key
 SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-
-# Opcional — só se for usar notificações via WhatsApp (ver seção 6)
-WHATSAPP_SERVER_URL=https://seu-servidor-whatsapp.exemplo.com
-WHATSAPP_SERVER_SECRET=uma-string-aleatoria-compartilhada-com-o-servidor
 
 # Opcional — só se for usar domínio próprio por loja (ver seção 7)
 NEXT_PUBLIC_ROOT_DOMAIN=seuapp.vercel.app
@@ -173,26 +176,23 @@ partes — o app (já pronto) e um passo manual no banco depois do deploy:
    um botão "Testar" pra confirmar que chegou sem precisar esperar um pedido de
    verdade.
 
-### 6. Notificações via WhatsApp (opcional)
+### 6. App da loja e notificações para o cliente
 
-Avisa o cliente pelo WhatsApp quando o status do pedido dele muda ("Recebemos
-seu pedido!", "Saiu para entrega!", etc.) — sempre 1 mensagem pra 1 cliente,
-disparada manualmente pela ação do lojista no Kanban, nunca em massa. Usa
-WPPConnect (automação não-oficial do WhatsApp) rodando num servidor **separado**
-em `whatsapp-server/`, que **não roda no Vercel** (precisa de VPS — mantém um
-Chromium aberto por sessão conectada). Leia `whatsapp-server/README.md` antes
-de decidir usar: tem um aviso importante sobre risco de banimento do número.
+O WhatsApp automático saiu (risco de banimento e servidor separado). Tudo vai
+por notificação do navegador, usando as mesmas chaves VAPID da seção 5:
 
-Resumo:
-1. Rode `migrations/023_whatsapp_notificacoes.sql`.
-2. Suba `whatsapp-server/` numa VPS (passo a passo completo no README dela).
-3. Configure `WHATSAPP_SERVER_URL` e `WHATSAPP_SERVER_SECRET` no app principal
-   (mesmo valor do `API_SECRET` da VPS).
-4. Cada loja conecta o próprio número em **Painel → WhatsApp** (QR Code) e liga
-   o toggle de notificações automáticas.
-
-Sem essas variáveis configuradas, a página `/painel/whatsapp` e o botão de
-notificação simplesmente não funcionam — o resto do app continua normal.
+- **App da loja:** o cardápio tem um manifest por loja (logo, nome e cor). Depois
+  do pedido o cliente vê o convite para instalar e ativar os avisos. No iPhone
+  o aviso só funciona com o app na tela inicial (iOS 16.4+), por isso o convite
+  mostra o passo a passo.
+- **Status do pedido:** a cada mudança no Kanban (ou na automação/Pix) o
+  cliente recebe o aviso com o logo da loja e o número do pedido.
+- **Mensagens da loja:** em **Painel → Notificações**, com limite de 3 envios em
+  massa por dia para o cliente não desligar os avisos.
+- **Aparelho novo:** o cliente confirma que o telefone é dele com o número de um
+  pedido anterior (`verify_customer_by_order`).
+- O selo "Criado com Freguês · Conheça" no rodapé do cardápio leva à landing
+  com `?ref=slug-da-loja` (pode ser escondido em Configurações).
 
 ### 7. Domínio próprio por loja (opcional)
 
@@ -240,15 +240,16 @@ app/
   completar-cadastro/      → conclusão do cadastro (fallback p/ confirmação de e-mail)
   redefinir-senha/         → redefinição de senha
   loja/[slug]/             → cardápio público
-  painel/                  → área logada do lojista (produtos, categorias, pedidos, balcão, financeiro, configurações, relatórios, whatsapp, planos)
-  api/whatsapp/            → rotas proxy autenticadas pro servidor WhatsApp (status/start/logout/send)
+  painel/                  → área logada do lojista (produtos, categorias, pedidos, balcão, financeiro, configurações, relatórios, notificações, divulgar, planos)
+  api/push/                → notificações: novo pedido (lojista), status do pedido, mensagens da loja (campaign) e cliques
+  api/marketing/suggestion → sugestão de divulgação do dia
 lib/supabase/              → clients Supabase (browser, server, middleware, admin)
 lib/establishment.ts       → criação de estabelecimento com slug único
 lib/paymentMethods.ts      → formas de pagamento compartilhadas (checkout público + painel)
 lib/pix.ts                 → geração de payload Pix (EMV + CRC16) sem gateway
-lib/whatsappServer.ts      → cliente HTTP server-side pro whatsapp-server/
-lib/verifyEstablishmentOwner.ts → autorização das rotas de API do WhatsApp
-whatsapp-server/           → pacote Node separado (WPPConnect) — deploy próprio em VPS, ver seção 6
+lib/customerPush.ts        → envio das notificações da loja para os clientes (públicos, limpeza de aparelhos)
+lib/marketingAI.ts         → sugestão do dia (gerador próprio gratuito; Claude ou Gemini se houver chave)
+lib/verifyEstablishmentOwner.ts → autorização das rotas de API do Mercado Pago
 migrations/                → schema SQL + RLS + funções de estoque
 types/                     → tipos compartilhados
 public/                    → manifest, ícones e service worker do PWA
@@ -256,7 +257,7 @@ public/                    → manifest, ícones e service worker do PWA
 
 ## Limitações conhecidas / próximos passos
 
-- Notificações via WhatsApp dependem de infraestrutura própria (VPS rodando `whatsapp-server/`, fora do Vercel) e usam automação não-oficial do WhatsApp (WPPConnect) — leia o aviso em `whatsapp-server/README.md` antes de ativar.
+- No iPhone, as notificações só chegam com o app da loja instalado na tela inicial (limitação do iOS, 16.4 ou mais novo).
 - Domínio próprio por loja depende de configuração manual de DNS (CNAME) e cadastro do domínio na Vercel, além de `NEXT_PUBLIC_ROOT_DOMAIN` configurado — ver seção 7.
 - Paginação (24 por página) só existe em Produtos por enquanto; Categorias/outras listagens continuam sem, mas o volume delas costuma ser pequeno o bastante pra não precisar.
 - Upgrade de major do Next.js (14 → 15/16, corrige CVEs sem patch na 14.x) foi propositalmente deixado de fora desta rodada — é uma mudança de risco maior, ver auditoria.

@@ -203,3 +203,144 @@ export async function unsubscribeFromOrderPush(orderId: string): Promise<void> {
     }
   }
 }
+
+// ============================================================
+// App DA LOJA no aparelho do cliente (migration 049). Cada aparelho tem
+// uma chave aleatória por loja, guardada nele: conta a instalação mesmo
+// antes de o cliente aceitar notificações e liga ao telefone quando o
+// aparelho tem o token do cliente (prova de que é dele).
+// ============================================================
+
+export type StoreNotifyState = 'unsupported' | 'ios-install-first' | 'denied' | 'off' | 'on'
+
+const deviceKeyStorage = (establishmentId: string) => `fregues:device:${establishmentId}`
+const storeNotifyStorage = (establishmentId: string) => `fregues:avisos:${establishmentId}`
+
+export function isStandaloneApp(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true)
+  )
+}
+
+export function devicePlatform(): 'ios' | 'android' | 'desktop' {
+  if (typeof navigator === 'undefined') return 'desktop'
+  const ua = navigator.userAgent
+  if (/iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios'
+  if (/android/i.test(ua)) return 'android'
+  return 'desktop'
+}
+
+function getDeviceKey(establishmentId: string): string {
+  try {
+    let key = localStorage.getItem(deviceKeyStorage(establishmentId))
+    if (!key) {
+      key = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '')
+      localStorage.setItem(deviceKeyStorage(establishmentId), key)
+    }
+    return key
+  } catch {
+    return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '')
+  }
+}
+
+/** Situação dos avisos da loja neste aparelho. */
+export function storeNotifyState(establishmentId: string): StoreNotifyState {
+  if (typeof window === 'undefined') return 'unsupported'
+  // No iPhone a notificação só existe com o app instalado na tela inicial.
+  if (devicePlatform() === 'ios' && !isStandaloneApp()) return 'ios-install-first'
+  if (!isPushSupported() || !('Notification' in window)) return 'unsupported'
+  if (Notification.permission === 'denied') return 'denied'
+  try {
+    if (Notification.permission === 'granted' && localStorage.getItem(storeNotifyStorage(establishmentId)) === '1') return 'on'
+  } catch {}
+  return 'off'
+}
+
+interface CustomerLink {
+  phone?: string | null
+  token?: string | null
+  name?: string | null
+}
+
+async function registerDevice(establishmentId: string, push: BrowserSubscriptionResult | null, customer: CustomerLink) {
+  const supabase = createClient()
+  const { error } = await supabase.rpc('register_customer_device', {
+    p_establishment_id: establishmentId,
+    p_device_key: getDeviceKey(establishmentId),
+    p_endpoint: push?.endpoint ?? null,
+    p_p256dh: push?.p256dh ?? null,
+    p_auth: push?.auth ?? null,
+    p_installed: isStandaloneApp(),
+    p_platform: devicePlatform(),
+    p_phone: customer.phone || null,
+    p_token: customer.token || null,
+    p_name: customer.name || null,
+  })
+  if (error) throw error
+}
+
+/**
+ * Visita no cardápio: registra o aparelho (instalado ou não) sem pedir
+ * nada ao cliente. Se ele já tinha aceitado os avisos, renova o endereço.
+ */
+export async function touchStoreDevice(establishmentId: string, customer: CustomerLink = {}): Promise<void> {
+  try {
+    let push: BrowserSubscriptionResult | null = null
+    if (isPushSupported() && 'Notification' in window && Notification.permission === 'granted') {
+      const registration = await navigator.serviceWorker.getRegistration()
+      const json = (await registration?.pushManager.getSubscription())?.toJSON()
+      if (json?.endpoint && json.keys?.p256dh && json.keys?.auth) {
+        push = { ok: true, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }
+      }
+    }
+    // Sem app instalado, sem avisos e sem cliente: nada a registrar.
+    if (!push && !isStandaloneApp() && !customer.token) return
+    await registerDevice(establishmentId, push, customer)
+  } catch (err) {
+    log('push', 'não foi possível registrar o aparelho na loja', err)
+  }
+}
+
+/** Pede permissão e liga os avisos da loja (e do pedido, se houver). */
+export async function enableStoreNotifications(
+  establishmentId: string,
+  customer: CustomerLink = {},
+  orderId?: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  const push = await ensureBrowserSubscription()
+  if (!push.ok) return push
+  try {
+    await registerDevice(establishmentId, push, customer)
+    if (orderId) {
+      const supabase = createClient()
+      await supabase.from('order_push_subscriptions').upsert(
+        { order_id: orderId, endpoint: push.endpoint, p256dh: push.p256dh, auth: push.auth, user_agent: navigator.userAgent },
+        { onConflict: 'order_id,endpoint' }
+      )
+      try {
+        localStorage.setItem(orderPushStorageKey(orderId), '1')
+      } catch {}
+    }
+    try {
+      localStorage.setItem(storeNotifyStorage(establishmentId), '1')
+    } catch {}
+    return { ok: true }
+  } catch (err: any) {
+    logError('push', 'erro ao ativar avisos da loja', err)
+    return { ok: false, error: err.message || 'Não foi possível ativar os avisos.' }
+  }
+}
+
+export async function disableStoreNotifications(establishmentId: string): Promise<void> {
+  try {
+    const supabase = createClient()
+    await supabase.rpc('unregister_customer_device', { p_establishment_id: establishmentId, p_device_key: getDeviceKey(establishmentId) })
+  } catch (err) {
+    logError('push', 'erro ao desativar avisos da loja', err)
+  } finally {
+    try {
+      localStorage.removeItem(storeNotifyStorage(establishmentId))
+    } catch {}
+  }
+}

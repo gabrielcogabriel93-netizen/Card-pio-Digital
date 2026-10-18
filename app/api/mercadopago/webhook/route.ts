@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const { data: establishment } = await admin
       .from('establishments')
-      .select('order_tracking_enabled, whatsapp_notifications_enabled')
+      .select('order_tracking_enabled')
       .eq('id', order.establishment_id)
       .single()
 
@@ -86,9 +86,7 @@ export async function POST(request: NextRequest) {
           // 2) Aceite automático: status + financeiro + comissão + estoque
           // numa transação. Pedido que o lojista já cancelou NÃO volta a
           // ficar ativo (antes o webhook mudava o status mesmo assim).
-          await applyAutomaticOrderConfirmation(admin, order.id, newStatus, {
-            whatsapp_notifications_enabled: establishment?.whatsapp_notifications_enabled ?? false,
-          })
+          await applyAutomaticOrderConfirmation(admin, order.id, newStatus)
           log('api:mercadopago:webhook', 'pedido confirmado automaticamente', { orderId: order.id, newStatus })
         } else if (paidOrder.status === 'cancelled') {
           // Pago depois de cancelado: o dinheiro entrou na conta do lojista

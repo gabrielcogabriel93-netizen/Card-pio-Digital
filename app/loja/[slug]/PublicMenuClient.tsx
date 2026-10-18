@@ -16,7 +16,6 @@ import { generatePixPayload } from '@/lib/pix'
 import { formatBRL } from '@/lib/money'
 import { computeCartTotals, type DiscountSource } from '@/lib/cartTotals'
 import { buildOrderItemsPayload, cartItemKey, type OrderItemPayload } from '@/lib/orderPayload'
-import { buildWhatsAppOrderMessage } from '@/lib/whatsappOrderMessage'
 import {
   getSavedCustomer,
   saveCustomer,
@@ -51,13 +50,14 @@ import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderM
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { ProductSheet, type GroupWithOptions, type ProductSheetResult } from '@/components/store/ProductSheet'
 import { VerifyPhone } from '@/components/store/VerifyPhone'
-import { InstallPrompt } from '@/components/store/InstallPrompt'
+import { AppInvite } from '@/components/store/AppInvite'
+import { touchStoreDevice } from '@/lib/pushClient'
 import { Logo } from '@/components/Logo'
 import { toast, confirmDialog } from '@/components/Feedback'
 import { BRAND } from '@/lib/brand'
 import {
   ShoppingBag, X, Plus, Minus, MapPin, Clock, Loader2, Store, Bike, Package, ClipboardList, Trash2,
-  CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2, Layers, Search, Send, ChevronRight, Info,
+  CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2, Layers, Search, Send, ChevronRight,
 } from 'lucide-react'
 
 type CartLine = CartItem<PublicProduct>
@@ -65,7 +65,6 @@ type CartLine = CartItem<PublicProduct>
 interface PlacedOrder {
   orderId: string
   total: number
-  whatsappUrl: string | null
 }
 
 interface ServerOrderResult {
@@ -414,6 +413,13 @@ export default function PublicMenuClient({
     if (savedAddress) setAddress({ ...EMPTY_ADDRESS, ...savedAddress })
     const last = getSavedLastOrder(establishment.id)
     if (last) setLastOrderId(last)
+    // Registra a visita do aparelho no app da loja (instalado ou com
+    // avisos) e liga ao cliente quando o aparelho já é dele.
+    touchStoreDevice(establishment.id, saved ? { phone: saved.phone, name: saved.name, token: getCustomerToken(establishment.id, saved.phone) } : {})
+    // Link direto para um produto (vem das notificações da loja).
+    const linked = new URLSearchParams(window.location.search).get('produto')
+    const linkedProduct = linked ? products.find((p) => p.id === linked) : null
+    if (linkedProduct) openProduct(linkedProduct)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [establishment.id])
 
@@ -756,9 +762,6 @@ export default function PublicMenuClient({
     if (Date.now() - formOpenedAt < 1500) return
 
     const isMp = paymentMethod === 'mercadopago_pix'
-    // Abre a aba do WhatsApp AGORA, dentro do clique: depois de um await,
-    // Safari e navegadores de app (Instagram) bloqueiam o popup.
-    const waWindow = !isTableMode && !isMp ? window.open('', '_blank') : null
 
     setSaving(true)
     setSubmitError(null)
@@ -802,7 +805,11 @@ export default function PublicMenuClient({
 
       setLastOrderId(result.order_id)
       saveLastOrder(establishment.id, result.order_id)
-      const trackingUrl = `${window.location.origin}/pedido/${result.order_id}`
+      // O pedido chega no painel da loja na hora (com campainha e aviso no
+      // celular do lojista): não depende mais de o cliente mandar WhatsApp.
+      if (result.customer_token && phoneDigits) {
+        touchStoreDevice(establishment.id, { phone: customerPhone.trim(), name: customerName.trim(), token: result.customer_token })
+      }
 
       if (isMp) {
         resetAfterOrder()
@@ -810,31 +817,9 @@ export default function PublicMenuClient({
         return
       }
 
-      const message = buildWhatsAppOrderMessage({
-        storeName: establishment.name,
-        orderId: result.order_id,
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        orderType,
-        address: orderType === 'delivery' ? { ...address, neighborhood: usingNeighborhoodSelect ? selectedNeighborhood?.name || address.neighborhood : address.neighborhood } : null,
-        items: result.items,
-        subtotal: Number(result.subtotal),
-        discount: Number(result.discount),
-        shippingFee: Number(result.shipping_fee),
-        total: Number(result.total),
-        discountLabel: appliedCoupon?.code || appliedReward?.name || (Number(result.discount) > 0 ? 'aniversário' : null),
-        paymentMethod,
-        changeFor: payload.change_for,
-        notes: notes.trim() || null,
-        trackingUrl,
-      })
-      const whatsappUrl = `https://wa.me/${toWhatsAppNumber(establishment.whatsapp_number)}?text=${encodeURIComponent(message)}`
-      if (waWindow) waWindow.location.href = whatsappUrl
-
       resetAfterOrder()
-      setPlaced({ orderId: result.order_id, total: Number(result.total), whatsappUrl })
+      setPlaced({ orderId: result.order_id, total: Number(result.total) })
     } catch (err: any) {
-      waWindow?.close()
       logError('loja', 'erro ao enviar pedido', err)
       const message: string = err?.message || 'Não foi possível enviar o pedido.'
       // Erros de regra (loja fechada, estoque, cupom) já vêm escritos para o cliente.
@@ -1086,9 +1071,28 @@ export default function PublicMenuClient({
           </div>
         )}
 
+        {/* Convite discreto para quem já é cliente e ainda não tem o app */}
+        {lastOrderId && (
+          <div className="mt-10">
+            <AppInvite
+              storeId={establishment.id}
+              storeName={establishment.name}
+              logoUrl={establishment.logo_url}
+              customer={{ phone: customerPhone, name: customerName, token: phoneDigits ? getCustomerToken(establishment.id, customerPhone) : null }}
+              dismissible
+            />
+          </div>
+        )}
+
         {!establishment.hide_platform_badge && (
-          <a href="/" className="mt-12 flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-gray-600">
-            <Logo size={14} className="text-gray-400" dotColor="#D1D5DB" /> pedidos por <strong className="font-semibold">{BRAND.wordmark}</strong>
+          <a
+            href={`${process.env.NEXT_PUBLIC_APP_URL || ''}/?ref=${establishment.slug}`}
+            target="_blank"
+            rel="noopener"
+            className="mt-12 flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-gray-600"
+          >
+            <Logo size={14} className="text-gray-400" dotColor="#D1D5DB" /> Criado com <strong className="font-semibold">{BRAND.wordmark}</strong>
+            <span className="underline underline-offset-2">· Conheça</span>
           </a>
         )}
       </main>
@@ -1480,18 +1484,17 @@ export default function PublicMenuClient({
             <p className="text-sm text-gray-600 mt-1">
               A {establishment.name} já tem seu pedido <span className="font-mono font-semibold">#{placed.orderId.slice(0, 8)}</span> · {formatBRL(placed.total)}
             </p>
-            <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-700 mt-4 flex items-start gap-2 text-left">
-              <Info size={16} className="text-primary-600 flex-shrink-0 mt-0.5" />
-              <span>Se o WhatsApp abriu, toque em <strong>enviar</strong> para avisar a loja mais rápido. Não é obrigatório: o pedido já está registrado.</span>
-            </div>
-            <div className="grid gap-2 mt-4">
-              <Link href={`/pedido/${placed.orderId}`} className="btn-primary w-full py-3">Acompanhar pedido</Link>
-              {placed.whatsappUrl && (
-                <a href={placed.whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary w-full py-3">Abrir no WhatsApp</a>
-              )}
-            </div>
             <div className="mt-4">
-              <InstallPrompt storeId={establishment.id} storeName={establishment.name} />
+              <AppInvite
+                storeId={establishment.id}
+                storeName={establishment.name}
+                logoUrl={establishment.logo_url}
+                orderId={placed.orderId}
+                customer={{ phone: customerPhone, name: customerName, token: getCustomerToken(establishment.id, customerPhone) }}
+              />
+            </div>
+            <div className="grid gap-2 mt-3">
+              <Link href={`/pedido/${placed.orderId}`} className="btn-secondary w-full py-3">Acompanhar pedido</Link>
             </div>
             <button onClick={() => setPlaced(null)} className="text-sm text-gray-500 mt-4 underline">Voltar ao cardápio</button>
           </div>

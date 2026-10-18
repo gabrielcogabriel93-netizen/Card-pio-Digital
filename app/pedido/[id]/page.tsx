@@ -11,8 +11,8 @@ import { toWhatsAppNumber } from '@/lib/phone'
 import { formatBRL } from '@/lib/money'
 import { buildOrderTimeline, estimateArrival } from '@/lib/orderTimeline'
 import { orderItemsToPayload } from '@/lib/orderPayload'
-import { saveReorder } from '@/lib/customerStorage'
-import { OrderPushNotificationToggle } from '@/components/OrderPushNotificationToggle'
+import { saveReorder, getSavedCustomer, getCustomerToken } from '@/lib/customerStorage'
+import { AppInvite } from '@/components/store/AppInvite'
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { SmartImage } from '@/components/SmartImage'
 import type { OrderItem, OrderStatus, DeliveryAddress } from '@/types'
@@ -238,7 +238,18 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
           </div>
         </div>
 
-        {!isCancelled && order.status !== 'completed' && <OrderPushNotificationToggle orderId={order.id} />}
+        {!isCancelled && (
+          <AppInvite
+            storeId={order.establishment_id}
+            storeName={order.establishment_name}
+            logoUrl={order.establishment_logo_url}
+            orderId={order.status !== 'completed' ? order.id : null}
+            customer={(() => {
+              const saved = getSavedCustomer()
+              return saved ? { phone: saved.phone, name: saved.name, token: getCustomerToken(order.establishment_id, saved.phone) } : {}
+            })()}
+          />
+        )}
 
         {awaitingPix && (
           <div className="bg-white rounded-2xl border border-gray-100 p-5">

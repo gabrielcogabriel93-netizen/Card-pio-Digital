@@ -9,7 +9,7 @@ import { useEscapeKey } from '@/lib/useEscapeKey'
 import { PushNotificationToggle } from '@/components/PushNotificationToggle'
 import { AutoPrintToggle } from '@/components/AutoPrintToggle'
 import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
-import { STATUS_NOTIFICATION_MESSAGES, type NotifiableStep } from '@/lib/orderStatusMessages'
+import type { NotifiableStep } from '@/lib/orderStatusMessages'
 import { toWhatsAppNumber } from '@/lib/phone'
 import { formatBRL } from '@/lib/money'
 import { buildReceiptText, rawbtPrintUrl, type PaperWidth } from '@/lib/receipt'
@@ -48,7 +48,6 @@ export default function PedidosPage() {
   const [trackingEnabled, setTrackingEnabled] = useState(true)
   const [establishmentId, setEstablishmentId] = useState('')
   const [establishmentName, setEstablishmentName] = useState('')
-  const [whatsappNotificationsEnabled, setWhatsappNotificationsEnabled] = useState(false)
   const [tableLabelByTabId, setTableLabelByTabId] = useState<Map<string, string>>(new Map())
   const [printOrder, setPrintOrder] = useState<Order | null>(null)
   const [autoPrintEnabled, setAutoPrintEnabled] = useState<boolean | null>(null)
@@ -108,7 +107,7 @@ export default function PedidosPage() {
 
       const { data: est, error: estError } = await supabase
         .from('establishments')
-        .select('id, name, order_tracking_enabled, whatsapp_notifications_enabled, auto_print_enabled, printer_label, order_automation_mode')
+        .select('id, name, order_tracking_enabled, auto_print_enabled, printer_label, order_automation_mode')
         .eq('owner_id', user.id)
         .single()
       if (estError) logError('painel:pedidos', 'erro ao buscar estabelecimento', estError)
@@ -118,7 +117,6 @@ export default function PedidosPage() {
       setEstablishmentId(est.id)
       setEstablishmentName(est.name)
       setTrackingEnabled(est.order_tracking_enabled ?? true)
-      setWhatsappNotificationsEnabled(est.whatsapp_notifications_enabled ?? false)
       setAutoPrintEnabled(est.auto_print_enabled ?? null)
       setPrinterLabel(est.printer_label || '')
       setOrderAutomationMode(est.order_automation_mode || 'manual')
@@ -223,17 +221,10 @@ export default function PedidosPage() {
     })
   }
 
-  // Aviso ao cliente (WhatsApp, se ligado, e push). Nunca trava o fluxo.
-  const notifyCustomer = (order: Order, step: NotifiableStep) => {
+  // Aviso ao cliente por notificação do app da loja (o texto sai do
+  // status do pedido no servidor). Nunca trava o fluxo.
+  const notifyCustomer = (order: Order, _step: NotifiableStep) => {
     if (order.source !== 'online') return
-    const message = STATUS_NOTIFICATION_MESSAGES[step]?.(order)
-    if (whatsappNotificationsEnabled && message && order.customer_phone) {
-      fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ establishment_id: order.establishment_id, phone: order.customer_phone, message }),
-      }).catch((err) => logError('painel:pedidos', 'erro ao enviar notificação WhatsApp', err))
-    }
     fetch('/api/push/send-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

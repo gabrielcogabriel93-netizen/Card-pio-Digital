@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const { data: establishments, error: estError } = await admin
       .from('establishments')
       .select(
-        'id, order_tracking_enabled, whatsapp_notifications_enabled, auto_confirm_minutes, auto_preparing_minutes, auto_completed_minutes_pickup, auto_completed_minutes_delivery'
+        'id, order_tracking_enabled, auto_confirm_minutes, auto_preparing_minutes, auto_completed_minutes_pickup, auto_completed_minutes_delivery'
       )
       .eq('order_automation_mode', 'automatic')
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       // transação no banco (service_accept_order, com trava de linha).
       if (order.status === 'pending') {
         try {
-          const accepted = await applyAutomaticOrderConfirmation(admin, order.id, nextStatus as 'confirmed' | 'completed', establishment)
+          const accepted = await applyAutomaticOrderConfirmation(admin, order.id, nextStatus as 'confirmed' | 'completed')
           if (accepted) advanced++
         } catch {
           // já logado dentro da função; segue para o próximo pedido
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       }
       if (!updated) continue
 
-      await applyStatusOnly(updated as Order, nextStatus as 'preparing' | 'completed', establishment)
+      await applyStatusOnly(updated as Order)
       advanced++
     }
 

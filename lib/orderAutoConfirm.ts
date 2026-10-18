@@ -1,9 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { STATUS_NOTIFICATION_MESSAGES } from './orderStatusMessages'
-import { whatsappServer } from './whatsappServer'
 import { sendOrderPush } from './orderPush'
 import { logError } from './logger'
-import type { Order, Establishment } from '@/types'
+import type { Order } from '@/types'
 
 /**
  * Pra qual status o pedido pula sozinho quando o pagamento é aprovado —
@@ -14,36 +12,16 @@ export function resolveAutoConfirmStatus(orderTrackingEnabled: boolean): 'confir
   return orderTrackingEnabled ? 'confirmed' : 'completed'
 }
 
-type EstablishmentForAutoConfirm = Pick<Establishment, 'whatsapp_notifications_enabled'>
-
 /**
- * Notificação de mudança de status pro cliente — WhatsApp (se a loja
- * ligou o toggle) e push (se o cliente ativou em /pedido/[id]).
- *
- * Roda no SERVIDOR (webhook do Mercado Pago, cron): chama o servidor de
- * WhatsApp direto. Antes passava pela rota /api/whatsapp/send, que exige
- * o cookie de sessão do dono -- servidor a servidor não tem cookie, a
- * rota respondia 401 e nenhuma mensagem automática saía.
+ * Aviso de mudança de status pro cliente, por notificação do app da loja
+ * (substitui o WhatsApp). Roda no SERVIDOR (webhook do Mercado Pago,
+ * cron); o texto vem do estado do pedido no banco (lib/orderPush.ts).
  */
 export async function notifyStatusChange(
-  order: Pick<Order, 'id' | 'establishment_id' | 'source' | 'customer_phone' | 'order_type' | 'eta_minutes'>,
-  newStatus: 'confirmed' | 'preparing' | 'completed' | 'dispatched',
-  establishment: EstablishmentForAutoConfirm,
+  order: Pick<Order, 'id' | 'source'>,
   logScope: string
 ): Promise<void> {
   if (order.source !== 'online') return
-
-  if (establishment.whatsapp_notifications_enabled && order.customer_phone) {
-    const message = STATUS_NOTIFICATION_MESSAGES[newStatus]?.(order)
-    if (message) {
-      try {
-        await whatsappServer.send(order.establishment_id, order.customer_phone, message)
-      } catch (err) {
-        logError(logScope, 'erro ao notificar WhatsApp', err)
-      }
-    }
-  }
-
   try {
     await sendOrderPush(order.id)
   } catch (err) {
@@ -61,8 +39,7 @@ export async function notifyStatusChange(
 export async function applyAutomaticOrderConfirmation(
   admin: SupabaseClient,
   orderId: string,
-  newStatus: 'confirmed' | 'completed',
-  establishment: EstablishmentForAutoConfirm
+  newStatus: 'confirmed' | 'completed'
 ): Promise<Order | null> {
   const { data, error } = await admin.rpc('service_accept_order', { p_order_id: orderId, p_new_status: newStatus })
   if (error) {
@@ -72,7 +49,7 @@ export async function applyAutomaticOrderConfirmation(
   const order = (data as Order | null) && (data as Order).id ? (data as Order) : null
   if (!order) return null
 
-  await notifyStatusChange(order, newStatus, establishment, 'order-auto-confirm')
+  await notifyStatusChange(order, 'order-auto-confirm')
   return order
 }
 
@@ -81,12 +58,8 @@ export async function applyAutomaticOrderConfirmation(
  * preparo, em preparo -> concluído) sem financeiro/estoque de novo. Só
  * notifica; quem chamou já atualizou `status` de forma condicional.
  */
-export async function applyStatusOnly(
-  order: Order,
-  newStatus: 'preparing' | 'completed',
-  establishment: EstablishmentForAutoConfirm
-): Promise<void> {
-  await notifyStatusChange(order, newStatus, establishment, 'order-automation')
+export async function applyStatusOnly(order: Order): Promise<void> {
+  await notifyStatusChange(order, 'order-automation')
 }
 
 export interface AutomationTimings {

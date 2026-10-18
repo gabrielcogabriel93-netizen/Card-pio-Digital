@@ -277,7 +277,7 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { icon: <ClipboardList className="w-5 h-5" />, title: 'Cardápio profissional', desc: 'Mostre seus produtos de forma bonita e organizada.' },
-              { icon: <MessageCircle className="w-5 h-5" />, title: 'Pedidos pelo WhatsApp', desc: 'Seu cliente monta o pedido e envia diretamente para seu WhatsApp.' },
+              { icon: <Smartphone className="w-5 h-5" />, title: 'App com a sua marca', desc: 'Seu cliente instala o app da sua loja, com seu logo, e recebe o status do pedido e suas ofertas por notificação.' },
               { icon: <Zap className="w-5 h-5" />, title: 'Pedido rápido', desc: 'Menos mensagens de ida e volta. O pedido chega organizado.' },
               { icon: <LineChart className="w-5 h-5" />, title: 'Gestão simples', desc: 'Tenha controle dos produtos, categorias e pedidos em um só lugar.' },
             ].map((item, index) => (
@@ -309,7 +309,7 @@ export default function LandingPage() {
             {[
               { step: '01', icon: <Sparkles className="w-6 h-6" />, title: 'Crie sua conta', description: 'Cadastre seu negócio gratuitamente — 7 dias grátis, tudo liberado, sem cartão.' },
               { step: '02', icon: <ShoppingCart className="w-6 h-6" />, title: 'Monte seu cardápio', description: 'Adicione produtos, fotos, preços e categorias pelo painel intuitivo.' },
-              { step: '03', icon: <MessageCircle className="w-6 h-6" />, title: 'Compartilhe seu link', description: 'Envie seu cardápio para seus clientes e receba pedidos pelo WhatsApp.' },
+              { step: '03', icon: <MessageCircle className="w-6 h-6" />, title: 'Compartilhe seu link', description: 'Mande o link no WhatsApp e no Instagram. Os pedidos chegam no painel na hora, com aviso no seu celular.' },
             ].map((item, index, arr) => (
               <div key={index} className="flex items-center gap-4">
                 <div className="text-center animate-fade-in flex-1" style={{ animationDelay: `${index * 150}ms` }}>
@@ -632,8 +632,8 @@ export default function LandingPage() {
           <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-6">Já integrado com</p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
-              <MessageCircle size={20} className="text-green-500" />
-              <span className="font-medium text-gray-700">WhatsApp</span>
+              <Smartphone size={20} className="text-primary-500" />
+              <span className="font-medium text-gray-700">App da loja (PWA)</span>
             </div>
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
               <Wallet size={20} className="text-blue-500" />
@@ -760,7 +760,7 @@ export default function LandingPage() {
             </div>
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">
-                Pronto para transformar seu WhatsApp em um canal de vendas?
+                Pronto para ter o app da sua loja no celular dos seus clientes?
               </h2>
               <p className="text-primary-100">Crie seu cardápio digital e comece seu teste grátis hoje.</p>
             </div>
