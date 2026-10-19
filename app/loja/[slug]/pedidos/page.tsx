@@ -10,7 +10,7 @@ import { formatPhoneNumber } from '@/lib/phone'
 import { formatBRL } from '@/lib/money'
 import { orderItemsToPayload } from '@/lib/orderPayload'
 import { getSavedCustomer, getCustomerToken, clearCustomerToken, saveCustomer, saveReorder } from '@/lib/customerStorage'
-import { VerifyPhone } from '@/components/store/VerifyPhone'
+import { HistoryChallenge } from '@/components/store/HistoryChallenge'
 import { toast, confirmDialog } from '@/components/Feedback'
 import type { OrderItem, OrderStatus } from '@/types'
 import { ArrowLeft, Loader2, ShoppingBag, Bike, Store, Trash2, RotateCcw, Cake, ChevronRight } from 'lucide-react'
@@ -59,6 +59,9 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [birthDate, setBirthDate] = useState('')
+  // Token completo (confirmado pelo número do pedido): libera aniversário e
+  // apagar dados. Pelas perguntas, o aparelho vê só o histórico.
+  const [fullAccess, setFullAccess] = useState(false)
   const [savingBirth, setSavingBirth] = useState(false)
 
   const themeStyle = useMemo(() => themeShadesToCssVars(generateColorShades(store?.theme_color)) as React.CSSProperties, [store?.theme_color])
@@ -95,6 +98,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
       setNeedsVerify(false)
       saveCustomer({ name: getSavedCustomer()?.name || '', phone: targetPhone })
       const profile = await supabase.rpc('get_customer_profile', { p_establishment_id: store.id, p_phone: targetPhone, p_token: currentToken })
+      setFullAccess(profile.data?.[0]?.verified === true)
       const birth = profile.data?.[0]?.birth_date
       if (birth) setBirthDate(birth)
     } catch (err: any) {
@@ -191,7 +195,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
         </form>
 
         {needsVerify && (
-          <VerifyPhone establishmentId={store.id} phone={phone} onVerified={() => { setNeedsVerify(false); search(phone) }} />
+          <HistoryChallenge establishmentId={store.id} phone={phone} onVerified={() => { setNeedsVerify(false); search(phone) }} />
         )}
 
         {orders && orders.length === 0 && (
@@ -228,7 +232,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
           </div>
         )}
 
-        {token && orders && Number(store.birthday_discount_percent) > 0 && (
+        {token && fullAccess && orders && Number(store.birthday_discount_percent) > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-4">
             <p className="font-semibold text-gray-900 flex items-center gap-1.5"><Cake size={16} className="text-primary-600" /> Ganhe {store.birthday_discount_percent}% no seu aniversário</p>
             <p className="text-xs text-gray-500 mt-0.5">O desconto entra sozinho no pedido do dia, para datas cadastradas há pelo menos 30 dias.</p>
@@ -239,7 +243,7 @@ export default function MeusPedidosPage({ params }: { params: { slug: string } }
           </div>
         )}
 
-        {token && orders && (
+        {token && fullAccess && orders && (
           <button onClick={deleteMyData} className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-red-600 py-3">
             <Trash2 size={15} /> Apagar meus dados nesta loja
           </button>
