@@ -7,6 +7,7 @@ import { getPublicEstablishment } from '@/lib/storePublicData'
 import { publicStoreUrl } from '@/lib/domains'
 import { Store } from 'lucide-react'
 import { storeColor } from '@/lib/brand'
+import { storeIconUrl } from '@/lib/storeIcon'
 
 // Página estática regenerada a cada 30s (ISR). O ?mesa= do QR de mesa é
 // lido no navegador (PublicMenuClient) para não forçar renderização
@@ -60,14 +61,21 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
     baseUrl: getBaseUrl(),
   })
-  const icon = establishment.logo_url || undefined
 
   return {
     title: { absolute: `${establishment.name} · Peça online` },
     description,
     alternates: { canonical: url },
     manifest: `/loja/${establishment.slug}/manifest.webmanifest`,
-    icons: icon ? { icon, apple: icon, shortcut: icon } : undefined,
+    // Ícone do app instalado e da aba: sempre a marca da LOJA, gerado no
+    // mesmo domínio e quadrado (o iPhone usa o apple-touch-icon).
+    icons: {
+      icon: [
+        { url: storeIconUrl(establishment, 48), sizes: '48x48', type: 'image/png' },
+        { url: storeIconUrl(establishment, 192), sizes: '192x192', type: 'image/png' },
+      ],
+      apple: { url: storeIconUrl(establishment, 180), sizes: '180x180', type: 'image/png' },
+    },
     appleWebApp: { capable: true, title: establishment.name, statusBarStyle: 'default' },
     openGraph: {
       title: `${establishment.name} · Peça online`,

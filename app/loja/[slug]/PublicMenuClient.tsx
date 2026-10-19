@@ -51,12 +51,14 @@ import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { ProductSheet, type GroupWithOptions, type ProductSheetResult } from '@/components/store/ProductSheet'
 import { VerifyPhone } from '@/components/store/VerifyPhone'
 import { AppInvite } from '@/components/store/AppInvite'
-import { isStandaloneApp, touchStoreDevice } from '@/lib/pushClient'
+import { ShareMenu } from '@/components/store/ShareMenu'
+import { rgbToHex } from '@/lib/marketingArt'
+import { touchStoreDevice } from '@/lib/pushClient'
 import { Logo } from '@/components/Logo'
 import { toast, confirmDialog } from '@/components/Feedback'
 import { BRAND } from '@/lib/brand'
 import {
-  ShoppingBag, X, Plus, Minus, MapPin, Clock, Loader2, Store, Bike, Package, ClipboardList, Trash2,
+  ShoppingBag, X, Plus, Minus, MapPin, Clock, Loader2, Store, Bike, Package, ClipboardList, Trash2, Share2,
   CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2, Layers, Search, Send, ChevronRight,
 } from 'lucide-react'
 
@@ -197,8 +199,14 @@ export default function PublicMenuClient({
 
   const tabsRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const tab = tabsRef.current?.querySelector<HTMLElement>(`[data-tab="${activeSection}"]`)
-    tab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    // Centraliza a aba ativa rolando SÓ a barra de categorias. Antes usava
+    // scrollIntoView, que no Safari do iPhone (barra fixa no topo) rolava a
+    // página inteira de volta para cima enquanto o cliente descia o cardápio.
+    const bar = tabsRef.current
+    const tab = bar?.querySelector<HTMLElement>(`[data-tab="${activeSection}"]`)
+    if (!bar || !tab) return
+    const left = tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2
+    bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
   }, [activeSection])
 
   const scrollToSection = (id: string) => {
@@ -709,11 +717,7 @@ export default function PublicMenuClient({
   // ---------- Envio ----------
   const [placed, setPlaced] = useState<PlacedOrder | null>(null)
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
-  // Aberto pelo ícone (app instalado). No iPhone o app instalado tem
-  // armazenamento separado do Safari: não sabe do pedido anterior, então o
-  // convite para ativar os avisos aparece no topo, sempre.
-  const [installedApp, setInstalledApp] = useState(false)
-  useEffect(() => setInstalledApp(isStandaloneApp()), [])
+  const [shareOpen, setShareOpen] = useState(false)
   const [mpCheckout, setMpCheckout] = useState<{ orderId: string; amount: number; qrCode: string; qrCodeBase64: string } | null>(null)
   const [mpFailure, setMpFailure] = useState<{ orderId: string; amount: number; message: string } | null>(null)
   const [mpRetrying, setMpRetrying] = useState(false)
@@ -947,9 +951,14 @@ export default function PublicMenuClient({
                 </span>
               </div>
             </button>
-            <Link href={`/loja/${establishment.slug}/pedidos`} className="p-2.5 bg-gray-100 rounded-xl hover:bg-gray-200 flex-shrink-0" aria-label="Meus pedidos" title="Meus pedidos">
-              <ClipboardList size={20} className="text-gray-700" />
-            </Link>
+            <div className="flex gap-1.5 flex-shrink-0">
+              <button type="button" onClick={() => setShareOpen(true)} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200" aria-label="Compartilhar cardápio" title="Compartilhar cardápio">
+                <Share2 size={20} className="text-gray-700" />
+              </button>
+              <Link href={`/loja/${establishment.slug}/pedidos`} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200" aria-label="Meus pedidos" title="Meus pedidos">
+                <ClipboardList size={20} className="text-gray-700" />
+              </Link>
+            </div>
           </div>
 
           {!isTableMode && (
@@ -988,7 +997,7 @@ export default function PublicMenuClient({
               )}
             </label>
             {!searchResults && sections.length > 1 && (
-              <div ref={tabsRef} className="flex gap-2 mt-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="Categorias">
+              <div ref={tabsRef} className="relative flex gap-2 mt-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="Categorias">
                 {sections.map((s) => (
                   <button
                     key={s.id}
@@ -1031,7 +1040,10 @@ export default function PublicMenuClient({
           </div>
         )}
 
-        {installedApp && (
+        {/* Convite do app DA LOJA logo ao abrir o cardápio: instalar (com o
+            logo da loja) e ativar os avisos do pedido. Some quando os avisos
+            estão ativos; o cliente pode dispensar. */}
+        {!isTableMode && (
           <div className="mb-4">
             <AppInvite
               storeId={establishment.id}
@@ -1089,18 +1101,6 @@ export default function PublicMenuClient({
         )}
 
         {/* Convite discreto para quem já é cliente e ainda não tem o app */}
-        {lastOrderId && !installedApp && (
-          <div className="mt-10">
-            <AppInvite
-              storeId={establishment.id}
-              storeName={establishment.name}
-              logoUrl={establishment.logo_url}
-              customer={{ phone: customerPhone, name: customerName, token: phoneDigits ? getCustomerToken(establishment.id, customerPhone) : null }}
-              dismissible
-            />
-          </div>
-        )}
-
         {!establishment.hide_platform_badge && (
           <a
             href={`${process.env.NEXT_PUBLIC_APP_URL || ''}/?ref=${establishment.slug}`}
@@ -1490,6 +1490,15 @@ export default function PublicMenuClient({
             </div>
           </div>
         </div>
+      )}
+
+      {shareOpen && (
+        <ShareMenu
+          storeName={establishment.name}
+          logoUrl={establishment.logo_url}
+          qrColor={rgbToHex(`rgb(${generateColorShades(establishment.theme_color)[800].split(' ').join(',')})`)}
+          onClose={() => setShareOpen(false)}
+        />
       )}
 
       {/* Pedido recebido */}

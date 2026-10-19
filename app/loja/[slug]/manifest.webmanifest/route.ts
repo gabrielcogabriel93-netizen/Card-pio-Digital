@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPublicEstablishment } from '@/lib/storePublicData'
-import { iconUrl, storeColor } from '@/lib/brand'
+import { storeColor } from '@/lib/brand'
+import { storeIconUrl } from '@/lib/storeIcon'
 
 // App instalável DA LOJA: quem coloca o cardápio na tela inicial ganha um
 // ícone com o logo e o nome da loja, que abre direto no cardápio. Antes o
@@ -16,15 +17,12 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
   const onSubdomain = !!rootDomain && host.toLowerCase().startsWith(`${establishment.slug}.${rootDomain}`)
   const startUrl = onStoreHost || onSubdomain ? '/' : `/loja/${establishment.slug}`
 
-  const icons = establishment.logo_url
-    ? [
-        { src: establishment.logo_url, sizes: '192x192', purpose: 'any' },
-        { src: establishment.logo_url, sizes: '512x512', purpose: 'any' },
-      ]
-    : [
-        { src: iconUrl('/icons/icon-192x192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: iconUrl('/icons/icon-512x512.png'), sizes: '512x512', type: 'image/png', purpose: 'any' },
-      ]
+  // Sempre o ícone DA LOJA (logo ou inicial na cor dela), nunca o da plataforma.
+  const icons = [
+    { src: storeIconUrl(establishment, 192), sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: storeIconUrl(establishment, 512), sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: storeIconUrl(establishment, 512, true), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ]
 
   return NextResponse.json(
     {
@@ -33,7 +31,8 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
       short_name: establishment.name.slice(0, 12),
       description: establishment.description || `Peça online na ${establishment.name}`,
       start_url: startUrl,
-      scope: startUrl === '/' ? '/' : `/loja/${establishment.slug}`,
+      // Escopo amplo: acompanhar o pedido (/pedido/...) continua dentro do app.
+      scope: '/',
       display: 'standalone',
       background_color: '#ffffff',
       theme_color: storeColor(establishment.theme_color),
