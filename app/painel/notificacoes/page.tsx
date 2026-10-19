@@ -221,6 +221,16 @@ function Notificacoes() {
               <p className="text-xs text-gray-500 mt-1">{reach === null ? 'Calculando…' : `${reach} aparelho${reach === 1 ? '' : 's'} vão receber`}</p>
             </div>
           </div>
+          {reach === 0 && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+              <p className="font-medium">Ninguém desse público está com os avisos ativos ainda, então não há para quem enviar.</p>
+              <p className="mt-1">
+                O cliente ativa os avisos no convite que aparece depois do pedido (e, no app instalado, no topo do cardápio).
+                No iPhone, ele precisa primeiro adicionar o cardápio à Tela de Início e abrir pelo ícone. Peça para seus clientes
+                ativarem quando fizerem o próximo pedido.
+              </p>
+            </div>
+          )}
           <button
             onClick={() => send({ title, body, audience, product_id: productId || undefined, source }, 'compose')}
             disabled={!title.trim() || !body.trim() || !reach || sending === 'compose'}

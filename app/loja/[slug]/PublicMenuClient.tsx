@@ -51,7 +51,7 @@ import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { ProductSheet, type GroupWithOptions, type ProductSheetResult } from '@/components/store/ProductSheet'
 import { VerifyPhone } from '@/components/store/VerifyPhone'
 import { AppInvite } from '@/components/store/AppInvite'
-import { touchStoreDevice } from '@/lib/pushClient'
+import { isStandaloneApp, touchStoreDevice } from '@/lib/pushClient'
 import { Logo } from '@/components/Logo'
 import { toast, confirmDialog } from '@/components/Feedback'
 import { BRAND } from '@/lib/brand'
@@ -709,6 +709,11 @@ export default function PublicMenuClient({
   // ---------- Envio ----------
   const [placed, setPlaced] = useState<PlacedOrder | null>(null)
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+  // Aberto pelo ícone (app instalado). No iPhone o app instalado tem
+  // armazenamento separado do Safari: não sabe do pedido anterior, então o
+  // convite para ativar os avisos aparece no topo, sempre.
+  const [installedApp, setInstalledApp] = useState(false)
+  useEffect(() => setInstalledApp(isStandaloneApp()), [])
   const [mpCheckout, setMpCheckout] = useState<{ orderId: string; amount: number; qrCode: string; qrCodeBase64: string } | null>(null)
   const [mpFailure, setMpFailure] = useState<{ orderId: string; amount: number; message: string } | null>(null)
   const [mpRetrying, setMpRetrying] = useState(false)
@@ -1026,6 +1031,18 @@ export default function PublicMenuClient({
           </div>
         )}
 
+        {installedApp && (
+          <div className="mb-4">
+            <AppInvite
+              storeId={establishment.id}
+              storeName={establishment.name}
+              logoUrl={establishment.logo_url}
+              customer={{ phone: customerPhone, name: customerName, token: phoneDigits ? getCustomerToken(establishment.id, customerPhone) : null }}
+              dismissible
+            />
+          </div>
+        )}
+
         {!canOrder && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
             <Clock size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
@@ -1072,7 +1089,7 @@ export default function PublicMenuClient({
         )}
 
         {/* Convite discreto para quem já é cliente e ainda não tem o app */}
-        {lastOrderId && (
+        {lastOrderId && !installedApp && (
           <div className="mt-10">
             <AppInvite
               storeId={establishment.id}
