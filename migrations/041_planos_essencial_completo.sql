@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 041
+-- Freguês - Migration 041
 -- Separa o plano único em dois: "Essencial" (R$49,90) e "Completo"
 -- (R$97,00, preço mantido em código -- ver lib/plans.ts). O Completo
 -- adiciona: controle de estoque, balcão/PDV, programa de fidelidade,

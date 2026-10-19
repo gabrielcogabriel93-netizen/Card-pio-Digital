@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 042
+-- Freguês - Migration 042
 -- Carrinho abandonado: detecta e registra quando um cliente chega a
 -- informar o telefone na etapa de "Finalizar Pedido" mas não confirma
 -- o envio em X minutos. O telefone só existe do lado do servidor a

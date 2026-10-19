@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 034
+-- Freguês - Migration 034
 -- Comissões para divulgadores (afiliados) + troca do motor de cobrança
 -- da MENSALIDADE DA PLATAFORMA (migration 032) de Mercado Pago para
 -- Stripe Billing + Stripe Connect.

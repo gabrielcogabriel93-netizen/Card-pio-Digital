@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 036
+-- Freguês - Migration 036
 -- Instagram da loja, exibido no novo painel "Sobre a loja" do cardápio
 -- público (ver PublicMenuClient.tsx). Mesmo padrão da 030 (description):
 -- coluna nova + CREATE OR REPLACE VIEW reexpondo TODAS as colunas já

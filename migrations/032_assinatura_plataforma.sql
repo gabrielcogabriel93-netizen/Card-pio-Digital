@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 032
+-- Freguês - Migration 032
 -- Assinatura da plataforma: os LOJISTAS pagam a própria plataforma
 -- (R$49,90/mês, Pix mensal renovável) — não confundir com a comissão de
 -- R$1/pedido da migration 026, que é outra cobrança e continua igual.

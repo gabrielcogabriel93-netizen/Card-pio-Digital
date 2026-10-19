@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 037
+-- Freguês - Migration 037
 -- Programa de fidelidade (pontos) — schema base: configuração por loja,
 -- catálogo de recompensas e saldo do cliente. Segue de perto o padrão de
 -- cupons (008/015): SECURITY DEFINER para tudo que o visitante público

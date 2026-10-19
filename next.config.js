@@ -82,10 +82,8 @@ const nextConfig = {
       bodySizeLimit: '5mb',
     },
   },
-  // Loja demo renomeada na migration 048 (marca antiga no endereço).
   async redirects() {
     return [
-      { source: '/loja/pizzaria-demo-catalogai/:path*', destination: '/loja/pizzaria-demo/:path*', permanent: false },
       // WhatsApp saiu: tudo virou notificação do app da loja.
       { source: '/painel/whatsapp', destination: '/painel/notificacoes', permanent: true },
     ]

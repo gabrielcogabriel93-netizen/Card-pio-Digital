@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 038
+-- Freguês - Migration 038
 -- Integra fidelidade com pedidos: colunas de resgate em `orders`,
 -- validação pública (validate_loyalty_redemption, espelha validate_coupon
 -- das migrations 008/015), saldo exposto em get_customer_profile, e as

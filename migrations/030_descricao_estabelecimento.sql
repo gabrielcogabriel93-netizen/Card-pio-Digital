@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 030
+-- Freguês - Migration 030
 -- Descrição da loja (Configurações > Dados do Estabelecimento) — usada
 -- no preview de link (Open Graph/Twitter Card) quando o lojista
 -- compartilha o cardápio no WhatsApp, Instagram etc. Sem isso, o texto

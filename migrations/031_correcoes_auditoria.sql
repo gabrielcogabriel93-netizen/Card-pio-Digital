@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 031
+-- Freguês - Migration 031
 -- Correções da auditoria de prontidão comercial:
 -- 1. Trava atômica no limite GLOBAL de usos de cupom (max_uses) — até
 --    aqui só existia a checagem em validate_coupon (lida antes, sem

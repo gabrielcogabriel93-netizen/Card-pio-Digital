@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 039
+-- Freguês - Migration 039
 -- Cardápio de mesa com QR Code: terceiro fluxo de pedido, diferente do
 -- online (checkout único -> WhatsApp) e do balcão (venda avulsa que já
 -- nasce concluída). Aqui múltiplos pedidos se acumulam numa "comanda"

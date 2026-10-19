@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 035
+-- Freguês - Migration 035
 -- Rate limiting nas funções públicas de consulta por telefone
 -- (get_orders_by_phone, migration 012; get_customer_profile, migration
 -- 016, com o retorno alterado depois pela 018 — ver comentário mais

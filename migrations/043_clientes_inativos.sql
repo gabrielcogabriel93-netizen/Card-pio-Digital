@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 043
+-- Freguês - Migration 043
 -- Reengajamento de cliente inativo: lista em /painel/whatsapp de
 -- clientes que já pediram antes mas não pedem há mais de N dias
 -- (configurável por loja), com botão "chamar de volta" que abre um

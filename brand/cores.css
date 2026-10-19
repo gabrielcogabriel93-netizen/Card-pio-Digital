@@ -1,0 +1,13 @@
+/* Paleta Freguês — mesma de lib/brand.ts e app/globals.css. */
+:root {
+  --fregues-azul: #2340E0;      /* Azul caneta: marca, botões, links */
+  --fregues-amarelo: #FFD43B;   /* Amarelo comanda: destaque, CTA, "tilim" */
+  --fregues-nanquim: #14172B;   /* Nanquim: texto e títulos */
+  --fregues-papel: #F6F7FB;     /* Papel: fundo */
+  --fregues-verde: #0B8A5F;     /* Verde confirmado: sucesso */
+
+  --fregues-fonte-titulo: 'Bricolage Grotesque', system-ui, sans-serif;
+  --fregues-fonte-texto: 'Figtree', system-ui, sans-serif;
+  --fregues-fonte-numeros: 'JetBrains Mono', ui-monospace, monospace;
+  --fregues-fonte-anotacao: 'Caveat', cursive;
+}

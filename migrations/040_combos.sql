@@ -1,5 +1,5 @@
 -- ============================================================
--- CatalogAI - Migration 040
+-- Freguês - Migration 040
 -- Sistema de combos: kits de produtos com preço fixo definido pelo
 -- lojista. Serve pra QUALQUER tipo de negócio (não só comida) -- um
 -- combo é só "N grupos de escolha, cada um com produtos elegíveis do
