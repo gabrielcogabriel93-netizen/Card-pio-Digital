@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createHmac } from 'node:crypto'
-import { verifyWebhookSignature } from './mercadoPago'
+import { verifyWebhookSignature, mercadoPagoFeeFrom } from './mercadoPago'
 
 function signManifest(dataId: string, requestId: string, ts: string, secret: string) {
   const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`
@@ -51,5 +51,16 @@ describe('verifyWebhookSignature', () => {
 
   it('rejects a malformed x-signature header', () => {
     expect(verifyWebhookSignature({ xSignature: 'garbage', xRequestId: requestId, dataId, secret })).toBe(false)
+  })
+})
+
+describe('mercadoPagoFeeFrom', () => {
+  it('soma só a tarifa do Mercado Pago, sem a comissão da plataforma', () => {
+    expect(mercadoPagoFeeFrom([
+      { type: 'mercadopago_fee', amount: 0.49, fee_payer: 'collector' },
+      { type: 'application_fee', amount: 1, fee_payer: 'collector' },
+    ])).toBe(0.49)
+    expect(mercadoPagoFeeFrom(undefined)).toBe(0)
+    expect(mercadoPagoFeeFrom([])).toBe(0)
   })
 })

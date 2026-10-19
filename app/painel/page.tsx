@@ -9,6 +9,7 @@ import { paymentMethodLabel } from '@/lib/paymentMethods'
 import { ShareStoreCard } from '@/components/painel/ShareStoreCard'
 import { ShoppingCart, DollarSign, TrendingUp, Package, AlertTriangle, ArrowRight, Clock, Bike, Store, ChefHat, Layers, Settings, Wallet, CheckCircle2, Circle, ImageIcon, Palette, ListOrdered, QrCode } from 'lucide-react'
 import { isCustomStoreColor } from '@/lib/brand'
+import { SALE_STATUSES } from '@/lib/salesReport'
 
 const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
   preparo: 'Com preparo',
@@ -117,13 +118,14 @@ export default function Dashboard() {
         .lte('stock_qty', 5)
 
       // Pedidos de hoje: entrega x retirada x balcão e ticket médio (só
-      // pedidos não cancelados; lançamentos manuais não entram na conta).
+      // pedidos aceitos, o mesmo critério dos Relatórios; lançamentos
+      // manuais não entram na conta).
       const { data: todayOrders } = await supabase
         .from('orders')
         .select('source, order_type, total, status')
         .eq('establishment_id', est.id)
         .gte('created_at', todayStart.toISOString())
-      const validToday = (todayOrders || []).filter((o) => o.status !== 'cancelled')
+      const validToday = (todayOrders || []).filter((o) => (SALE_STATUSES as readonly string[]).includes(o.status))
       const averageTicket = validToday.length > 0 ? validToday.reduce((s, o) => s + Number(o.total), 0) / validToday.length : 0
 
       const deliveryToday = todayOrders?.filter(o => o.source === 'online' && o.order_type === 'delivery').length || 0

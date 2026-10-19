@@ -6,15 +6,8 @@ import { log, logError } from '@/lib/logger'
 import type { Order, OrderItem } from '@/types'
 import { FeatureGate } from '@/components/FeatureGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
-import { TrendingUp, DollarSign, Clock, Award, Loader2, ShoppingBag, ShoppingCart, CalendarDays } from 'lucide-react'
-
-type Period = 'today' | 'week' | 'month' | 'custom'
-
-interface ProductStat {
-  name: string
-  quantity: number
-  revenue: number
-}
+import { periodRange, fetchAllRows, summarizeSales, rankProducts, formatQty, SALE_STATUSES, type Period, type Breakdown } from '@/lib/salesReport'
+import { TrendingUp, DollarSign, Clock, Award, Loader2, ShoppingBag, ShoppingCart, CalendarDays, Receipt } from 'lucide-react'
 
 const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -32,41 +25,7 @@ export default function RelatoriosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, customStart, customEnd])
 
-  const getDateRange = (): { start: Date; end: Date } => {
-    const now = new Date()
-    const end = new Date(now)
-    end.setHours(23, 59, 59, 999)
-
-    let start: Date
-    switch (period) {
-      case 'today':
-        start = new Date(now)
-        start.setHours(0, 0, 0, 0)
-        break
-      case 'week':
-        start = new Date(now)
-        start.setDate(now.getDate() - 6)
-        start.setHours(0, 0, 0, 0)
-        break
-      case 'month':
-        start = new Date(now.getFullYear(), now.getMonth(), 1)
-        start.setHours(0, 0, 0, 0)
-        break
-      case 'custom':
-        start = customStart ? new Date(customStart) : new Date(now)
-        start.setHours(0, 0, 0, 0)
-        if (customEnd) {
-          const customEndDate = new Date(customEnd)
-          customEndDate.setHours(23, 59, 59, 999)
-          return { start, end: customEndDate }
-        }
-        return { start, end }
-      default:
-        start = new Date(now)
-        start.setHours(0, 0, 0, 0)
-    }
-    return { start, end }
-  }
+  const getDateRange = () => periodRange(period, { customStart, customEnd, week: 'rolling' })
 
   const loadOrders = async () => {
     setLoading(true)
@@ -88,17 +47,18 @@ export default function RelatoriosPage() {
       // Só pedidos que chegaram a ser aceitos (o mesmo critério que já
       // gera lançamento financeiro) — pendente/cancelado não conta como
       // venda de verdade.
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('establishment_id', est.id)
-        .in('status', ['confirmed', 'preparing', 'completed'])
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
-        .order('created_at', { ascending: false })
-
-      if (error) logError('painel:relatorios', 'erro ao carregar pedidos', error)
-      if (data) setOrders(data as Order[])
+      const data = await fetchAllRows<Order>((from, to) =>
+        supabase
+          .from('orders')
+          .select('*')
+          .eq('establishment_id', est.id)
+          .in('status', [...SALE_STATUSES])
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString())
+          .order('created_at', { ascending: false })
+          .range(from, to)
+      )
+      setOrders(data)
 
       // Carrinhos abandonados no período (migration 042) -- só a
       // contagem, pra não trazer telefone/nome de cliente pra esta tela.
@@ -119,23 +79,13 @@ export default function RelatoriosPage() {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
-  const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total), 0)
-  const averageTicket = orders.length > 0 ? totalRevenue / orders.length : 0
+  const summary = summarizeSales(orders)
+  const totalRevenue = summary.total
+  const averageTicket = summary.averageTicket
 
-  // Produtos mais vendidos: soma quantidade/receita a partir dos itens
-  // (JSONB) de cada pedido do período — dado real, sem estimativa.
-  const productStats = (() => {
-    const map = new Map<string, ProductStat>()
-    orders.forEach((order) => {
-      (order.items as OrderItem[]).forEach((item) => {
-        const current = map.get(item.product_name) || { name: item.product_name, quantity: 0, revenue: 0 }
-        current.quantity += item.quantity
-        current.revenue += item.total_price
-        map.set(item.product_name, current)
-      })
-    })
-    return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity).slice(0, 10)
-  })()
+  // Produtos mais vendidos a partir dos itens de cada pedido (pizza meio a
+  // meio divide entre os sabores; combo conta pelo nome).
+  const productStats = rankProducts(orders.flatMap((o) => o.items as OrderItem[]), 10)
 
   // Horário de pico: pedidos por hora do dia (hora local do navegador).
   const hourCounts = (() => {
@@ -151,43 +101,22 @@ export default function RelatoriosPage() {
   // Mais vendidos por dia da semana: mesma agregação de productStats,
   // só bucketizada por .getDay() (0=domingo) em vez de um total único.
   const weekdayStats = (() => {
-    const buckets: Map<string, ProductStat>[] = Array.from({ length: 7 }, () => new Map())
+    const buckets: OrderItem[][] = Array.from({ length: 7 }, () => [])
     const orderCounts = new Array(7).fill(0)
     orders.forEach((order) => {
       const day = new Date(order.created_at).getDay()
       orderCounts[day]++
-      ;(order.items as OrderItem[]).forEach((item) => {
-        const map = buckets[day]
-        const current = map.get(item.product_name) || { name: item.product_name, quantity: 0, revenue: 0 }
-        current.quantity += item.quantity
-        current.revenue += item.total_price
-        map.set(item.product_name, current)
-      })
+      buckets[day].push(...(order.items as OrderItem[]))
     })
-    return WEEKDAY_NAMES.map((name, day) => ({
-      name,
-      orderCount: orderCounts[day],
-      topProducts: Array.from(buckets[day].values()).sort((a, b) => b.quantity - a.quantity).slice(0, 3),
-    }))
+    return WEEKDAY_NAMES.map((name, day) => ({ name, orderCount: orderCounts[day], topProducts: rankProducts(buckets[day], 3) }))
   })()
 
   // Mais vendido por horário: mesma ideia, bucketizada por .getHours() --
   // só o produto nº1 de cada hora, pra caber numa lista compacta.
   const hourlyTopProduct = (() => {
-    const buckets: Map<string, ProductStat>[] = Array.from({ length: 24 }, () => new Map())
-    orders.forEach((order) => {
-      const hour = new Date(order.created_at).getHours()
-      ;(order.items as OrderItem[]).forEach((item) => {
-        const map = buckets[hour]
-        const current = map.get(item.product_name) || { name: item.product_name, quantity: 0, revenue: 0 }
-        current.quantity += item.quantity
-        current.revenue += item.total_price
-        map.set(item.product_name, current)
-      })
-    })
-    return buckets
-      .map((map, hour) => ({ hour, top: Array.from(map.values()).sort((a, b) => b.quantity - a.quantity)[0] }))
-      .filter((h) => h.top)
+    const buckets: OrderItem[][] = Array.from({ length: 24 }, () => [])
+    orders.forEach((order) => buckets[new Date(order.created_at).getHours()].push(...(order.items as OrderItem[])))
+    return buckets.map((items, hour) => ({ hour, top: rankProducts(items, 1)[0] })).filter((h) => h.top)
   })()
 
   if (loading && orders.length === 0) {
@@ -206,7 +135,7 @@ export default function RelatoriosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="page-title">Relatórios</h1>
-        <p className="text-gray-600 mt-1">Mais vendidos, horário de pico e ticket médio do período.</p>
+        <p className="text-gray-600 mt-1">Faturamento, mais vendidos, horário de pico e ticket médio do período.</p>
       </div>
 
       {/* Period selector */}
@@ -274,6 +203,31 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
+      {/* Composição do faturamento: fecha com o card de faturamento. */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-4">
+          <Receipt size={18} className="text-primary-500" />
+          <h2 className="text-lg font-semibold text-gray-900">Composição do faturamento</h2>
+        </div>
+        {orders.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">Nenhuma venda no período.</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between"><dt className="text-gray-600">Produtos</dt><dd className="tabular-nums">{formatCurrency(summary.products)}</dd></div>
+              {summary.byDiscount.map((d) => (
+                <div key={d.label} className="flex justify-between"><dt className="text-gray-600">{d.label} ({d.count})</dt><dd className="tabular-nums text-red-600">- {formatCurrency(d.amount)}</dd></div>
+              ))}
+              <div className="flex justify-between"><dt className="text-gray-600">Taxas de entrega</dt><dd className="tabular-nums">+ {formatCurrency(summary.delivery)}</dd></div>
+              <div className="flex justify-between border-t border-gray-100 pt-2 font-semibold"><dt>Faturamento</dt><dd className="tabular-nums">{formatCurrency(summary.total)}</dd></div>
+              <p className="text-xs text-gray-500 pt-1">Pedidos aceitos no período (cancelados e não aceitos ficam de fora). Mesa entra no Financeiro ao fechar a conta.</p>
+            </dl>
+            <BreakdownList title="Por forma de pagamento" rows={summary.byPayment} total={summary.total} format={formatCurrency} />
+            <BreakdownList title="Por canal" rows={summary.byChannel} total={summary.total} format={formatCurrency} />
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top products */}
         <div className="card">
@@ -298,7 +252,7 @@ export default function RelatoriosPage() {
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-gray-900">{p.quantity}x</p>
+                    <p className="text-sm font-bold text-gray-900">{formatQty(p.quantity)}x</p>
                     <p className="text-xs text-gray-500">{formatCurrency(p.revenue)}</p>
                   </div>
                 </div>
@@ -354,7 +308,7 @@ export default function RelatoriosPage() {
                     ) : (
                       w.topProducts.map((p) => (
                         <p key={p.name} className="text-xs text-gray-700 truncate">
-                          {p.quantity}x {p.name}
+                          {formatQty(p.quantity)}x {p.name}
                         </p>
                       ))
                     )}
@@ -378,12 +332,33 @@ export default function RelatoriosPage() {
                 <div key={hour} className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-gray-500 w-10 flex-shrink-0">{String(hour).padStart(2, '0')}h</span>
                   <span className="flex-1 text-gray-900 truncate">{top.name}</span>
-                  <span className="text-gray-500 flex-shrink-0">{top.quantity}x</span>
+                  <span className="text-gray-500 flex-shrink-0">{formatQty(top.quantity)}x</span>
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function BreakdownList({ title, rows, total, format }: { title: string; rows: Breakdown[]; total: number; format: (v: number) => string }) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-gray-800 mb-2">{title}</p>
+      <div className="space-y-2">
+        {rows.map((r) => (
+          <div key={r.label}>
+            <div className="flex justify-between text-sm gap-2">
+              <span className="text-gray-700 truncate">{r.label} <span className="text-gray-400">({r.count})</span></span>
+              <span className="tabular-nums flex-shrink-0">{format(r.amount)}</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
+              <div className="h-full bg-primary-400" style={{ width: `${total > 0 ? (r.amount / total) * 100 : 0}%` }} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

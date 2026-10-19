@@ -86,8 +86,21 @@ export async function POST(request: NextRequest) {
           // 2) Aceite automático: status + financeiro + comissão + estoque
           // numa transação. Pedido que o lojista já cancelou NÃO volta a
           // ficar ativo (antes o webhook mudava o status mesmo assim).
-          await applyAutomaticOrderConfirmation(admin, order.id, newStatus)
+          const accepted = await applyAutomaticOrderConfirmation(admin, order.id, newStatus)
           log('api:mercadopago:webhook', 'pedido confirmado automaticamente', { orderId: order.id, newStatus })
+          // 3) Tarifa do Mercado Pago: o lojista recebe o total menos essa
+          // tarifa, então ela sai no financeiro junto com o pedido (e some
+          // se o pedido for cancelado, pelo cancel_order).
+          if (accepted && payment.mercadoPagoFee > 0) {
+            const { error: feeError } = await admin.from('financial_entries').insert({
+              establishment_id: order.establishment_id,
+              order_id: order.id,
+              type: 'expense',
+              amount: payment.mercadoPagoFee,
+              description: 'Tarifa do Mercado Pago (Pix automático)',
+            })
+            if (feeError && feeError.code !== '23505') logError('api:mercadopago:webhook', 'erro ao lançar tarifa do Mercado Pago', feeError)
+          }
         } else if (paidOrder.status === 'cancelled') {
           // Pago depois de cancelado: o dinheiro entrou na conta do lojista
           // e precisa de estorno manual no Mercado Pago. Fica registrado.

@@ -312,6 +312,18 @@ export interface PaymentLookupResult {
   // pra reexibir o mesmo QR numa nova tentativa sem criar outra cobrança.
   qrCode?: string
   qrCodeBase64?: string
+  // Tarifa que o próprio Mercado Pago desconta do lojista (fee_details do
+  // tipo mercadopago_fee). A comissão da plataforma (application_fee) já
+  // é lançada à parte no aceite.
+  mercadoPagoFee: number
+}
+
+export function mercadoPagoFeeFrom(feeDetails: unknown): number {
+  if (!Array.isArray(feeDetails)) return 0
+  const total = feeDetails
+    .filter((f) => f?.type === 'mercadopago_fee')
+    .reduce((sum, f) => sum + (Number(f.amount) || 0), 0)
+  return Math.round(total * 100) / 100
 }
 
 export async function getPayment(accessToken: string, paymentId: string): Promise<PaymentLookupResult> {
@@ -329,6 +341,7 @@ export async function getPayment(accessToken: string, paymentId: string): Promis
     externalReference: data.external_reference ?? null,
     qrCode: transactionData?.qr_code,
     qrCodeBase64: transactionData?.qr_code_base64,
+    mercadoPagoFee: mercadoPagoFeeFrom(data.fee_details),
   }
 }
 

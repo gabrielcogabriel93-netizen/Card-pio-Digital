@@ -8,8 +8,7 @@ import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { FinancialEntry } from '@/types'
 import { DollarSign, TrendingUp, TrendingDown, Calendar, Loader2, ArrowLeft, ArrowRight, Plus, X, Download } from 'lucide-react'
 import { toast, confirmDialog } from '@/components/Feedback'
-
-type Period = 'today' | 'week' | 'month' | 'custom'
+import { periodRange, fetchAllRows, type Period } from '@/lib/salesReport'
 
 export default function FinanceiroPage() {
   const [entries, setEntries] = useState<FinancialEntry[]>([])
@@ -80,43 +79,10 @@ export default function FinanceiroPage() {
   // reativo a período/data quanto depois de salvar/excluir um lançamento —
   // sem isso o efeito precisaria escolher entre um array de deps
   // incompleto (bug de closure obsoleta) ou recarregar a cada render.
-  const getDateRange = useCallback((): { start: Date; end: Date } => {
-    const now = new Date()
-    const end = new Date(now)
-    end.setHours(23, 59, 59, 999)
-
-    let start: Date
-
-    switch (period) {
-      case 'today':
-        start = new Date(now)
-        start.setHours(0, 0, 0, 0)
-        break
-      case 'week':
-        start = new Date(now)
-        start.setDate(now.getDate() - now.getDay())
-        start.setHours(0, 0, 0, 0)
-        break
-      case 'month':
-        start = new Date(now.getFullYear(), now.getMonth(), 1)
-        start.setHours(0, 0, 0, 0)
-        break
-      case 'custom':
-        start = customStart ? new Date(customStart) : new Date(now)
-        start.setHours(0, 0, 0, 0)
-        if (customEnd) {
-          const customEndDate = new Date(customEnd)
-          customEndDate.setHours(23, 59, 59, 999)
-          return { start, end: customEndDate }
-        }
-        return { start, end }
-      default:
-        start = new Date(now)
-        start.setHours(0, 0, 0, 0)
-    }
-
-    return { start, end }
-  }, [period, customStart, customEnd])
+  const getDateRange = useCallback(
+    () => periodRange(period, { customStart, customEnd, week: 'calendar' }),
+    [period, customStart, customEnd]
+  )
 
   const loadEntries = useCallback(async () => {
     log('painel:financeiro', 'carregando lançamentos...', { period })
@@ -137,17 +103,18 @@ export default function FinanceiroPage() {
 
       const { start, end } = getDateRange()
 
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('*')
-        .eq('establishment_id', est.id)
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
-        .order('created_at', { ascending: false })
-
-      if (error) logError('painel:financeiro', 'erro ao carregar lançamentos', error)
-      if (data) setEntries(data as FinancialEntry[])
-      log('painel:financeiro', 'lançamentos carregados', { total: data?.length || 0 })
+      const data = await fetchAllRows<FinancialEntry>((from, to) =>
+        supabase
+          .from('financial_entries')
+          .select('*')
+          .eq('establishment_id', est.id)
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString())
+          .order('created_at', { ascending: false })
+          .range(from, to)
+      )
+      setEntries(data)
+      log('painel:financeiro', 'lançamentos carregados', { total: data.length })
     } catch (error) {
       logError('painel:financeiro', 'exceção ao carregar financeiro', error)
     } finally {
@@ -168,6 +135,15 @@ export default function FinanceiroPage() {
     .reduce((sum, e) => sum + Number(e.amount), 0)
 
   const balance = totalIncome - totalExpense
+
+  // De onde vem cada número: pedidos (lançados sozinhos no aceite / no
+  // fechamento da comanda) x lançamentos manuais do lojista.
+  const orderIncome = entries
+    .filter(e => e.type === 'income' && e.order_id)
+    .reduce((sum, e) => sum + Number(e.amount), 0)
+  const orderFees = entries
+    .filter(e => e.type === 'expense' && e.order_id)
+    .reduce((sum, e) => sum + Number(e.amount), 0)
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -287,6 +263,9 @@ export default function FinanceiroPage() {
           </div>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
           <p className="text-sm text-gray-600">Entradas</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Pedidos {formatCurrency(orderIncome)} · Manuais {formatCurrency(totalIncome - orderIncome)}
+          </p>
         </div>
 
         <div className="card">
@@ -297,6 +276,9 @@ export default function FinanceiroPage() {
           </div>
           <p className="text-2xl font-bold text-red-600">{formatCurrency(totalExpense)}</p>
           <p className="text-sm text-gray-600">Saídas</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Tarifas do Pix automático {formatCurrency(orderFees)} · Manuais {formatCurrency(totalExpense - orderFees)}
+          </p>
         </div>
 
         <div className="card">
@@ -309,6 +291,7 @@ export default function FinanceiroPage() {
             {formatCurrency(balance)}
           </p>
           <p className="text-sm text-gray-600">Saldo do período</p>
+          <p className="text-xs text-gray-500 mt-1">Pedido entra ao ser aceito; mesa, ao fechar a conta. Cancelou, sai.</p>
         </div>
       </div>
 
