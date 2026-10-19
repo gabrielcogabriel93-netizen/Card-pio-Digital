@@ -66,7 +66,7 @@ const TESTIMONIALS = [
 const FAQ_ITEMS = [
   {
     question: 'Qual a diferença entre os planos Essencial e Completo?',
-    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender pelo WhatsApp: cardápio digital, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante os 7 dias grátis, os dois planos vêm liberados.',
+    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender direto: cardápio digital, pedidos no painel com alarme, app da loja com notificações, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante os 7 dias grátis, os dois planos vêm liberados.',
   },
   {
     question: 'Tem taxa ou comissão por pedido?',
