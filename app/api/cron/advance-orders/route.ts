@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { applyAutomaticOrderConfirmation, applyStatusOnly, resolveNextAutomaticStatus } from '@/lib/orderAutoConfirm'
 import { log, logError } from '@/lib/logger'
+import { runOpenPushes } from '@/lib/openPush'
 import { safeCompareSecret } from '@/lib/safeCompare'
 import type { Order } from '@/types'
 
@@ -25,6 +26,14 @@ export async function POST(request: NextRequest) {
   await admin
     .from('cron_health')
     .upsert({ job_name: 'advance-automatic-orders', last_run_at: new Date().toISOString() }, { onConflict: 'job_name' })
+
+  // Aviso "a loja abriu" (migration 051): confere a cada minuto, mesmo
+  // sem nenhuma loja com automação de pedidos.
+  try {
+    await runOpenPushes(admin)
+  } catch (err) {
+    logError('api:cron:advance-orders', 'erro no aviso de loja aberta', err)
+  }
 
   try {
     const { data: establishments, error: estError } = await admin

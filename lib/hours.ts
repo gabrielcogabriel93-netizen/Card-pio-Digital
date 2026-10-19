@@ -44,7 +44,7 @@ function parseHHMM(value: string): number | null {
   return h * 60 + m
 }
 
-function dayRange(openingHours: OpeningHours | undefined | null, dayKey: string): { open: number; close: number } | null {
+export function dayRange(openingHours: OpeningHours | undefined | null, dayKey: string): { open: number; close: number } | null {
   const hours = openingHours?.[dayKey]
   if (!hours || !hours.open || !hours.close) return null
   const open = parseHHMM(hours.open)

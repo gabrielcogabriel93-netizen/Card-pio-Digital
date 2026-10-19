@@ -297,6 +297,21 @@ export default function CombosPage() {
     }
   }
 
+  // Regras da pizza no combo (migration 050).
+  const handleUpdatePizzaRules = async (group: GroupWithProducts, changes: { pizza_max_flavors?: number | null; pizza_allow_additionals?: boolean }) => {
+    if (!editingCombo) return
+    setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, ...changes } : g)))
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('combo_groups').update(changes).eq('id', group.id)
+      if (error) throw error
+    } catch (error: any) {
+      logError('painel:combos', 'erro ao salvar regras da pizza', error)
+      toast.error('Não foi possível salvar a regra: ' + error.message)
+      await loadGroups(editingCombo.id)
+    }
+  }
+
   const handleToggleGroupProduct = async (group: GroupWithProducts, productId: string) => {
     if (!editingCombo) return
     const isSelected = group.productIds.includes(productId)
@@ -529,7 +544,7 @@ export default function CombosPage() {
                               <span className="font-medium text-sm text-gray-900">{group.name}</span>
                               {group.is_pizza_slot && (
                                 <span className="ml-2 text-xs bg-sky-50 text-sky-700 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                  Slot de pizza — tamanho fixo: {pizzaSizes.find((s) => s.id === group.fixed_pizza_size_id)?.name || '—'}
+                                  Pizza {pizzaSizes.find((s) => s.id === group.fixed_pizza_size_id)?.name || '—'}
                                 </span>
                               )}
                             </div>
@@ -537,6 +552,40 @@ export default function CombosPage() {
                               <Trash2 size={14} className="text-red-400" />
                             </button>
                           </div>
+
+                          {group.is_pizza_slot && (() => {
+                            const sizeMax = pizzaSizes.find((s) => s.id === group.fixed_pizza_size_id)?.max_flavors || 1
+                            return (
+                              <div className="bg-sky-50/60 border border-sky-100 rounded-lg p-2.5 mb-2 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <label htmlFor={`sab-${group.id}`} className="text-xs font-medium text-gray-700">Sabores por pizza</label>
+                                  <select
+                                    id={`sab-${group.id}`}
+                                    className="input-field text-sm py-1 w-auto"
+                                    value={group.pizza_max_flavors ?? ''}
+                                    onChange={(e) => handleUpdatePizzaRules(group, { pizza_max_flavors: e.target.value ? Number(e.target.value) : null })}
+                                  >
+                                    <option value="">O que o tamanho permite (até {sizeMax})</option>
+                                    {Array.from({ length: sizeMax }, (_, i) => i + 1).map((n) => (
+                                      <option key={n} value={n}>{n === 1 ? 'Só 1 sabor' : `Até ${n} sabores`}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!group.pizza_allow_additionals}
+                                    onChange={(e) => handleUpdatePizzaRules(group, { pizza_allow_additionals: e.target.checked })}
+                                    className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                                  />
+                                  Aceitar adicionais (borda etc.), cobrados à parte pelo preço do tamanho
+                                </label>
+                                <p className="text-[11px] text-gray-500">
+                                  Os sabores que valem são os marcados abaixo. Promoção de um sabor só: marque apenas ele e escolha &quot;Só 1 sabor&quot;.
+                                </p>
+                              </div>
+                            )
+                          })()}
 
                           {group.productIds.length === 0 && (
                             <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1 mb-2">
@@ -600,7 +649,7 @@ export default function CombosPage() {
                               }}
                               className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                             />
-                            É o slot de pizza (cliente só escolhe o sabor)
+                            É uma pizza (tamanho fixo; sabores e regras você define depois)
                           </label>
                           {newGroupIsPizza && (
                             <select

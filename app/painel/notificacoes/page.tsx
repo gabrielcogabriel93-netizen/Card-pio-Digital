@@ -8,6 +8,7 @@ import { formatBRL } from '@/lib/money'
 import { formatPhoneNumber } from '@/lib/phone'
 import { toast } from '@/components/Feedback'
 import { SmartImage } from '@/components/SmartImage'
+import { OpenPushSettings } from '@/components/painel/OpenPushSettings'
 import { AUDIENCE_LABELS, PUSH_BODY_MAX, PUSH_TITLE_MAX, type Audience } from '@/lib/pushAudience'
 import {
   Bell, BellRing, Cake, Loader2, MousePointerClick, Send, ShoppingCart, Smartphone, UserCheck, UserX,
@@ -253,6 +254,8 @@ function Notificacoes() {
           <p className="text-xs text-gray-500">No Android e no computador a foto do produto aparece grande. No iPhone, só o texto.</p>
         </aside>
       </div>
+
+      <OpenPushSettings storeId={store.id} storeName={store.name} products={products} />
 
       {/* Públicos prontos */}
       <div className="grid lg:grid-cols-3 gap-4">

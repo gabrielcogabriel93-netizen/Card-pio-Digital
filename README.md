@@ -6,7 +6,7 @@ hora, atende no balcão/PDV e acompanha o financeiro. O cliente instala o app DA
 LOJA (logo, nome e cor dela) e recebe o status do pedido e as mensagens da loja
 por notificação, sem WhatsApp. A marca da plataforma fica em `lib/brand.ts`.
 
-## Atualização da auditoria (migrations 044 a 049): como implantar
+## Atualização da auditoria (migrations 044 a 051): como implantar
 
 As migrations mudam como o pedido é gravado: o cardápio deixa de inserir
 direto na tabela `orders` e passa a chamar `place_order`, que calcula preço,
@@ -28,13 +28,20 @@ desconto e frete no banco. Siga esta ordem:
    `049_app_da_loja_notificacoes.sql` (aparelhos dos clientes, mensagens da loja,
    sugestão do dia e confirmação de aparelho pelo número do pedido). A 049 pode
    rodar a qualquer momento; sem ela, o app da loja e a página Notificações
-   ficam sem dados.
+   ficam sem dados. Depois rode `050_combo_pizza_regras.sql` (pizza no combo com
+   sabores e adicionais conforme a regra do lojista) e `051_aviso_loja_aberta.sql`
+   (aviso automático quando a loja abre). As duas podem rodar a qualquer momento.
 5. **Stripe:** em Settings → Billing → Customer portal, ative o portal (botão
    "Gerenciar assinatura"). Assinaturas de divulgador criadas antes desta versão
    foram feitas com o split invertido: corrija cada uma no painel da Stripe
    (Subscription → Update → transfer_data com `amount_percent`).
 6. **Subdomínio por loja (opcional):** DNS curinga `*.seudominio` apontando
    para a Vercel e o domínio curinga adicionado no projeto.
+8. **Agendador (pg_cron da migration 029):** chama `/api/cron/advance-orders` a cada
+   minuto (automação de pedidos e aviso de loja aberta pelo horário). Confira em
+   `cron_health` se `last_run_at` é recente; se não, recrie o job com a URL do deploy
+   e o mesmo `CRON_TRIGGER_SECRET` da Vercel. Sem ele, o aviso de abertura ainda sai
+   quando o lojista liga "Aberta" ou está com o painel aberto.
 7. **IA da sugestão do dia (opcional):** sem chave, o gerador próprio escreve as
    sugestões de graça. `ANTHROPIC_API_KEY` usa a Claude (pago por uso);
    `GEMINI_API_KEY` usa o Gemini (tem cota gratuita).

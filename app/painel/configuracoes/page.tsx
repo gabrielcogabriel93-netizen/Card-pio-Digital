@@ -267,6 +267,8 @@ export default function ConfiguracoesPage() {
       if (error) throw error
       log('painel:configuracoes', 'configurações salvas com sucesso')
       toast.success('Configurações salvas')
+      // Abriu a loja agora: se o aviso de abertura estiver ligado, avisa os clientes.
+      if (formData.is_open) fetch('/api/store/open-push', { method: 'POST' }).catch(() => {})
     } catch (error: any) {
       logError('painel:configuracoes', 'erro ao salvar configurações', error)
       toast.error('Erro ao salvar: ' + error.message)

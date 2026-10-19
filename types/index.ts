@@ -276,6 +276,10 @@ export interface ComboGroup {
   display_order: number
   is_pizza_slot: boolean
   fixed_pizza_size_id?: string | null
+  // Regras da pizza no combo (migration 050): quantos sabores (null = o
+  // que o tamanho permitir) e se aceita adicionais cobrados à parte.
+  pizza_max_flavors?: number | null
+  pizza_allow_additionals?: boolean
   min_select: number
   max_select: number
   created_at?: string
@@ -329,7 +333,17 @@ export interface OrderItem {
 export type OrderItemConfig =
   | { kind: 'product'; product_id: string; option_ids?: string[] }
   | { kind: 'pizza'; product_id: string; size_id: string; flavor_ids: string[]; additional_ids?: string[] }
-  | { kind: 'combo'; combo_id: string; selections: { group_id: string; product_id: string }[] }
+  | { kind: 'combo'; combo_id: string; selections: ComboSelectionConfig[] }
+
+// Escolha de um grupo do combo. Na pizza do combo (migration 050) o
+// cliente pode dividir sabores e pôr adicionais, conforme as regras do
+// lojista para aquela pizza.
+export interface ComboSelectionConfig {
+  group_id: string
+  product_id: string
+  flavor_product_ids?: string[]
+  additional_ids?: string[]
+}
 
 // Endereço de entrega estruturado (preenchido só quando order_type = 'delivery')
 export interface DeliveryAddress {

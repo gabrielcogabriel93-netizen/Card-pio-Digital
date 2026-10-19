@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
     .select('id', { count: 'exact', head: true })
     .eq('establishment_id', store.id)
     .gte('created_at', since)
+    .neq('source', 'abertura') // o aviso automático de loja aberta não gasta o limite do lojista
     [isDirect ? 'eq' : 'neq']('audience', 'customer')
   if ((count || 0) >= (isDirect ? MAX_DIRECT_PER_DAY : MAX_BROADCASTS_PER_DAY)) {
     return NextResponse.json({

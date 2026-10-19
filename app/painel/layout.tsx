@@ -130,6 +130,16 @@ export default function PainelLayout({
     [themeColor]
   )
 
+  // Aviso de loja aberta: com o painel aberto, confere a cada 5 minutos
+  // se a loja acabou de abrir (o banco garante um envio por dia). Assim
+  // funciona mesmo se o agendador estiver parado.
+  useEffect(() => {
+    const check = () => fetch('/api/store/open-push', { method: 'POST' }).catch(() => {})
+    check()
+    const t = setInterval(check, 5 * 60_000)
+    return () => clearInterval(t)
+  }, [])
+
   useEffect(() => {
     const getUser = async () => {
       log('painel:layout', 'carregando usuário e estabelecimento...')

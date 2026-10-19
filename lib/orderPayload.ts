@@ -1,4 +1,4 @@
-import type { CartItem, OrderItem, OrderItemConfig } from '@/types'
+import type { CartItem, ComboSelectionConfig, OrderItem, OrderItemConfig } from '@/types'
 
 // O cardápio envia só ids e quantidades para place_order (migration
 // 045); preço, desconto e frete são calculados pelo banco. Estas funções
@@ -15,7 +15,7 @@ export interface OrderItemPayload {
   flavor_ids?: string[]
   additional_ids?: string[]
   combo_id?: string
-  selections?: { group_id: string; product_id: string }[]
+  selections?: ComboSelectionConfig[]
 }
 
 export function cartItemToPayload(item: Pick<CartItem<{ id: string }>, 'product' | 'quantity' | 'note' | 'config' | 'combo'>): OrderItemPayload {
