@@ -22,10 +22,12 @@ export interface ComboOrderResult {
   config: { kind: 'combo'; combo_id: string; selections: ComboSelectionConfig[] }
 }
 
-/** Quantos sabores a pizza do combo aceita: regra do lojista, nunca acima do tamanho. */
+/**
+ * Quantos sabores a pizza do combo aceita: a regra do lojista para o combo
+ * (1 a 4) vale por si; sem regra, vale o limite do tamanho (migration 052).
+ */
 export function comboPizzaFlavorLimit(group: Pick<ComboGroup, 'pizza_max_flavors'>, sizeMaxFlavors: number | null | undefined): number {
-  const size = Math.max(1, sizeMaxFlavors || 1)
-  return Math.max(1, Math.min(group.pizza_max_flavors || size, size))
+  return Math.max(1, Math.min(4, group.pizza_max_flavors || sizeMaxFlavors || 1))
 }
 
 /**

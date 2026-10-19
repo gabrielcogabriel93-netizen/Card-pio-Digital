@@ -73,9 +73,15 @@ await test('lojista limita a 1 sabor (promoção de sabor exclusivo)', async () 
   assert.equal(Number((await quote({ product_id: P.calabresa })).unit_price), 59.9)
 })
 
-await test('limite do lojista nunca passa o do tamanho', async () => {
-  await setRules(4, false)
-  await assert.rejects(quote({ product_id: P.calabresa, flavor_product_ids: [P.frango, P.chocolate, P.camarao] }), /até 3 sabor/)
+await test('regra do combo vale por si, mesmo acima do tamanho (migration 052)', async () => {
+  // Tamanho aceita 3; o lojista libera 4 no combo. Sabores precisam estar na lista e combinar.
+  await db.exec(`INSERT INTO combo_group_products (combo_group_id, product_id) VALUES ('${G_PIZZA}', '${P.camarao}') ON CONFLICT DO NOTHING`)
+  await db.exec(`UPDATE pizza_sizes SET max_flavors = 2 WHERE id = '${SIZE}'`)
+  await setRules(3, false)
+  const item = await quote({ product_id: P.calabresa, flavor_product_ids: [P.frango, P.camarao] })
+  assert.equal(item.variations[0].option_name, 'Calabresa + Camarão + Frango')
+  await assert.rejects(quote({ product_id: P.calabresa, flavor_product_ids: [P.frango, P.camarao, P.chocolate] }), /até 3 sabor/)
+  await db.exec(`UPDATE pizza_sizes SET max_flavors = 3 WHERE id = '${SIZE}'; DELETE FROM combo_group_products WHERE combo_group_id = '${G_PIZZA}' AND product_id = '${P.camarao}'`)
 })
 
 await test('sabor fora da lista do combo é recusado', async () => {
@@ -104,6 +110,51 @@ await test('pedido de verdade grava o preço do servidor com sabores e adicional
     ] }],
   })])).rows[0].r
   assert.equal(Number(r.total), 135.8)
+})
+
+// ---- save_combo: cadastro do combo inteiro de uma vez ----
+const save = async (payload) => (await as(db, 'authenticated', OWNER, `SELECT save_combo($1::jsonb) id`, [JSON.stringify(payload)])).rows[0].id
+
+await test('salva combo novo com pizza meio a meio e bebida numa vez só', async () => {
+  const id = await save({
+    name: 'Promo Meio a Meio', price: 69.9, is_active: true,
+    groups: [
+      { name: 'Pizza grande', is_pizza_slot: true, fixed_pizza_size_id: SIZE, pizza_max_flavors: 2, pizza_allow_additionals: true, product_ids: [P.calabresa, P.frango] },
+      { name: 'Bebida', is_pizza_slot: false, product_ids: [P.refri] },
+    ],
+  })
+  const groups = (await db.query(`SELECT name, is_pizza_slot, pizza_max_flavors, pizza_allow_additionals, (SELECT count(*)::int FROM combo_group_products p WHERE p.combo_group_id = g.id) n FROM combo_groups g WHERE combo_id = $1 ORDER BY display_order`, [id])).rows
+  assert.deepEqual(groups, [
+    { name: 'Pizza grande', is_pizza_slot: true, pizza_max_flavors: 2, pizza_allow_additionals: true, n: 2 },
+    { name: 'Bebida', is_pizza_slot: false, pizza_max_flavors: null, pizza_allow_additionals: false, n: 1 },
+  ])
+  // Edita: troca a bebida por nada, mantém o id da pizza, tira um sabor.
+  const pizzaId = (await db.query(`SELECT id FROM combo_groups WHERE combo_id = $1 AND is_pizza_slot`, [id])).rows[0].id
+  await save({ id, name: 'Promo Meio a Meio', price: 59.9, is_active: true, groups: [
+    { id: pizzaId, name: 'Pizza grande', is_pizza_slot: true, fixed_pizza_size_id: SIZE, pizza_max_flavors: 3, product_ids: [P.frango] },
+  ] })
+  const after = (await db.query(`SELECT id, pizza_max_flavors FROM combo_groups WHERE combo_id = $1`, [id])).rows
+  assert.deepEqual(after, [{ id: pizzaId, pizza_max_flavors: 3 }])
+  assert.equal(Number((await db.query('SELECT price FROM combos WHERE id = $1', [id])).rows[0].price), 59.9)
+})
+
+await test('não deixa ficar disponível incompleto, e nada fica salvo pela metade', async () => {
+  await assert.rejects(save({ name: 'Vazio', price: 10, is_active: true, groups: [] }), /pelo menos uma parte/)
+  await assert.rejects(save({ name: 'Sem sabor', price: 10, is_active: true, groups: [{ name: 'Pizza', is_pizza_slot: true, fixed_pizza_size_id: SIZE, product_ids: [] }] }), /Marque pelo menos uma opção/)
+  await assert.rejects(save({ name: 'Sem tamanho', price: 10, is_active: false, groups: [{ name: 'Pizza', is_pizza_slot: true, product_ids: [P.calabresa] }] }), /tamanho da pizza/)
+  await assert.rejects(save({ name: 'Bebida na pizza', price: 10, is_active: false, groups: [{ name: 'Pizza', is_pizza_slot: true, fixed_pizza_size_id: SIZE, product_ids: [P.refri] }] }), /produto inválido/)
+  const n = (await db.query(`SELECT count(*)::int c FROM combos WHERE name IN ('Vazio','Sem sabor','Sem tamanho','Bebida na pizza')`)).rows[0].c
+  assert.equal(n, 0)
+  // Rascunho (indisponível) pode ficar incompleto.
+  const id = await save({ name: 'Rascunho', price: 0, is_active: false, groups: [{ name: 'Pizza', is_pizza_slot: true, fixed_pizza_size_id: SIZE, product_ids: [] }] })
+  assert.ok(id)
+})
+
+await test('outra loja não edita o combo', async () => {
+  const OTHER = '00000000-0000-0000-0000-0000000000c3'
+  await db.exec(`INSERT INTO auth.users VALUES ('${OTHER}', 'outro@x.com'); INSERT INTO establishments (id, owner_id, name, slug, whatsapp_number) VALUES ('10000000-0000-0000-0000-0000000000c3', '${OTHER}', 'Outra', 'outra', '11911112222')`)
+  await assert.rejects(as(db, 'authenticated', OTHER, `SELECT save_combo($1::jsonb)`, [JSON.stringify({ id: COMBO, name: 'Roubado', price: 1, is_active: false, groups: [] })]), /não encontrado/)
+  await assert.rejects(as(db, 'anon', null, `SELECT save_combo($1::jsonb)`, [JSON.stringify({ name: 'x', price: 1 })]), /permission denied/)
 })
 
 console.log(results.join('\n'))

@@ -61,10 +61,10 @@ describe('isComboSelectionComplete', () => {
 describe('pizza do combo (regras do lojista)', () => {
   const pizza = group({ id: 'gp', name: 'Pizza grande', is_pizza_slot: true, fixed_pizza_size_id: 's1' })
 
-  it('limite de sabores: regra do lojista, nunca acima do tamanho', () => {
+  it('limite de sabores: a regra do combo vale por si; sem regra, o do tamanho', () => {
     expect(comboPizzaFlavorLimit({ pizza_max_flavors: null }, 3)).toBe(3)
     expect(comboPizzaFlavorLimit({ pizza_max_flavors: 1 }, 3)).toBe(1)
-    expect(comboPizzaFlavorLimit({ pizza_max_flavors: 4 }, 2)).toBe(2)
+    expect(comboPizzaFlavorLimit({ pizza_max_flavors: 3 }, 2)).toBe(3)
     expect(comboPizzaFlavorLimit({ pizza_max_flavors: null }, null)).toBe(1)
   })
 
