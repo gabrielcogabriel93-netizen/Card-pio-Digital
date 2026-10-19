@@ -13,7 +13,9 @@ export type DiscountSource =
 export interface CartTotalsInput {
   subtotal: number
   orderType: 'delivery' | 'pickup' | 'mesa'
-  deliveryFee: number
+  // null = taxa ainda não definida (a combinar com a loja, ou bairro não
+  // escolhido). Nunca vira "grátis" sozinha (migration 055).
+  deliveryFee: number | null
   freeShippingThreshold?: number | null
   discount: DiscountSource
 }
@@ -25,6 +27,8 @@ export interface CartTotals {
   // Taxa que seria cobrada se não houvesse frete grátis (para exibir "Grátis").
   baseDeliveryFee: number
   freeShipping: boolean
+  // Entrega sem valor definido: o total ainda não inclui a entrega.
+  deliveryPending: boolean
   total: number
   // Quanto falta para o frete grátis por valor mínimo (0 = já ganhou / não se aplica).
   missingForFreeShipping: number
@@ -32,7 +36,8 @@ export interface CartTotals {
 
 export function computeCartTotals(input: CartTotalsInput): CartTotals {
   const subtotal = roundCents(input.subtotal)
-  const baseDeliveryFee = input.orderType === 'delivery' ? roundCents(Math.max(0, input.deliveryFee)) : 0
+  const isDelivery = input.orderType === 'delivery'
+  const baseDeliveryFee = isDelivery && input.deliveryFee != null ? roundCents(Math.max(0, input.deliveryFee)) : 0
   const threshold = Number(input.freeShippingThreshold) || 0
   const qualifiesThreshold = input.orderType === 'delivery' && threshold > 0 && subtotal >= threshold
 
@@ -54,9 +59,10 @@ export function computeCartTotals(input: CartTotalsInput): CartTotals {
 
   const freeShipping = baseDeliveryFee > 0 && (qualifiesThreshold || freeShippingByDiscount)
   const deliveryFee = freeShipping || qualifiesThreshold || freeShippingByDiscount ? 0 : baseDeliveryFee
+  const deliveryPending = isDelivery && input.deliveryFee == null && !qualifiesThreshold && !freeShippingByDiscount
   const total = roundCents(Math.max(0, subtotal - discount + deliveryFee))
   const missingForFreeShipping =
     input.orderType === 'delivery' && threshold > 0 && !qualifiesThreshold ? roundCents(threshold - subtotal) : 0
 
-  return { subtotal, discount, deliveryFee, baseDeliveryFee, freeShipping, total, missingForFreeShipping }
+  return { subtotal, discount, deliveryFee, baseDeliveryFee, freeShipping, deliveryPending, total, missingForFreeShipping }
 }

@@ -40,7 +40,10 @@ export default function ConfiguracoesPage() {
     theme_color: DEFAULT_STORE_COLOR as string,
     logo_url: '',
     is_open: true,
-    delivery_fee: '0',
+    delivery_fee: '',
+    // Cobrar taxa / Entrega grátis / A combinar (migration 055): frete
+    // grátis só quando o lojista escolhe.
+    delivery_fee_mode: 'combinar' as 'cobrar' | 'gratis' | 'combinar',
     business_type: 'preparo' as BusinessType,
     order_tracking_enabled: true,
     offers_delivery: true,
@@ -173,7 +176,8 @@ export default function ConfiguracoesPage() {
           theme_color: storeColor(data.theme_color),
           logo_url: data.logo_url || '',
           is_open: data.is_open ?? true,
-          delivery_fee: String(data.delivery_fee ?? 0),
+          delivery_fee: Number(data.delivery_fee) > 0 ? String(data.delivery_fee) : '',
+          delivery_fee_mode: Number(data.delivery_fee) > 0 ? 'cobrar' : data.free_delivery ? 'gratis' : 'combinar',
           business_type: (data.business_type as BusinessType) || 'preparo',
           order_tracking_enabled: data.order_tracking_enabled ?? true,
           offers_delivery: data.offers_delivery ?? true,
@@ -226,9 +230,12 @@ export default function ConfiguracoesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { error } = await supabase
-        .from('establishments')
-        .update({
+      const deliveryFee = parseFloat(formData.delivery_fee.replace(',', '.')) || 0
+      if (formData.offers_delivery && formData.delivery_fee_mode === 'cobrar' && deliveryFee <= 0) {
+        toast.error('Informe o valor da taxa de entrega, ou escolha "Entrega grátis" ou "A combinar".')
+        return
+      }
+      const update = {
           name: formData.name,
           whatsapp_number: formData.whatsapp_number,
           address: formData.address || null,
@@ -238,7 +245,8 @@ export default function ConfiguracoesPage() {
           logo_url: formData.logo_url || null,
           is_open: formData.is_open,
           opening_hours: openingHours,
-          delivery_fee: parseFloat(formData.delivery_fee) || 0,
+          delivery_fee: formData.delivery_fee_mode === 'cobrar' ? deliveryFee : 0,
+          free_delivery: formData.delivery_fee_mode === 'gratis',
           business_type: formData.business_type,
           order_tracking_enabled: formData.order_tracking_enabled,
           offers_delivery: formData.offers_delivery,
@@ -261,8 +269,14 @@ export default function ConfiguracoesPage() {
           min_order_value: formData.min_order_value ? parseFloat(formData.min_order_value.replace(',', '.')) : null,
           google_review_url: formData.google_review_url.trim() || null,
           hide_platform_badge: formData.hide_platform_badge,
-        })
-        .eq('owner_id', user.id)
+      }
+      let { error } = await supabase.from('establishments').update(update).eq('owner_id', user.id)
+      // Banco ainda sem a migration 055: salva o resto e avisa.
+      if (error && /free_delivery/.test(error.message || '')) {
+        const { free_delivery: _skip, ...rest } = update
+        ;({ error } = await supabase.from('establishments').update(rest).eq('owner_id', user.id))
+        if (!error && formData.delivery_fee_mode === 'gratis') toast('A opção "Entrega grátis" fica disponível após a atualização do banco.')
+      }
 
       if (error) throw error
       log('painel:configuracoes', 'configurações salvas com sucesso')
@@ -490,21 +504,48 @@ export default function ConfiguracoesPage() {
 
             {formData.offers_delivery && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Taxa de entrega padrão</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input-field max-w-[160px]"
-                  value={formData.delivery_fee}
-                  onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
-                  placeholder="0,00"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Taxa de entrega</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Taxa de entrega">
+                  {([
+                    { value: 'cobrar', label: 'Cobrar taxa', hint: 'Valor fixo em toda entrega' },
+                    { value: 'combinar', label: 'A combinar', hint: 'Você informa ao aceitar o pedido' },
+                    { value: 'gratis', label: 'Entrega grátis', hint: 'Nunca cobra entrega' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={formData.delivery_fee_mode === opt.value}
+                      onClick={() => setFormData({ ...formData, delivery_fee_mode: opt.value })}
+                      className={`text-left px-3 py-2.5 rounded-lg border-2 transition-colors ${
+                        formData.delivery_fee_mode === opt.value ? 'border-primary-500 bg-primary-50' : 'border-gray-200'
+                      }`}
+                    >
+                      <span className="block text-sm font-medium text-gray-900">{opt.label}</span>
+                      <span className="block text-xs text-gray-500">{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                {formData.delivery_fee_mode === 'cobrar' && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    className="input-field max-w-[160px] mt-2"
+                    value={formData.delivery_fee}
+                    onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
+                    placeholder="0,00"
+                    aria-label="Valor da taxa de entrega"
+                  />
+                )}
                 <p className="text-xs text-gray-500 mt-1">
-                  Mostrada para o cliente antes de enviar o pedido pelo cardápio online. Deixe 0 se não cobrar entrega
-                  (ou se preferir combinar o valor depois, pelo WhatsApp). Também serve de reserva quando a{' '}
-                  <Link href="/painel/bairros" className="text-primary-600 hover:underline">taxa por bairro</Link>{' '}
-                  está ativa mas o bairro do cliente não está cadastrado.
+                  {formData.delivery_fee_mode === 'combinar'
+                    ? 'O cliente vê "taxa de entrega a combinar" e o total sem a entrega. Ao aceitar, você digita a taxa e ela entra no pedido.'
+                    : formData.delivery_fee_mode === 'gratis'
+                      ? 'O cardápio mostra "Entrega grátis" e nenhum pedido paga entrega.'
+                      : 'Mostrada para o cliente antes de enviar o pedido.'}{' '}
+                  Se a <Link href="/painel/bairros" className="text-primary-600 hover:underline">taxa por bairro</Link>{' '}
+                  estiver ativa, vale a taxa do bairro escolhido.
                 </p>
               </div>
             )}

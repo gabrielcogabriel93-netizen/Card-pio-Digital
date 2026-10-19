@@ -36,6 +36,17 @@ describe('computeCartTotals (mesmas regras do place_order)', () => {
     expect(computeCartTotals({ ...base, discount: { kind: 'birthday', percent: 10 } }).total).toBe(50)
   })
 
+  it('taxa não definida fica pendente (nunca vira grátis sozinha)', () => {
+    const t = computeCartTotals({ ...base, deliveryFee: null })
+    expect(t.deliveryPending).toBe(true)
+    expect(t.deliveryFee).toBe(0)
+    expect(t.total).toBe(50)
+    expect(computeCartTotals({ ...base, deliveryFee: null, subtotal: 120 }).deliveryPending).toBe(false)
+    expect(computeCartTotals({ ...base, deliveryFee: null, discount: { kind: 'coupon', discountType: 'free_shipping', value: 0 } }).deliveryPending).toBe(false)
+    expect(computeCartTotals({ ...base, deliveryFee: null, orderType: 'pickup' }).deliveryPending).toBe(false)
+    expect(computeCartTotals({ ...base, deliveryFee: 0 }).deliveryPending).toBe(false)
+  })
+
   it('rounds to cents', () => {
     expect(computeCartTotals({ ...base, subtotal: 33.33, discount: { kind: 'coupon', discountType: 'percent', value: 15 } }).discount).toBe(5)
   })

@@ -317,7 +317,14 @@ export default function PedidosPage() {
     }
   }
 
+  const feeToConfirm = (order: Order) => order.order_type === 'delivery' && !!order.shipping_fee_to_confirm
+
   const acceptOrder = async (order: Order, quick = false) => {
+    if (feeToConfirm(order) && (quick || shippingFee.trim() === '')) {
+      if (quick) openOrder(order)
+      else toast.error('Digite a taxa de entrega deste pedido (0 para não cobrar).')
+      return
+    }
     const nextStatus = trackingEnabled ? 'confirmed' : 'completed'
     const updated = await runAction(
       async () => supabase.rpc('accept_order', {
@@ -518,6 +525,9 @@ export default function PedidosPage() {
                                 ? <span className="text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-semibold">Pix pago</span>
                                 : <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Aguardando Pix</span>
                             )}
+                            {order.status === 'pending' && feeToConfirm(order) && (
+                              <span className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded font-semibold">Taxa a combinar</span>
+                            )}
                             {order.dispatched_at && order.status !== 'completed' && (
                               <span className="text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{order.order_type === 'pickup' ? 'Pronto' : 'Saiu'}</span>
                             )}
@@ -528,7 +538,7 @@ export default function PedidosPage() {
                         {order.status === 'pending' && !(order.payment_method === 'mercadopago_pix' && order.payment_status !== 'approved') && (
                           <div className="px-3 pb-3">
                             <button onClick={() => acceptOrder(order, true)} disabled={saving} className="btn-primary w-full text-sm py-2">
-                              {trackingEnabled ? 'Aceitar (35 min)' : 'Concluir'}
+                              {feeToConfirm(order) ? 'Definir taxa e aceitar' : trackingEnabled ? 'Aceitar (35 min)' : 'Concluir'}
                             </button>
                           </div>
                         )}
@@ -639,7 +649,7 @@ export default function PedidosPage() {
                   <div className="flex justify-between text-green-700"><span>Desconto {selectedOrder.coupon_code ? `(${selectedOrder.coupon_code})` : selectedOrder.discount_source === 'birthday' ? '(aniversário)' : selectedOrder.discount_source === 'loyalty' ? '(pontos)' : ''}</span><span className="tabular-nums">-{formatBRL(Number(selectedOrder.discount))}</span></div>
                 )}
                 {selectedOrder.order_type === 'delivery' && (
-                  <div className="flex justify-between"><span className="text-gray-600">Entrega</span><span className="tabular-nums">{formatBRL(Number(selectedOrder.shipping_fee || 0))}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Entrega</span><span className="tabular-nums">{selectedOrder.status === 'pending' && feeToConfirm(selectedOrder) ? 'A combinar' : formatBRL(Number(selectedOrder.shipping_fee || 0))}</span></div>
                 )}
                 {selectedOrder.payment_method && (
                   <div className="flex justify-between">
@@ -679,8 +689,20 @@ export default function PedidosPage() {
                       <div className="grid grid-cols-2 gap-3">
                         {selectedOrder.order_type === 'delivery' && (
                           <div>
-                            <label htmlFor="ship-fee" className="block text-xs text-gray-600 mb-1">Taxa de entrega</label>
-                            <input id="ship-fee" inputMode="decimal" className="input-field text-sm" value={shippingFee} onChange={(e) => setShippingFee(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="0,00" />
+                            <label htmlFor="ship-fee" className={`block text-xs mb-1 ${feeToConfirm(selectedOrder) ? 'text-amber-800 font-semibold' : 'text-gray-600'}`}>
+                              {feeToConfirm(selectedOrder) ? 'Taxa de entrega (a combinar) *' : 'Taxa de entrega'}
+                            </label>
+                            <input
+                              id="ship-fee"
+                              inputMode="decimal"
+                              className={`input-field text-sm ${feeToConfirm(selectedOrder) && shippingFee.trim() === '' ? 'border-amber-400' : ''}`}
+                              value={shippingFee}
+                              onChange={(e) => setShippingFee(e.target.value.replace(/[^\d,.]/g, ''))}
+                              placeholder="0,00"
+                              disabled={selectedOrder.payment_method === 'mercadopago_pix'}
+                              title={selectedOrder.payment_method === 'mercadopago_pix' ? 'Pix automático já foi pago com esta taxa.' : undefined}
+                            />
+                            {feeToConfirm(selectedOrder) && <p className="text-[11px] text-gray-500 mt-1">O cliente pediu sem saber a taxa. Digite 0 para não cobrar.</p>}
                           </div>
                         )}
                         <div>

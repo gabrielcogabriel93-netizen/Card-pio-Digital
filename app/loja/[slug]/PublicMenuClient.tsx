@@ -67,6 +67,7 @@ type CartLine = CartItem<PublicProduct>
 interface PlacedOrder {
   orderId: string
   total: number
+  feeToConfirm: boolean
 }
 
 interface ServerOrderResult {
@@ -74,6 +75,7 @@ interface ServerOrderResult {
   subtotal: number
   discount: number
   shipping_fee: number
+  shipping_fee_to_confirm?: boolean
   total: number
   items: OrderItem[]
   customer_token: string | null
@@ -655,7 +657,11 @@ export default function PublicMenuClient({
   }
 
   // ---------- Totais (prévia) ----------
-  const baseDeliveryFee = useNeighborhoodFee && selectedNeighborhood ? Number(selectedNeighborhood.fee) || 0 : Number(establishment.delivery_fee) || 0
+  // Taxa da entrega (mesma regra do place_order, migration 055): por bairro
+  // depois de escolher; senão a taxa geral; grátis só se o lojista marcou.
+  // null = ainda sem valor (escolher o bairro ou combinar com a loja).
+  const generalDeliveryFee = Number(establishment.delivery_fee) > 0 ? Number(establishment.delivery_fee) : establishment.free_delivery ? 0 : null
+  const baseDeliveryFee = usingNeighborhoodSelect ? (selectedNeighborhood ? Number(selectedNeighborhood.fee) || 0 : null) : generalDeliveryFee
   const discountSource: DiscountSource = appliedCoupon
     ? { kind: 'coupon', discountType: appliedCoupon.discountType, value: appliedCoupon.discountValue }
     : appliedReward
@@ -672,8 +678,11 @@ export default function PublicMenuClient({
   const belowMinOrder = !isTableMode && minOrder > 0 && cartSubtotal < minOrder
 
   const belowMpMinimum = totals.total < MERCADOPAGO_MIN_ORDER_TOTAL
+  // Taxa a combinar: o valor final só sai no aceite, então nada de cobrar
+  // o total fechado agora (Pix automático ou QR com valor).
+  const deliveryFeeToConfirm = !isTableMode && orderType === 'delivery' && !usingNeighborhoodSelect && totals.deliveryPending
   const visiblePaymentMethods = PAYMENT_METHODS.filter((p) => {
-    if (p.value === 'mercadopago_pix') return establishment.mercadopago_pix_enabled && !belowMpMinimum
+    if (p.value === 'mercadopago_pix') return establishment.mercadopago_pix_enabled && !belowMpMinimum && !deliveryFeeToConfirm
     if (p.value === 'pix') return !establishment.mercadopago_pix_enabled
     return true
   })
@@ -681,7 +690,7 @@ export default function PublicMenuClient({
     if (paymentMethod && !visiblePaymentMethods.some((p) => p.value === paymentMethod)) setPaymentMethod('')
   }, [paymentMethod, visiblePaymentMethods])
 
-  const canShowPixQr = paymentMethod === 'pix' && !!establishment.pix_key && !!establishment.pix_city && totals.total > 0
+  const canShowPixQr = paymentMethod === 'pix' && !!establishment.pix_key && !!establishment.pix_city && totals.total > 0 && !deliveryFeeToConfirm
   const pixPayload = canShowPixQr
     ? generatePixPayload({ pixKey: establishment.pix_key!, merchantName: establishment.name, merchantCity: establishment.pix_city!, amount: totals.total })
     : ''
@@ -827,7 +836,7 @@ export default function PublicMenuClient({
       }
 
       resetAfterOrder()
-      setPlaced({ orderId: result.order_id, total: Number(result.total) })
+      setPlaced({ orderId: result.order_id, total: Number(result.total), feeToConfirm: !!result.shipping_fee_to_confirm })
     } catch (err: any) {
       logError('loja', 'erro ao enviar pedido', err)
       const message: string = err?.message || 'Não foi possível enviar o pedido.'
@@ -966,7 +975,7 @@ export default function PublicMenuClient({
               {offersDelivery && deliveryTime && <span className="chip"><Bike size={13} /> {deliveryTime}</span>}
               {offersDelivery && (
                 <span className="chip">
-                  {useNeighborhoodFee ? 'Entrega por bairro' : Number(establishment.delivery_fee) > 0 ? `Entrega ${formatBRL(Number(establishment.delivery_fee))}` : 'Entrega grátis'}
+                  {useNeighborhoodFee ? 'Entrega por bairro' : Number(establishment.delivery_fee) > 0 ? `Entrega ${formatBRL(Number(establishment.delivery_fee))}` : establishment.free_delivery ? 'Entrega grátis' : 'Taxa de entrega a combinar'}
                 </span>
               )}
               {Number(establishment.free_shipping_threshold) > 0 && (
@@ -1225,7 +1234,7 @@ export default function PublicMenuClient({
                     </div>
                   </div>
                 )}
-                <TotalsRows totals={totals} isDelivery={!isTableMode && orderType === 'delivery'} discountLabel={appliedCoupon?.code || appliedReward?.name} />
+                <TotalsRows totals={totals} isDelivery={!isTableMode && orderType === 'delivery'} discountLabel={appliedCoupon?.code || appliedReward?.name} pendingLabel={usingNeighborhoodSelect ? 'Escolha o bairro' : 'A combinar'} />
                 {belowMinOrder && <p className="text-xs text-amber-700 mt-2">Pedido mínimo de {formatBRL(minOrder)}. Faltam {formatBRL(minOrder - cartSubtotal)}.</p>}
                 <button onClick={openCheckout} disabled={!canOrder || belowMinOrder} className="btn-primary w-full py-3.5 mt-3 justify-between disabled:opacity-50">
                   <span>{canOrder ? 'Continuar' : 'Loja fechada agora'}</span>
@@ -1468,7 +1477,7 @@ export default function PublicMenuClient({
             </div>
 
             <div className="border-t border-gray-100 px-5 pt-3 bg-white" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}>
-              <TotalsRows totals={totals} isDelivery={!isTableMode && orderType === 'delivery'} discountLabel={appliedCoupon?.code || appliedReward?.name} />
+              <TotalsRows totals={totals} isDelivery={!isTableMode && orderType === 'delivery'} discountLabel={appliedCoupon?.code || appliedReward?.name} pendingLabel={usingNeighborhoodSelect ? 'Escolha o bairro' : 'A combinar'} />
               {attemptedSubmit && missingFields.length > 0 && (
                 <p className="mt-2 text-sm text-red-600 flex items-start gap-1.5"><AlertCircle size={15} className="mt-0.5 flex-shrink-0" /> Falta: {missingFields.map((f) => f.label).join(', ')}</p>
               )}
@@ -1511,7 +1520,7 @@ export default function PublicMenuClient({
             </div>
             <h2 id="placed-title" className="font-display text-2xl font-extrabold text-gray-900">Pedido recebido!</h2>
             <p className="text-sm text-gray-600 mt-1">
-              A {establishment.name} já tem seu pedido <span className="font-mono font-semibold">#{placed.orderId.slice(0, 8)}</span> · {formatBRL(placed.total)}
+              A {establishment.name} já tem seu pedido <span className="font-mono font-semibold">#{placed.orderId.slice(0, 8)}</span> · {formatBRL(placed.total)}{placed.feeToConfirm ? ' + entrega (a loja confirma a taxa)' : ''}
             </p>
             <div className="mt-4">
               <AppInvite
@@ -1646,7 +1655,8 @@ export default function PublicMenuClient({
   )
 }
 
-function TotalsRows({ totals, isDelivery, discountLabel }: { totals: ReturnType<typeof computeCartTotals>; isDelivery: boolean; discountLabel?: string }) {
+function TotalsRows({ totals, isDelivery, discountLabel, pendingLabel }: { totals: ReturnType<typeof computeCartTotals>; isDelivery: boolean; discountLabel?: string; pendingLabel: string }) {
+  const pending = isDelivery && totals.deliveryPending
   return (
     <div className="space-y-1 text-sm">
       <div className="flex justify-between text-gray-600"><span>Subtotal</span><span className="tabular-nums">{formatBRL(totals.subtotal)}</span></div>
@@ -1656,10 +1666,11 @@ function TotalsRows({ totals, isDelivery, discountLabel }: { totals: ReturnType<
       {isDelivery && (
         <div className="flex justify-between text-gray-600">
           <span>Entrega</span>
-          <span className="tabular-nums">{totals.deliveryFee > 0 ? formatBRL(totals.deliveryFee) : <span className="text-green-700">Grátis</span>}</span>
+          <span className="tabular-nums">{pending ? pendingLabel : totals.deliveryFee > 0 ? formatBRL(totals.deliveryFee) : <span className="text-green-700">Grátis</span>}</span>
         </div>
       )}
-      <div className="flex justify-between font-bold text-base text-gray-900 pt-1"><span>Total</span><span className="tabular-nums">{formatBRL(totals.total)}</span></div>
+      <div className="flex justify-between font-bold text-base text-gray-900 pt-1"><span>{pending ? 'Total sem a entrega' : 'Total'}</span><span className="tabular-nums">{formatBRL(totals.total)}</span></div>
+      {pending && pendingLabel === 'A combinar' && <p className="text-xs text-gray-500">A loja informa a taxa de entrega ao confirmar o pedido.</p>}
     </div>
   )
 }

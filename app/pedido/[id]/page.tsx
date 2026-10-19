@@ -25,6 +25,7 @@ interface OrderStatusData {
   items: OrderItem[]
   subtotal: number
   shipping_fee: number
+  shipping_fee_to_confirm?: boolean | null
   discount: number
   total: number
   order_type: 'delivery' | 'pickup' | 'mesa'
@@ -336,9 +337,9 @@ export default function OrderTrackingPage({ params }: { params: { id: string } }
               <div className="flex justify-between text-green-700"><span>Desconto{order.coupon_code ? ` (${order.coupon_code})` : ''}</span><span className="tabular-nums">-{formatBRL(order.discount)}</span></div>
             )}
             {order.order_type === 'delivery' && (
-              <div className="flex justify-between text-gray-600"><span>Entrega</span><span className="tabular-nums">{order.shipping_fee > 0 ? formatBRL(order.shipping_fee) : 'Grátis'}</span></div>
+              <div className="flex justify-between text-gray-600"><span>Entrega</span><span className="tabular-nums">{order.shipping_fee_to_confirm ? 'A loja vai informar' : order.shipping_fee > 0 ? formatBRL(order.shipping_fee) : 'Grátis'}</span></div>
             )}
-            <div className="flex justify-between font-bold pt-1"><span>Total</span><span className="tabular-nums">{formatBRL(order.total)}</span></div>
+            <div className="flex justify-between font-bold pt-1"><span>{order.shipping_fee_to_confirm ? 'Total sem a entrega' : 'Total'}</span><span className="tabular-nums">{formatBRL(order.total)}</span></div>
             {order.payment_method && (
               <div className="flex justify-between text-gray-600 pt-1">
                 <span>Pagamento</span>

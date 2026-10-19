@@ -39,6 +39,9 @@ export interface Establishment {
   opening_hours?: Record<string, { open: string; close: string }>
   is_open?: boolean
   delivery_fee?: number
+  // Entrega grátis marcada pelo lojista (migration 055). Taxa 0 sem isso
+  // é "a combinar", nunca grátis.
+  free_delivery?: boolean
   offers_delivery?: boolean
   offers_pickup?: boolean
   use_neighborhood_delivery_fee?: boolean
@@ -444,6 +447,9 @@ export interface Order {
   items: OrderItem[]
   subtotal: number
   shipping_fee: number
+  // Pedido feito com a taxa de entrega a combinar: o lojista define no
+  // aceite (migration 055).
+  shipping_fee_to_confirm?: boolean
   discount?: number
   coupon_code?: string
   // Resgate de pontos de fidelidade (migration 038) — mutuamente
