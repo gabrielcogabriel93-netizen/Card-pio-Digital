@@ -15,6 +15,8 @@ export default function CompletarCadastroPage() {
   const [checking, setChecking] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Não deu para confirmar se a loja já existe: não mostra o formulário.
+  const [blocked, setBlocked] = useState(false)
   const [establishmentName, setEstablishmentName] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
 
@@ -44,7 +46,14 @@ export default function CompletarCadastroPage() {
         .eq('owner_id', user.id)
         .maybeSingle()
 
-      if (estError) logError('completar-cadastro', 'erro ao checar estabelecimento existente', estError)
+      if (estError) {
+        // Erro ao consultar NÃO quer dizer que a loja não existe: nunca
+        // mostrar o formulário (criaria uma segunda loja).
+        logError('completar-cadastro', 'erro ao checar estabelecimento existente', estError)
+        setError('Não foi possível carregar seus dados agora. Recarregue a página em instantes.')
+        setBlocked(true)
+        return
+      }
 
       if (existing) {
         log('completar-cadastro', 'estabelecimento já existe -> /painel', { id: existing.id })
@@ -127,6 +136,12 @@ export default function CompletarCadastroPage() {
             Falta só um passo: conte-nos sobre o seu negócio para criar seu cardápio.
           </p>
 
+          {blocked ? (
+            <div className="space-y-3">
+              <p className="text-sm text-red-700 bg-red-50 rounded-lg p-3">{error}</p>
+              <button type="button" onClick={() => window.location.reload()} className="btn-primary w-full">Tentar de novo</button>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="estName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,6 +189,7 @@ export default function CompletarCadastroPage() {
               {saving ? <Loader2 size={20} className="animate-spin" /> : 'Criar meu cardápio'}
             </button>
           </form>
+          )}
         </div>
       </div>
     </div>

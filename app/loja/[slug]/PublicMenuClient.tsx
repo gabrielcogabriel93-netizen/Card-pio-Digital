@@ -1032,7 +1032,7 @@ export default function PublicMenuClient({
             <div>
               <p className="font-semibold text-amber-900">Loja fechada agora</p>
               <p className="text-sm text-amber-800">
-                {availability.label ? `${availability.label}. ` : ''}Você pode olhar o cardápio e montar a sacola.
+                {availability.label ? `${availability.label}. ` : ''}Dá para olhar o cardápio; os pedidos voltam assim que a loja abrir.
               </p>
             </div>
           </div>
@@ -1466,7 +1466,10 @@ export default function PublicMenuClient({
                   </>
                 )}
               </button>
-              {!isTableMode && <p className="text-[11px] text-gray-500 text-center mt-2">O valor final é confirmado pela loja ao registrar o pedido.</p>}
+              <p className="text-[11px] text-gray-500 text-center mt-2">
+                Seus dados vão só para a {establishment.name}, para preparar e entregar o pedido.{' '}
+                <a href={`${process.env.NEXT_PUBLIC_APP_URL || ''}/privacidade`} target="_blank" rel="noopener" className="underline">Privacidade</a>
+              </p>
             </div>
           </div>
         </div>

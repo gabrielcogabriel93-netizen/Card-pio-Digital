@@ -371,7 +371,7 @@ export default function FinanceiroPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md animate-fade-in">
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fade-in">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">Novo Lançamento</h2>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded" aria-label="Fechar">

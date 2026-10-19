@@ -104,11 +104,12 @@ const SECTIONS: TutorialSection[] = [
   },
   {
     icon: Link2,
-    title: 'Pedido via WhatsApp',
-    summary: 'Como o cliente compra: ele monta o carrinho, escolhe entrega/retirada e envia pro seu WhatsApp.',
+    title: 'Como o cliente compra',
+    summary: 'Ele abre o link da loja, monta o carrinho, escolhe entrega/retirada e confirma. O pedido cai na hora em Pedidos.',
     steps: [
-      'A mensagem chega com todos os itens, variações, endereço (se for entrega) e o link de acompanhamento do pedido.',
-      'Você confirma o pedido no painel — o cliente acompanha o status pelo link, sem precisar te chamar de novo.',
+      'O pedido chega com campainha no painel e notificação no seu celular, com itens, variações e endereço (se for entrega).',
+      'Você aceita no painel: o cliente recebe cada etapa por notificação do app da sua loja e acompanha pela página do pedido.',
+      'Em Notificações você fala com os clientes (ofertas, aniversário, carrinho parado) e liga o aviso de loja aberta.',
     ],
   },
   {

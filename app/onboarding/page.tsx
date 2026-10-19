@@ -66,7 +66,12 @@ export default function OnboardingPage() {
         .eq('owner_id', user.id)
         .maybeSingle()
 
-      if (error) logError('onboarding', 'erro ao buscar estabelecimento', error)
+      if (error) {
+        // Erro de consulta não é "sem loja": tenta o painel, que tem nova tentativa e aviso.
+        logError('onboarding', 'erro ao buscar estabelecimento', error)
+        router.push('/painel')
+        return
+      }
 
       if (!est) {
         router.push('/completar-cadastro')

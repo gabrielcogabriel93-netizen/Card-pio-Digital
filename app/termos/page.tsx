@@ -15,15 +15,15 @@ export default function TermosPage() {
         </Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Termos de Uso</h1>
-        <p className="text-sm text-gray-500 mb-8">Última atualização: {new Date().toLocaleDateString('pt-BR')}</p>
+        <p className="text-sm text-gray-500 mb-8">Última atualização: 19/10/2026</p>
 
         <div className="prose prose-gray max-w-none space-y-6 text-gray-700 leading-relaxed">
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">1. O que é o Freguês</h2>
             <p>
               O Freguês é uma plataforma que permite a lojistas criarem um cardápio digital,
-              gerenciarem produtos, pedidos, estoque e financeiro do seu negócio, e receberem pedidos de
-              clientes via WhatsApp.
+              gerenciarem produtos, pedidos, estoque e financeiro do seu negócio, receberem pedidos de
+              clientes pelo cardápio online e se comunicarem com eles por notificações do app da loja.
             </p>
           </section>
 

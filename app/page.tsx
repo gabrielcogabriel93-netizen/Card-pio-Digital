@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown, ChevronLeft,
+  Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown,
   CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, MessageCircle, Wallet, QrCode,
-  PlayCircle, ArrowRight, MoreVertical, Sandwich, Cake, UtensilsCrossed, Truck, Send, RotateCcw, UserX, Layers,
+  PlayCircle, ArrowRight, Sandwich, Cake, UtensilsCrossed, Truck, Send, RotateCcw, UserX, Layers,
 } from 'lucide-react'
 import { BrandLockup } from '@/components/Logo'
 import { MenuScreen, ProductScreen, CheckoutScreen, TrackingScreen } from '@/components/landing/Mockups'
@@ -82,15 +82,15 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Como o cliente faz o pedido?',
-    answer: 'Ele acessa o link do seu cardápio e monta o pedido. O Freguês já abre o WhatsApp dele com a mensagem pronta — ele só confirma o envio por lá. Ou paga na hora com Pix automático, se você tiver essa opção ativada.',
+    answer: 'Ele acessa o link do seu cardápio (pode mandar no WhatsApp e no Instagram), monta o pedido e confirma em poucos toques, sem cadastro. Se quiser, paga na hora com Pix automático. Depois ele instala o app da sua loja, com o seu logo, e acompanha o pedido por notificação.',
   },
   {
-    question: 'O pedido chega no meu WhatsApp de forma automática?',
-    answer: 'A mensagem é montada automaticamente e o WhatsApp já abre pronto pra enviar — mas quem confirma o envio é o cliente, com um toque, dentro do próprio WhatsApp dele. Isso vale pra qualquer link de WhatsApp, não só o nosso: só é possível enviar mensagem sem essa confirmação usando a API oficial paga da Meta, que não é o que fazemos aqui.',
+    question: 'Como eu fico sabendo de um pedido novo?',
+    answer: 'O pedido cai na hora no seu painel, com campainha até alguém aceitar, e chega como notificação no seu celular mesmo com o painel fechado. O cliente recebe cada mudança de status (aceito, em preparo, saiu para entrega) por notificação do app da sua loja, sem depender de WhatsApp.',
   },
   {
     question: 'Dá pra usar com iFood ao mesmo tempo?',
-    answer: 'Hoje o Freguês é o seu canal de vendas próprio (site + WhatsApp), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
+    answer: 'Hoje o Freguês é o seu canal de vendas próprio (cardápio + app da sua loja), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
   },
   {
     question: 'Preciso de cartão de crédito para testar?',
@@ -111,41 +111,28 @@ const CATEGORIES = [
   { icon: <Store className="w-7 h-7" />, title: 'Pequenos negócios' },
 ]
 
-// Mockup ilustrativo do WhatsApp — não é um print real (o WhatsApp é um app
-// de terceiros, não dá pra capturar isso do nosso produto), mas o texto
-// segue exatamente o mesmo formato que a mensagem real gerada pelo
-// Freguês usa (ver handleSendOrder em PublicMenuClient.tsx): nome,
-// telefone, tipo de entrega, endereço, itens, taxa e total.
-function WhatsAppMockup({ compact = false }: { compact?: boolean }) {
+// Mockup ilustrativo: o aviso de pedido novo no celular do lojista (push
+// do painel) e o cartão do pedido como aparece em Pedidos.
+function NewOrderMockup({ compact = false }: { compact?: boolean }) {
   const textSize = compact ? 'text-[9px] leading-tight' : 'text-[11px] leading-snug'
   return (
-    <div className="bg-[#e5ddd5] h-full flex flex-col">
-      <div className="bg-[#075e54] text-white px-3 py-2.5 flex items-center gap-2 flex-shrink-0">
-        <ChevronLeft className="w-4 h-4 flex-shrink-0" />
-        <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-          <Store className="w-3.5 h-3.5" />
+    <div className="h-full flex flex-col bg-gradient-to-b from-gray-800 to-gray-900 p-3">
+      <p className="text-center text-white/80 text-2xl font-light mt-4">10:24</p>
+      <div className={`mt-4 rounded-2xl bg-white/95 p-2.5 shadow-lg text-gray-900 ${textSize}`}>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="w-4 h-4 rounded bg-primary-600 text-white flex items-center justify-center"><Store className="w-2.5 h-2.5" /></span>
+          <span className="font-semibold">Freguês · agora</span>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-xs truncate">Meu Restaurante</p>
-          <p className="text-[9px] text-white/70">online</p>
-        </div>
-        <MoreVertical className="w-4 h-4 flex-shrink-0" />
+        <p className="font-bold">Novo pedido!</p>
+        <p>Ana Souza · R$ 56,90</p>
       </div>
-      <div className="flex-1 p-3 overflow-hidden" style={{ backgroundImage: 'radial-gradient(#00000008 1px, transparent 1px)', backgroundSize: '10px 10px' }}>
-        <div className={`bg-white rounded-lg rounded-tl-none shadow-sm px-2.5 py-2 max-w-[92%] text-gray-800 ${textSize}`}>
-          <p>👤 <strong>Cliente:</strong> Ana Souza</p>
-          <p>📱 <strong>Telefone:</strong> (11) 98888-7777</p>
-          <p>🛵 <strong>Entrega</strong></p>
-          <p>📍 Rua das Flores, 123 - Centro</p>
-          <p className="mt-1.5">📋 <strong>Itens do Pedido:</strong></p>
-          <p>1. Pizza Margherita</p>
-          <p className="pl-2">Qtd: 1 x R$ 39,90</p>
-          <p>2. Refrigerante Lata</p>
-          <p className="pl-2">Qtd: 2 x R$ 6,00</p>
-          <p className="mt-1.5">🛵 <strong>Taxa de entrega:</strong> R$ 5,00</p>
-          <p>💰 <strong>Total: R$ 56,90</strong></p>
-          <p className="text-right text-[9px] text-gray-400 mt-1">10:24 ✓✓</p>
-        </div>
+      <div className={`mt-3 rounded-2xl bg-amber-300 p-2.5 text-gray-900 ${textSize}`}>
+        <p className="font-bold">🔔 Pedido #A1B2C3</p>
+        <p>1x Pizza Margherita</p>
+        <p>2x Refrigerante Lata</p>
+        <p className="mt-1">🛵 Entrega · Rua das Flores, 123</p>
+        <p className="font-bold mt-1">Total R$ 56,90</p>
+        <div className="mt-2 rounded-lg bg-gray-900 text-white text-center py-1 font-semibold">Aceitar (35 min)</div>
       </div>
     </div>
   )
@@ -272,7 +259,7 @@ export default function LandingPage() {
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-10">
-            Tudo que você precisa para vender pelo WhatsApp
+            Tudo que você precisa para vender direto, sem comissão
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
@@ -301,7 +288,7 @@ export default function LandingPage() {
               Comece a vender em poucos minutos
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              É simples, rápido e sem complicação. Em 3 passos você já está recebendo pedidos pelo WhatsApp.
+              É simples, rápido e sem complicação. Em 3 passos você já está recebendo pedidos no seu painel.
             </p>
           </div>
 
@@ -347,7 +334,7 @@ export default function LandingPage() {
               { kind: 'product' as const, label: '2. Escolhe e personaliza' },
               { kind: 'checkout' as const, label: '3. Faz o pedido em 3 toques' },
               { kind: 'tracking' as const, label: '4. Acompanha até chegar' },
-              { kind: 'whatsapp' as const, label: '5. A loja recebe com alarme' },
+              { kind: 'alert' as const, label: '5. A loja recebe com alarme' },
             ].map((step, index, arr) => (
               <div key={index} className="flex items-center gap-3">
                 <div className="text-center">
@@ -362,7 +349,7 @@ export default function LandingPage() {
                   ) : (
                     <div className="relative w-[170px] sm:w-[190px] h-[368px] sm:h-[412px] rounded-[2.2rem] border-[7px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900">
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-gray-900 rounded-b-xl z-10" />
-                      <WhatsAppMockup compact />
+                      <NewOrderMockup compact />
                     </div>
                   )}
                   <p className="mt-3 text-sm font-medium text-gray-700 max-w-[190px] mx-auto">{step.label}</p>
@@ -375,7 +362,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center text-sm text-gray-400 mt-2">
-            Na loja, o pedido toca no painel até alguém aceitar e também chega no WhatsApp com o resumo completo.
+            Na loja, o pedido toca no painel até alguém aceitar e chega como notificação no celular, mesmo com o painel fechado.
           </p>
 
           <div className="text-center mt-10">
@@ -414,8 +401,8 @@ export default function LandingPage() {
               },
               {
                 icon: <ShoppingCart className="w-6 h-6" />,
-                title: 'Pedidos via WhatsApp',
-                description: 'Cliente monta o pedido e o Freguês já abre o WhatsApp com a mensagem pronta e o link de acompanhamento — ele só confirma o envio, no WhatsApp dele.',
+                title: 'Pedidos direto no painel',
+                description: 'O pedido chega na hora com campainha e notificação no seu celular. O cliente acompanha cada etapa por notificação do app da sua loja.',
                 color: 'bg-blue-100 text-blue-600'
               },
               {
@@ -512,7 +499,7 @@ export default function LandingPage() {
               {
                 icon: <RotateCcw className="w-6 h-6" />,
                 title: 'Recuperação de Carrinho',
-                description: 'Veja quem chegou a informar o telefone mas não confirmou o pedido, e chame de volta com um WhatsApp pronto.',
+                description: 'Veja quem chegou a informar o telefone mas não confirmou o pedido, e lembre o cliente com uma notificação no celular dele.',
                 color: 'bg-yellow-100 text-yellow-700'
               },
               {
@@ -641,7 +628,7 @@ export default function LandingPage() {
             </div>
           </div>
           <p className="text-sm text-gray-400 mt-4">
-            WhatsApp vem em todos os planos. Pix automático faz parte do plano Completo, com tarifa de
+            App da loja e notificações vêm em todos os planos. Pix automático faz parte do plano Completo, com tarifa de
             R$ 1 por pedido pago (além da taxa do próprio Mercado Pago).
           </p>
         </div>
@@ -663,7 +650,7 @@ export default function LandingPage() {
             {/* Essencial */}
             <div className="card relative overflow-hidden">
               <h3 className="font-semibold text-gray-900 text-lg mb-1">Essencial</h3>
-              <p className="text-sm text-gray-500 mb-4">Pra colocar seu cardápio no ar e vender pelo WhatsApp.</p>
+              <p className="text-sm text-gray-500 mb-4">Pra colocar seu cardápio no ar e vender direto, sem comissão.</p>
               <p className="mb-6">
                 <span className="text-4xl font-bold text-gray-900">R$ 49,90</span>
                 <span className="text-gray-500">/mês</span>

@@ -119,6 +119,10 @@ export default function PainelLayout({
   // Só true pro e-mail do dono da plataforma (PLATFORM_ADMIN_EMAILS) —
   // checado no servidor, aqui só decide se mostra o atalho no menu.
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  // Falha passageira ao carregar a loja (rede/login renovando): mostra um
+  // aviso com "Tentar de novo" em vez de mandar para "Completar cadastro".
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   // Mesma cor de marca escolhida em Configurações, agora aplicada no
   // painel inteiro — não só no cardápio público e em /pedido/[id]. As
@@ -160,14 +164,25 @@ export default function PainelLayout({
           .then((res) => setIsPlatformAdmin(res.ok))
           .catch(() => setIsPlatformAdmin(false))
 
-        // Buscar nome do estabelecimento
-        const { data: est, error: estError } = await supabase
+        // Buscar nome do estabelecimento (com uma nova tentativa: logo
+        // depois de renovar o login o banco pode recusar por segundos).
+        const fetchEst = () => supabase
           .from('establishments')
           .select('name, slug, onboarding_completed, theme_color')
           .eq('owner_id', user.id)
           .maybeSingle()
-
-        if (estError) logError('painel:layout', 'erro ao buscar estabelecimento', estError)
+        let { data: est, error: estError } = await fetchEst()
+        if (estError) {
+          await new Promise((r) => setTimeout(r, 2000))
+          ;({ data: est, error: estError } = await fetchEst())
+        }
+        if (estError) {
+          logError('painel:layout', 'erro ao buscar estabelecimento', estError)
+          // Erro NÃO é "não tem loja": nunca redireciona por causa dele.
+          setLoadError(true)
+          return
+        }
+        setLoadError(false)
 
         if (est) {
           if (!est.onboarding_completed) {
@@ -208,7 +223,18 @@ export default function PainelLayout({
       }
     }
     getUser()
-  }, [router])
+  }, [router, reloadKey])
+
+  // Voltou para o app (celular desbloqueado, aba reaberta) depois de uma
+  // falha: tenta carregar de novo sozinho.
+  useEffect(() => {
+    if (!loadError) return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setReloadKey((k) => k + 1)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [loadError])
 
   const handleLogout = async () => {
     log('painel:layout', 'logout solicitado')
@@ -360,6 +386,14 @@ export default function PainelLayout({
 
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">
+          {loadError && (
+            <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-amber-900">
+              <span className="flex-1">Não conseguimos carregar os dados da sua loja agora. Sua conexão pode ter oscilado.</span>
+              <button onClick={() => { setLoadError(false); setReloadKey((k) => k + 1); router.refresh() }} className="btn-secondary text-sm py-1.5">
+                Tentar de novo
+              </button>
+            </div>
+          )}
           <SubscriptionProvider
             value={{
               planTier: subscription?.planTier ?? 'completo',

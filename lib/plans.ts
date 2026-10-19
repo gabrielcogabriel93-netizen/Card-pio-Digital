@@ -8,7 +8,8 @@ export type PlanTier = 'essencial' | 'completo'
 
 export const ESSENCIAL_FEATURES = [
   'Cardápio digital ilimitado',
-  'Pedidos via WhatsApp',
+  'Pedidos direto no painel, com alarme',
+  'App da loja e notificações para os clientes',
   'Entrega e retirada',
   'Perfil completo da loja',
   'Link personalizado',

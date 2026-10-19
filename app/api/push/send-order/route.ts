@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOrderPush } from '@/lib/orderPush'
 import { logError } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 
-// Notifica quem ativou push nesse PEDIDO específico (página pública
-// /pedido/[id]) que o status mudou. Sem autenticação de dono — o
-// `order_id` (UUID imprevisível) já é a credencial, mesmo modelo de
-// `get_order_status`. De propósito NUNCA aceita título/corpo vindos do
-// chamador: o texto é sempre derivado do estado atual do pedido no banco.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Avisa o cliente que o status do pedido mudou. Sem autenticação de dono:
+// o `order_id` (UUID imprevisível) é a credencial, mesmo modelo de
+// `get_order_status`. NUNCA aceita título/corpo do chamador: o texto sai
+// do estado atual do pedido no banco. Limite por pedido para ninguém usar
+// o link do pedido para disparar o mesmo aviso sem parar.
 export async function POST(request: NextRequest) {
   let body: { order_id?: string }
   try {
@@ -17,11 +20,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  if (!body.order_id) {
+  if (!body.order_id || !UUID.test(body.order_id)) {
     return NextResponse.json({ error: 'order_id é obrigatório' }, { status: 400 })
   }
 
   try {
+    const { data: allowed } = await createAdminClient().rpc('check_rate_limit', {
+      p_scope: 'push_send_order',
+      p_key: body.order_id,
+      p_max_count: 12,
+      p_window: '1 hour',
+    })
+    if (allowed === false) return NextResponse.json({ sent: 0, message: 'Limite de avisos deste pedido atingido' }, { status: 429 })
+
     const result = await sendOrderPush(body.order_id)
     return NextResponse.json(result)
   } catch (err) {

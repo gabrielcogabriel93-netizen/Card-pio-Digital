@@ -64,6 +64,25 @@ export default function PedidosPage() {
   const [, forceTick] = useState(0)
   const autoPrintRef = useRef<boolean | null>(null)
   const establishmentIdRef = useRef('')
+  // Pedidos que esta tela já conhece: o alerta de pedido novo sai uma vez
+  // só, venha ele pelo tempo real ou pela recarga de segurança.
+  const knownIdsRef = useRef<Set<string> | null>(null)
+
+  const announceNewOrder = useCallback((newOrder: Order) => {
+    if (newOrder.source !== 'balcao') {
+      setUnseen((prev) => new Set(prev).add(newOrder.id))
+      if (autoPrintRef.current === true) setPrintOrder({ ...newOrder })
+      if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('Novo pedido!', { body: `${newOrder.customer_name} · ${formatBRL(Number(newOrder.total))}`, tag: newOrder.id })
+        } catch {}
+      }
+    } else if (newOrder.status !== 'completed' && autoPrintRef.current === true) {
+      // Venda de balcão mandada para a fila: imprime a comanda da
+      // cozinha, sem campainha (foi o próprio lojista que lançou).
+      setPrintOrder({ ...newOrder })
+    }
+  }, [])
 
   useEffect(() => {
     autoPrintRef.current = autoPrintEnabled
@@ -131,40 +150,54 @@ export default function PedidosPage() {
         supabase.from('table_tabs').select('id, restaurant_tables(label)').eq('establishment_id', est.id),
       ])
       if (error) logError('painel:pedidos', 'erro ao carregar pedidos', error)
-      if (data) setOrders(data as Order[])
+      if (data) {
+        const list = data as Order[]
+        // Na recarga de segurança (tempo real caído), pedido novo também
+        // toca a campainha e imprime.
+        const known = knownIdsRef.current
+        if (known) {
+          for (const o of list) {
+            if (!known.has(o.id) && o.status === 'pending') announceNewOrder(o)
+          }
+        }
+        knownIdsRef.current = new Set(list.map((o) => o.id))
+        setOrders(list)
+      }
       if (tabsData) setTableLabelByTabId(new Map(tabsData.map((t: any) => [t.id, t.restaurant_tables?.label || '?'])))
     } catch (error) {
       logError('painel:pedidos', 'exceção ao carregar pedidos', error)
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, announceNewOrder])
 
-  // Tempo real filtrado pela loja: atualiza só o pedido que mudou (antes
-  // cada evento recarregava tudo).
+  // Tempo real filtrado pela loja: atualiza só o pedido que mudou.
+  // Robusto a: tela montada de novo antes da 1ª carga terminar (canal
+  // órfão com o mesmo nome quebrava a inscrição -- "cannot add
+  // postgres_changes callbacks after subscribe()"), queda da conexão
+  // (reinscreve e recarrega) e app voltando do segundo plano.
   useEffect(() => {
+    let cancelled = false
     let channel: ReturnType<typeof supabase.channel> | null = null
-    loadOrders().then(() => {
+    let retry: ReturnType<typeof setTimeout> | null = null
+
+    const subscribe = () => {
       const estId = establishmentIdRef.current
-      if (!estId) return
+      if (cancelled || !estId) return
+      const topic = `orders_${estId}`
+      for (const old of supabase.getChannels()) {
+        if (old.topic === `realtime:${topic}`) supabase.removeChannel(old)
+      }
       channel = supabase
-        .channel(`orders_${estId}`)
+        .channel(topic)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `establishment_id=eq.${estId}` }, (payload) => {
           if (payload.eventType === 'INSERT') {
             const newOrder = payload.new as Order
             setOrders((prev) => [newOrder, ...prev.filter((o) => o.id !== newOrder.id)].slice(0, MAX_ORDERS))
-            if (newOrder.source !== 'balcao') {
-              setUnseen((prev) => new Set(prev).add(newOrder.id))
-              if (autoPrintRef.current === true) setPrintOrder({ ...newOrder })
-              if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
-                try {
-                  new Notification('Novo pedido!', { body: `${newOrder.customer_name} · ${formatBRL(Number(newOrder.total))}`, tag: newOrder.id })
-                } catch {}
-              }
-            } else if (newOrder.status !== 'completed' && autoPrintRef.current === true) {
-              // Venda de balcão mandada para a fila: imprime a comanda da
-              // cozinha, sem campainha (foi o próprio lojista que lançou).
-              setPrintOrder({ ...newOrder })
+            const known = knownIdsRef.current
+            if (!known || !known.has(newOrder.id)) {
+              known?.add(newOrder.id)
+              announceNewOrder(newOrder)
             }
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Order
@@ -172,22 +205,42 @@ export default function PedidosPage() {
             setSelectedOrder((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev))
           }
         })
-        .subscribe((status) => log('painel:pedidos', 'realtime', { status }))
-    })
+        .subscribe((status) => {
+          log('painel:pedidos', 'realtime', { status })
+          if (cancelled) return
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Conexão caiu: recarrega e tenta de novo em alguns segundos.
+            if (retry) clearTimeout(retry)
+            retry = setTimeout(() => {
+              loadOrders()
+              subscribe()
+            }, 5000)
+          }
+        })
+    }
+
+    loadOrders()
+      .then(subscribe)
+      .catch((err) => logError('painel:pedidos', 'erro ao iniciar tempo real', err))
+
     // Rede de segurança: no celular a conexão em tempo real cai quando o
     // app vai para segundo plano.
     const interval = setInterval(loadOrders, 60000)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') loadOrders()
+      if (document.visibilityState !== 'visible') return
+      loadOrders()
+      if (!channel || channel.state !== 'joined') subscribe()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
+      cancelled = true
+      if (retry) clearTimeout(retry)
       if (channel) supabase.removeChannel(channel)
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisible)
       stopAlarm()
     }
-  }, [loadOrders, supabase])
+  }, [loadOrders, supabase, announceNewOrder])
 
   // Campainha enquanto houver pedido novo não visto (e ainda pendente).
   const pendingUnseen = orders.filter((o) => unseen.has(o.id) && o.status === 'pending')

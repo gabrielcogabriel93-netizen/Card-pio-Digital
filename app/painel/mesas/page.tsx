@@ -324,7 +324,7 @@ export default function MesasPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md animate-fade-in">
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fade-in">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">{editing ? 'Renomear Mesa' : 'Nova Mesa'}</h2>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-100 rounded" aria-label="Fechar">
@@ -361,7 +361,7 @@ export default function MesasPage() {
       {qrTable && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:relative print:inset-auto print:p-0">
           <div className="fixed inset-0 bg-black/50 print:hidden" onClick={() => setQrTable(null)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-fade-in print:shadow-none">
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 text-center animate-fade-in print:shadow-none">
             <button
               onClick={() => setQrTable(null)}
               className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded print:hidden"

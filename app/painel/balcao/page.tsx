@@ -560,7 +560,7 @@ export default function BalcaoPage() {
       {showCheckout && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCheckout(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md animate-fade-in p-6">
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fade-in p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Finalizar Venda</h2>
 
             <div className="space-y-4">
@@ -776,7 +776,7 @@ function VariationModal({
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="fixed inset-0 bg-black/50" />
-        <div className="relative bg-white rounded-xl p-6">
+        <div className="relative bg-white rounded-xl p-6 max-h-[90vh] overflow-y-auto">
           <Loader2 size={24} className="animate-spin text-primary-500" />
         </div>
       </div>

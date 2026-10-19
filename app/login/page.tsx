@@ -209,7 +209,7 @@ export default function LoginPage() {
       {showReset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowReset(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 animate-fade-in">
             {resetSent ? (
               <div className="text-center">
                 <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">

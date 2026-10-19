@@ -219,3 +219,13 @@
     border-color: #000 !important;
   }
 }
+
+/* iPhone dá zoom ao tocar em campo com letra menor que 16px (vários
+   campos usam text-sm). Em tela de celular, todo campo fica com 16px. */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
