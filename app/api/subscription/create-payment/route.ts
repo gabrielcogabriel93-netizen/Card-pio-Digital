@@ -105,6 +105,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Desconto da campanha pela qual a loja entrou (migration 059). Só na
+    // primeira assinatura: quem já assinou antes não ganha de novo.
+    let campaignDiscount: { code: string; name: string; percent: number; months: number } | null = null
+    if (!establishment.stripe_subscription_id) {
+      const { data: origin } = await admin.from('establishments').select('signup_campaign').eq('id', establishment.id).maybeSingle()
+      const code = (origin as { signup_campaign?: string | null } | null)?.signup_campaign
+      if (code) {
+        const { data: c } = await admin.from('signup_campaigns').select('code, name, discount_percent, discount_months').eq('code', code).maybeSingle()
+        if (c && c.discount_percent > 0 && c.discount_months > 0) {
+          campaignDiscount = { code: c.code, name: c.name, percent: c.discount_percent, months: c.discount_months }
+        }
+      }
+    }
+
     const baseUrl = getBaseUrl()
     const { url } = await createSubscriptionCheckoutSession({
       establishmentId: establishment.id,
@@ -116,6 +130,7 @@ export async function POST(request: NextRequest) {
       cancelUrl: `${baseUrl}/painel/planos?assinatura=cancelada`,
       stripeCustomerId: establishment.stripe_customer_id,
       divulgadorConnect,
+      campaignDiscount,
     })
 
     // Abandono do pagamento (aba Crescimento): checkout aberto sem 'paid' depois.

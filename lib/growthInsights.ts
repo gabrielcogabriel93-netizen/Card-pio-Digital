@@ -69,7 +69,7 @@ export function buildInsights(m: GrowthMetrics, opts: { billingEnabled: boolean 
   } else if (a.visitors >= 50 && a.visitorToLead != null && a.visitorToLead < BENCHMARKS.visitorToLead) {
     add({ area: 'aquisicao', severity: 'atencao', title: 'Poucos visitantes começam o cadastro',
       detail: `${p(a.visitorToLead)} dos ${a.visitors} visitantes começaram (referência: ${BENCHMARKS.visitorToLead}% ou mais).`,
-      action: 'Reforce no site o "30 dias grátis, sem cartão", mostre prints reais e depoimentos de lojistas, e deixe o botão de cadastro sempre visível.' })
+      action: 'Deixe a oferta bem clara no site (teste grátis ou condição da campanha), mostre prints reais e depoimentos de lojistas, e deixe o botão de cadastro sempre visível.' })
   }
   if (a.leads >= 5 && a.leadToStore != null && a.leadToStore < BENCHMARKS.leadToStore) {
     add({ area: 'aquisicao', severity: a.leadToStore < 40 ? 'critico' : 'atencao', title: 'Muita gente para no meio do cadastro',
@@ -106,7 +106,7 @@ export function buildInsights(m: GrowthMetrics, opts: { billingEnabled: boolean 
   if (act.medianDaysToFirstOrder != null && act.medianDaysToFirstOrder > 7) {
     add({ area: 'ativacao', severity: 'atencao', title: 'O primeiro pedido está demorando',
       detail: `Metade das lojas leva mais de ${String(act.medianDaysToFirstOrder).replace('.', ',')} dias para receber o 1º pedido.`,
-      action: 'Com 30 dias de teste, o ideal é o 1º pedido na primeira semana. Faça um acompanhamento no 3º dia.' })
+      action: 'O ideal é o 1º pedido na primeira semana. Faça um acompanhamento no 3º dia.' })
   }
   if (act.cohort >= 3 && act.firstOrder != null && act.firstOrder >= BENCHMARKS.firstOrder) {
     add({ area: 'ativacao', severity: 'bom', title: 'Boa ativação', detail: `${p(act.firstOrder)} das lojas novas já receberam pedido.`, action: 'Mantenha o acompanhamento nos primeiros dias.' })

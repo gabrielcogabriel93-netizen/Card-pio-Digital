@@ -6,7 +6,7 @@ import { COMPLETO_MONTHLY_PRICE, type PlanTier } from '@/lib/plans'
 import { Loader2, Lock, Layers } from 'lucide-react'
 
 interface SubscriptionPaywallProps {
-  reason: 'trial_expired' | 'subscription_expired'
+  reason: 'trial_expired' | 'subscription_expired' | 'choose_plan'
   monthlyPrice: number
   onUnlocked: () => void
 }
@@ -61,10 +61,10 @@ export function SubscriptionPaywall({ reason, monthlyPrice }: SubscriptionPaywal
           <Lock size={26} className="text-amber-600" />
         </div>
         <p className="font-semibold text-gray-900 mb-1">
-          {reason === 'trial_expired' ? 'Seu período grátis acabou' : 'Assinatura vencida'}
+          {reason === 'choose_plan' ? 'Escolha seu plano para começar' : reason === 'trial_expired' ? 'Seu período grátis acabou' : 'Assinatura vencida'}
         </p>
         <p className="text-sm text-gray-600 mb-5">
-          Pra continuar usando o painel, escolha um plano. Seu cardápio público continua no ar normalmente — o
+          {reason === 'choose_plan' ? 'Assine para liberar o painel e colocar sua loja para vender.' : 'Pra continuar usando o painel, escolha um plano.'} Seu cardápio público continua no ar normalmente — o
           bloqueio é só aqui, na área de gestão.
         </p>
 

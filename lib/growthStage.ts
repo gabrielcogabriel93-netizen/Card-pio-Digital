@@ -73,7 +73,7 @@ export function stageMessage(stage: GrowthStage, opts: { name?: string | null; s
   }
   switch (stage) {
     case 'iniciou':
-      return `${oi} Vi que você começou a criar sua loja e parou no meio. Posso te ajudar a terminar? Leva uns 2 minutos e são 30 dias grátis, sem cartão.`
+      return `${oi} Vi que você começou a criar sua loja e parou no meio. Posso te ajudar a terminar? Leva uns 2 minutos.`
     case 'conta_criada':
       return `${oi} Sua conta foi criada, só falta confirmar o e-mail para a loja ficar pronta. Chegou o e-mail de confirmação? Se precisar, te ajudo por aqui.`
     case 'loja_criada':

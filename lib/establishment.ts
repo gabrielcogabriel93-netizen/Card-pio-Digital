@@ -16,11 +16,13 @@ export function slugify(name: string): string {
  */
 export async function createEstablishmentWithUniqueSlug(
   supabase: SupabaseClient,
-  params: { ownerId: string; name: string; whatsappNumber: string }
+  params: { ownerId: string; name: string; whatsappNumber: string; signupCampaign?: string | null }
 ) {
   const baseSlug = slugify(params.name) || 'loja'
   let attempt = 0
   let lastError: any = null
+  // Campanha do link /p/codigo (migration 059). Sem a migration, cria sem ela.
+  let campaign = params.signupCampaign || null
 
   while (attempt < 8) {
     const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`
@@ -33,11 +35,17 @@ export async function createEstablishmentWithUniqueSlug(
         slug,
         whatsapp_number: params.whatsappNumber,
         plan: 'free',
+        ...(campaign ? { signup_campaign: campaign } : {}),
       })
       .select()
       .single()
 
     if (!error) return data
+
+    if (campaign && /signup_campaign/.test(error.message || '')) {
+      campaign = null
+      continue
+    }
 
     // 23505 no índice de dono (migration 044) = a loja deste usuário já foi
     // criada (clique duplo no cadastro): devolve a existente.

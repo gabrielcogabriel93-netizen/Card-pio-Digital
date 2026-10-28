@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { logError } from '@/lib/logger'
+import { discountText } from '@/lib/offer'
 import { COMPLETO_MONTHLY_PRICE, ESSENCIAL_FEATURES, COMPLETO_FEATURES, type PlanTier } from '@/lib/plans'
 import { Heart, CheckCircle2, Copy, X, Gift, Sparkles, MessageCircle, Loader2, Clock, CreditCard, Layers } from 'lucide-react'
 
@@ -37,6 +38,12 @@ export default function PlanosPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [openingPortal, setOpeningPortal] = useState(false)
   const [returnMessage, setReturnMessage] = useState<string | null>(null)
+  // Campanha pela qual a loja entrou (migration 059): desconto no 1º pagamento.
+  const [campaign, setCampaign] = useState<{ name: string; discount_percent: number; discount_months: number } | null>(null)
+
+  useEffect(() => {
+    createClient().rpc('get_my_signup_campaign').then(({ data }) => setCampaign((data as any) || null), () => {})
+  }, [])
 
   useEffect(() => {
     const status = new URLSearchParams(window.location.search).get('assinatura')
@@ -134,7 +141,7 @@ export default function PlanosPage() {
           {loadingSub ? (
             <Loader2 size={16} className="animate-spin text-gray-400" />
           ) : !subscription || !subscription.billingEnabled ? (
-            <span className="badge bg-primary-100 text-primary-700">30 dias grátis</span>
+            <span className="badge bg-primary-100 text-primary-700">Acesso liberado</span>
           ) : subscription.status === 'exempt' ? (
             <span className="badge bg-purple-100 text-purple-700">Isento</span>
           ) : subscription.status === 'active' ? (
@@ -147,8 +154,7 @@ export default function PlanosPage() {
         {!loadingSub && subscription && (
           !subscription.billingEnabled ? (
             <p className="text-gray-600 text-sm">
-              Você tem 30 dias grátis, com todas as funcionalidades dos dois planos já liberadas — sem
-              precisar de cartão de crédito.
+              Todas as funcionalidades dos dois planos estão liberadas para você, sem cobrança no momento.
             </p>
           ) : subscription.status === 'exempt' ? (
             <p className="text-gray-600 text-sm">
@@ -173,6 +179,12 @@ export default function PlanosPage() {
           )
         )}
       </div>
+
+      {campaign && discountText({ discountPercent: campaign.discount_percent, discountMonths: campaign.discount_months }) && subscription?.status !== 'active' && (
+        <div className="rounded-xl border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900">
+          Você entrou pela campanha <strong>{campaign.name}</strong>: {discountText({ discountPercent: campaign.discount_percent, discountMonths: campaign.discount_months })}, aplicado na hora do pagamento.
+        </div>
+      )}
 
       {returnMessage && (
         <div className="bg-primary-50 text-primary-800 p-3 rounded-lg text-sm">{returnMessage}</div>
@@ -275,8 +287,7 @@ export default function PlanosPage() {
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Gostou do sistema?</h2>
             <p className="text-gray-600 text-sm mb-4">
-              Você tem 30 dias grátis com tudo liberado pra testar o sistema. Se ele está te ajudando a
-              vender mais, uma doação (de qualquer valor) nos incentiva a continuar trazendo
+              Se o Freguês está te ajudando a vender mais, uma doação (de qualquer valor) nos incentiva a continuar trazendo
               melhorias — e até outros sistemas — para você.
             </p>
             <button onClick={() => setShowDonateModal(true)} className="btn-primary">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { normalizeCampaignCode, readCampaignCookie } from '@/lib/offer'
 import { vincularIndicacaoSeHouver } from '@/lib/indicacao'
 import { log, logError } from '@/lib/logger'
 import { Loader2, AlertCircle, Store } from 'lucide-react'
@@ -76,6 +77,9 @@ export default function CompletarCadastroPage() {
     }
   }
 
+  // Campanha do link /p/codigo: salva no cadastro (metadados) ou no cookie.
+  const campaignFrom = (meta: Record<string, any>) => normalizeCampaignCode(meta.pending_campaign) || readCampaignCookie()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -95,6 +99,7 @@ export default function CompletarCadastroPage() {
         ownerId: user.id,
         name: establishmentName,
         whatsappNumber: whatsapp,
+        signupCampaign: campaignFrom(user.user_metadata || {}),
       })
       log('completar-cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
 

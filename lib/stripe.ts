@@ -113,6 +113,8 @@ export interface CreateSubscriptionCheckoutParams {
   successUrl: string
   cancelUrl: string
   stripeCustomerId?: string | null
+  // Campanha da loja (migration 059): desconto em % nos N primeiros meses.
+  campaignDiscount?: { code: string; name: string; percent: number; months: number } | null
   // Presente só quando há indicação vinculada E o divulgador já concluiu
   // o onboarding -- caso contrário a assinatura é criada sem split, 100%
   // pra plataforma.
@@ -159,6 +161,20 @@ export async function createSubscriptionCheckoutSession(
 
   const planLabel = params.tier === 'completo' ? 'Completo' : 'Essencial'
 
+  // Cupom da campanha: um por campanha + percentual + meses (id fixo, criado
+  // na primeira vez). O nome aparece no checkout da Stripe.
+  let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined
+  const cd = params.campaignDiscount
+  if (cd && cd.percent > 0 && cd.months > 0) {
+    const couponId = `campanha-${cd.code}-${cd.percent}-${cd.months}`
+    try {
+      await stripe.coupons.retrieve(couponId)
+    } catch {
+      await stripe.coupons.create({ id: couponId, percent_off: cd.percent, duration: 'repeating', duration_in_months: cd.months, name: cd.name.slice(0, 40) })
+    }
+    discounts = [{ coupon: couponId }]
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: params.stripeCustomerId || undefined,
@@ -176,6 +192,7 @@ export async function createSubscriptionCheckoutSession(
       },
     ],
     subscription_data: subscriptionData,
+    ...(discounts ? { discounts } : {}),
     metadata: { establishmentId: params.establishmentId, tier: params.tier },
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,

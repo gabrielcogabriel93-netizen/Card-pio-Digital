@@ -7,7 +7,8 @@ import { addOwnerAlert } from '@/lib/ownerAlerts'
 export const runtime = 'nodejs'
 
 // Ação única e explícita: liga a cobrança da plataforma e, no mesmo
-// golpe, dá 30 dias de prazo pra todo estabelecimento que hoje está sem
+// golpe, dá o prazo de teste configurado (migration 059; 7 dias se o
+// teste estiver desligado) pra todo estabelecimento que hoje está sem
 // prazo nenhum (o "trial livre" de quem se cadastrou antes da ativação).
 // Quem se cadastrar DEPOIS já nasce com prazo sozinho (trigger da
 // migration 032) — esta rota só cobre quem já existia.
@@ -31,7 +32,9 @@ export async function POST() {
       return NextResponse.json({ error: 'A cobrança já está ativa.' }, { status: 400 })
     }
 
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: offer } = await admin.from('platform_settings').select('trial_enabled, trial_days').eq('id', true).maybeSingle()
+    const graceDays = offer && offer.trial_enabled === false ? 7 : Number(offer?.trial_days) || 30
+    const trialEndsAt = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: grandfathered, error: grandfatherError } = await admin
       .from('establishments')
@@ -52,7 +55,7 @@ export async function POST() {
       estabelecimentosComPrazoNovo: grandfathered?.length ?? 0,
     })
 
-    await addOwnerAlert(admin, { kind: 'admin', title: 'Cobrança da plataforma LIGADA', body: `Por ${adminUser.email}. ${grandfathered?.length ?? 0} loja(s) ganharam 30 dias de teste.`, url: '/admin' })
+    await addOwnerAlert(admin, { kind: 'admin', title: 'Cobrança da plataforma LIGADA', body: `Por ${adminUser.email}. ${grandfathered?.length ?? 0} loja(s) ganharam ${graceDays} dias de prazo.`, url: '/admin' })
     return NextResponse.json({ ok: true, grandfathered: grandfathered?.length ?? 0, trialEndsAt })
   } catch (err) {
     logError('api:admin:billing:activate', 'erro ao ativar cobrança', err)

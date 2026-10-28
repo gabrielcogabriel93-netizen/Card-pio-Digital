@@ -1,0 +1,390 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
+import { vincularIndicacaoSeHouver } from '@/lib/indicacao'
+import { formatPhoneNumber } from '@/lib/phone'
+import { log, logError } from '@/lib/logger'
+import { translateAuthError } from '@/lib/authErrors'
+import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
+import { BrandLockup } from '@/components/Logo'
+import { TrackVisit } from '@/components/TrackVisit'
+import { registerSignupLead, trackPlatformEvent } from '@/lib/platformTracking'
+import { isValidBrazilWhatsapp } from '@/lib/whatsapp'
+import { ctaLabel, discountText, hasTrial, daysText, type SignupOffer } from '@/lib/offer'
+
+export function CadastroClient({ offer }: { offer: SignupOffer }) {
+  // Faixa da campanha (link /p/codigo): "Parceria X · 50% de desconto nos 3 primeiros meses".
+  const campaignPerks = [hasTrial(offer) ? `${daysText(offer.trialDays)} grátis` : null, discountText(offer)].filter(Boolean).join(' e ')
+  const router = useRouter()
+  const [step, setStep] = useState(1)
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    establishmentName: '',
+    whatsapp: '',
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [slug, setSlug] = useState('')
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+
+  const handleEstablishmentNameChange = (value: string) => {
+    setFormData({ ...formData, establishmentName: value })
+    setSlug(slugify(value))
+  }
+
+  // Passo 1: nome, WhatsApp, e-mail e senha. O contato já fica salvo
+  // (migration 057) para a equipe ajudar quem parar antes de terminar.
+  const handleStep1 = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!isValidBrazilWhatsapp(formData.whatsapp)) {
+      setError('Informe um WhatsApp válido com DDD, ex.: (11) 99999-8888.')
+      return
+    }
+    if (formData.password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.')
+      return
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Senhas não conferem.')
+      return
+    }
+    setLoading(true)
+    await Promise.all([
+      registerSignupLead({ name: formData.name.trim(), email: formData.email.trim(), whatsapp: formData.whatsapp }),
+      trackPlatformEvent('signup_step1'),
+    ])
+    setLoading(false)
+    setStep(2)
+  }
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    log('cadastro', 'submit do formulário (passo 2)', { email: formData.email })
+
+    if (formData.password !== formData.confirmPassword) {
+      log('cadastro', 'validação falhou: senhas não conferem')
+      setError('Senhas não conferem.')
+      setLoading(false)
+      return
+    }
+
+    if (formData.password.length < 8) {
+      log('cadastro', 'validação falhou: senha curta')
+      setError('A senha deve ter no mínimo 8 caracteres.')
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    void registerSignupLead({ name: formData.name.trim(), email: formData.email.trim(), whatsapp: formData.whatsapp, store_name: formData.establishmentName.trim() })
+
+    try {
+      // 1. Criar usuário no Supabase Auth. Os dados da loja ficam guardados
+      // nos metadados do usuário para o caso de a confirmação de e-mail
+      // estar ativada (nesse caso ainda não há sessão para criar o registro
+      // do estabelecimento, que será concluído em /completar-cadastro).
+      log('cadastro', 'chamando auth.signUp...')
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            pending_establishment_name: formData.establishmentName,
+            pending_whatsapp_number: formData.whatsapp,
+            pending_campaign: offer.campaignCode,
+          },
+        },
+      })
+
+      if (authError) {
+        logError('cadastro', 'signUp retornou erro', authError)
+        throw new Error(translateAuthError(authError.message))
+      }
+      if (!authData.user) throw new Error('Erro ao criar usuário.')
+      log('cadastro', 'signUp concluído', { userId: authData.user.id, temSessao: !!authData.session })
+
+      // Sem sessão ativa = confirmação de e-mail está habilitada no projeto.
+      if (!authData.session) {
+        log('cadastro', 'sem sessão -> aguardando confirmação de e-mail')
+        setAwaitingConfirmation(true)
+        setLoading(false)
+        return
+      }
+
+      // 2. Criar estabelecimento (com resolução automática de slug duplicado)
+      log('cadastro', 'criando estabelecimento...', { establishmentName: formData.establishmentName })
+      const establishment = await createEstablishmentWithUniqueSlug(supabase, {
+        ownerId: authData.user.id,
+        name: formData.establishmentName,
+        whatsappNumber: formData.whatsapp,
+        signupCampaign: offer.campaignCode,
+      })
+      log('cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })
+
+      await vincularIndicacaoSeHouver()
+
+      log('cadastro', 'redirecionando para /onboarding...')
+      router.push('/onboarding')
+      router.refresh()
+    } catch (err: any) {
+      logError('cadastro', 'erro no fluxo de cadastro', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-blue-50 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-2">
+            <BrandLockup size={40} textClassName="text-3xl text-ink" />
+          </Link>
+        </div>
+
+        {awaitingConfirmation ? (
+          <div className="card text-center">
+            <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail size={28} className="text-primary-500" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Confirme seu e-mail</h1>
+            <p className="text-gray-600 mb-6">
+              Enviamos um link de confirmação para <strong>{formData.email}</strong>. Clique no link
+              e depois faça login para concluir a configuração da sua loja.
+            </p>
+            <Link href="/login" className="btn-primary w-full">
+              Ir para o login
+            </Link>
+          </div>
+        ) : (
+        <>
+        {/* Steps Indicator */}
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+            step >= 1 ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-400'
+          }`}>
+            <CheckCircle size={16} />
+          </div>
+          <div className={`h-1 w-12 ${step >= 2 ? 'bg-primary-500' : 'bg-gray-200'}`} />
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+            step >= 2 ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-400'
+          }`}>
+            2
+          </div>
+        </div>
+
+        <div className="card">
+          <TrackVisit event="signup_view" />
+          {offer.campaignName && (
+            <div className="mb-4 rounded-xl bg-primary-50 border border-primary-100 p-3 text-sm text-primary-900">
+              <strong>{offer.campaignName}</strong>{campaignPerks ? ` · ${campaignPerks}` : ''}
+            </div>
+          )}
+          {step === 1 ? (
+            <>
+              <h1 className="page-title mb-2">Criar conta</h1>
+              <p className="text-gray-600 mb-6">Informe seus dados pessoais para começar.</p>
+
+              <form onSubmit={handleStep1} className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Seu nome
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    placeholder="Seu nome completo"
+                    className="input-field"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="whatsapp" className="block text-sm font-medium text-gray-700 mb-1">
+                    Seu WhatsApp
+                  </label>
+                  <input
+                    id="whatsapp"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="(11) 99999-8888"
+                    className="input-field"
+                    value={formData.whatsapp}
+                    onChange={(e) => setFormData({ ...formData, whatsapp: formatPhoneNumber(e.target.value) })}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Com DDD. Nossa equipe usa para te ajudar a deixar a loja pronta, e ele aparece no cardápio como contato da loja.
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    E-mail
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    className="input-field"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Mínimo 8 caracteres"
+                      className="input-field pr-10"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      minLength={8}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmar senha
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Repita a senha"
+                    className="input-field"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    required
+                  />
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start gap-2" role="alert">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <button type="submit" className="btn-primary w-full" disabled={loading}>
+                  {loading ? <Loader2 size={20} className="animate-spin" /> : 'Próximo passo'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h1 className="page-title mb-2">Seu estabelecimento</h1>
+              <p className="text-gray-600 mb-6">Agora, conte-nos sobre seu negócio.</p>
+
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label htmlFor="estName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nome do estabelecimento
+                  </label>
+                  <input
+                    id="estName"
+                    type="text"
+                    placeholder="Ex: Pizzaria do João"
+                    className="input-field"
+                    value={formData.establishmentName}
+                    onChange={(e) => handleEstablishmentNameChange(e.target.value)}
+                    required
+                  />
+                  {slug && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Seu link: {typeof window !== 'undefined' ? window.location.host : ''}/loja/{slug}
+                    </p>
+                  )}
+                </div>
+
+
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                    required
+                  />
+                  <span className="text-sm text-gray-600">
+                    Li e concordo com os{' '}
+                    <Link href="/termos" target="_blank" className="text-primary-600 hover:underline">
+                      Termos de Uso
+                    </Link>{' '}
+                    e a{' '}
+                    <Link href="/privacidade" target="_blank" className="text-primary-600 hover:underline">
+                      Política de Privacidade
+                    </Link>
+                    .
+                  </span>
+                </label>
+
+                {error && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start gap-2">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => { setError(null); setStep(1) }} className="btn-secondary flex-1">
+                    Voltar
+                  </button>
+                  <button type="submit" className="btn-primary flex-1" disabled={loading || !acceptedTerms}>
+                    {loading ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      ctaLabel(offer)
+                    )}
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
+
+          <div className="mt-6 text-center text-sm text-gray-600">
+            Já tem conta?{' '}
+            <Link href="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+              Fazer login
+            </Link>
+          </div>
+        </div>
+        </>
+        )}
+      </div>
+    </div>
+  )
+}

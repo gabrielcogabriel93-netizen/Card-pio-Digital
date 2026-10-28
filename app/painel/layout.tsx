@@ -114,7 +114,7 @@ export default function PainelLayout({
   // "confirmado que está liberado", evitando um flash do paywall.
   const [subscription, setSubscription] = useState<{
     blocked: boolean
-    reason: 'trial_expired' | 'subscription_expired' | null
+    reason: 'trial_expired' | 'subscription_expired' | 'choose_plan' | null
     monthlyPrice: number
     planTier: PlanTier
     hasCompletoAccess: boolean
@@ -171,7 +171,7 @@ export default function PainelLayout({
         // depois de renovar o login o banco pode recusar por segundos).
         const fetchEst = () => supabase
           .from('establishments')
-          .select('name, slug, onboarding_completed, theme_color')
+          .select('name, slug, onboarding_completed, theme_color, created_at')
           .eq('owner_id', user.id)
           .maybeSingle()
         let { data: est, error: estError } = await fetchEst()
@@ -221,7 +221,13 @@ export default function PainelLayout({
             const row = subStatus?.[0]
             setSubscription({
               blocked: !!row?.blocked,
-              reason: row?.status === 'active' ? 'subscription_expired' : 'trial_expired',
+              // Sem teste grátis (oferta desligada ou campanha que já cobra):
+              // o prazo termina junto com o cadastro, então é "escolha o plano".
+              reason: row?.status === 'active'
+                ? 'subscription_expired'
+                : row?.trial_ends_at && est.created_at && new Date(row.trial_ends_at).getTime() - new Date(est.created_at).getTime() < 86_400_000
+                  ? 'choose_plan'
+                  : 'trial_expired',
               monthlyPrice: Number(row?.monthly_price ?? 49.9),
               planTier: row?.plan_tier === 'completo' ? 'completo' : 'essencial',
               hasCompletoAccess: row?.completo_access !== false,

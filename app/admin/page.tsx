@@ -17,6 +17,7 @@ import {
   Megaphone,
 } from 'lucide-react'
 import { toast, confirmDialog } from '@/components/Feedback'
+import { OfferSettings } from '@/components/admin/OfferSettings'
 
 interface EstablishmentRow {
   id: string
@@ -86,7 +87,7 @@ export default function AdminPage() {
   const handleActivate = async () => {
     if (!overview) return
     const confirmed = (await confirmDialog(
-      `Isso vai LIGAR a cobrança da plataforma agora. Todos os ${overview.counts.total} estabelecimentos que hoje têm acesso livre (sem prazo) vão ganhar 30 dias de prazo a partir de agora — depois disso, quem não pagar tem o painel bloqueado. Não dá pra desfazer o prazo já concedido. Continuar?`
+      `Isso vai LIGAR a cobrança da plataforma agora. Todos os ${overview.counts.total} estabelecimentos que hoje têm acesso livre (sem prazo) vão ganhar o prazo de teste configurado em "Teste grátis e campanhas" (ou 7 dias, se o teste estiver desligado) a partir de agora — depois disso, quem não pagar tem o painel bloqueado. Não dá pra desfazer o prazo já concedido. Continuar?`
     ))
     if (!confirmed) return
 
@@ -240,6 +241,9 @@ export default function AdminPage() {
           Divulgadores
         </Link>
       </div>
+
+      {/* Teste grátis do site e campanhas com link (migration 059) */}
+      <OfferSettings />
 
       {/* Contadores */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">

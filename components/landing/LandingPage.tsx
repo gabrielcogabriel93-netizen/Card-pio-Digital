@@ -1,0 +1,811 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import {
+  Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown,
+  CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, MessageCircle, Wallet, QrCode,
+  PlayCircle, ArrowRight, Sandwich, Cake, UtensilsCrossed, Truck, Send, RotateCcw, UserX, Layers,
+} from 'lucide-react'
+import { BrandLockup } from '@/components/Logo'
+import { MenuScreen, ProductScreen, CheckoutScreen, TrackingScreen } from '@/components/landing/Mockups'
+import { BRAND } from '@/lib/brand'
+import { TrackVisit } from '@/components/TrackVisit'
+import { hasTrial, daysText, startLabel, offerBadge, offerFinePrint, discountText, type SignupOffer } from '@/lib/offer'
+import { COMPLETO_MONTHLY_PRICE, ESSENCIAL_FEATURES, COMPLETO_FEATURES } from '@/lib/plans'
+
+const TESTIMONIALS = [
+  {
+    title: 'Facilitou muito o atendimento aos meus clientes',
+    quote: 'Antes eu precisava ficar mandando foto do cardápio toda hora no WhatsApp. Agora é só mandar o link e o cliente consegue ver tudo pelo celular. Ficou muito mais organizado.',
+    name: 'Mariana',
+    role: 'proprietária de lanchonete',
+  },
+  {
+    title: 'Ficou muito mais profissional',
+    quote: 'Eu queria uma solução simples para deixar meu cardápio mais bonito e profissional, sem precisar contratar alguém para fazer um site. Consegui colocar tudo no ar de forma muito mais prática.',
+    name: 'Rafael',
+    role: 'dono de hamburgueria',
+  },
+  {
+    title: 'Meus clientes conseguem acessar de qualquer lugar',
+    quote: 'Uma das coisas que mais gostei foi poder atualizar os produtos sem precisar refazer o cardápio inteiro. Quando mudo preço ou adiciono alguma coisa, fica muito mais fácil manter tudo atualizado.',
+    name: 'Juliana',
+    role: 'proprietária de restaurante',
+  },
+  {
+    title: 'Muito mais prático que o cardápio tradicional',
+    quote: 'Eu estava procurando uma opção simples para parar de depender daqueles cardápios impressos. O digital ficou muito mais prático para mim e para os clientes.',
+    name: 'Lucas',
+    role: 'proprietário de pizzaria',
+  },
+  {
+    title: 'Consegui deixar meu negócio com outra aparência',
+    quote: 'O cardápio digital deixou minha apresentação muito mais organizada. O cliente consegue abrir pelo celular, visualizar os produtos e encontrar o que quer de forma rápida.',
+    name: 'Camila',
+    role: 'proprietária de cafeteria',
+  },
+  {
+    title: 'A implantação foi muito simples',
+    quote: 'Eu não entendo muito de tecnologia e justamente por isso queria algo fácil de usar. Consegui configurar meu cardápio sem complicação e já comecei a divulgar o link para meus clientes.',
+    name: 'André',
+    role: 'proprietário de delivery',
+  },
+  {
+    title: 'Agora não preciso ficar enviando o cardápio toda vez',
+    quote: 'Antes, quando alguém perguntava pelos produtos, eu precisava procurar a imagem ou PDF e mandar no WhatsApp. Agora simplesmente envio o link do meu cardápio.',
+    name: 'Fernanda',
+    role: 'empreendedora',
+  },
+  {
+    title: 'Era exatamente o que eu precisava',
+    quote: 'Eu queria um cardápio digital simples, bonito e que funcionasse bem no celular. A solução resolveu justamente essa necessidade sem deixar o processo complicado.',
+    name: 'Thiago',
+    role: 'proprietário de restaurante',
+  },
+]
+
+const FAQ_ITEMS = [
+  {
+    question: 'Qual a diferença entre os planos Essencial e Completo?',
+    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender direto: cardápio digital, pedidos no painel com alarme, app da loja com notificações, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante o teste grátis (quando houver), os dois planos vêm liberados.',
+  },
+  {
+    question: 'Tem taxa ou comissão por pedido?',
+    answer: 'Não. Você paga sua assinatura e fica com 100% do valor das suas vendas — sem comissão por pedido, nem no Pix automático.',
+  },
+  {
+    question: 'Preciso saber programar ou mexer com tecnologia?',
+    answer: 'Não. Você monta o cardápio pelo painel — fotos, preços e categorias — em poucos minutos, sem instalar nada.',
+  },
+  {
+    question: 'Funciona só para comida, ou serve pra loja de roupa, papelaria, chocolates...?',
+    answer: 'Serve para qualquer tipo de produto. No cadastro você responde um quiz rápido (com preparo, produto pronto ou os dois) e o painel já nasce ajustado ao seu negócio.',
+  },
+  {
+    question: 'Como o cliente faz o pedido?',
+    answer: 'Ele acessa o link do seu cardápio (pode mandar no WhatsApp e no Instagram), monta o pedido e confirma em poucos toques, sem cadastro. Se quiser, paga na hora com Pix automático. Depois ele instala o app da sua loja, com o seu logo, e acompanha o pedido por notificação.',
+  },
+  {
+    question: 'Como eu fico sabendo de um pedido novo?',
+    answer: 'O pedido cai na hora no seu painel, com campainha até alguém aceitar, e chega como notificação no seu celular mesmo com o painel fechado. O cliente recebe cada mudança de status (aceito, em preparo, saiu para entrega) por notificação do app da sua loja, sem depender de WhatsApp.',
+  },
+  {
+    question: 'Dá pra usar com iFood ao mesmo tempo?',
+    answer: 'Hoje o Freguês é o seu canal de vendas próprio (cardápio + app da sua loja), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
+  },
+  {
+    question: 'Posso cancelar quando quiser?',
+    answer: 'Sim. Sem contrato de fidelidade — o cancelamento é feito direto pelo painel, quando você quiser.',
+  },
+]
+
+const CATEGORIES = [
+  { icon: <Pizza className="w-7 h-7" />, title: 'Pizzarias' },
+  { icon: <Sandwich className="w-7 h-7" />, title: 'Lanchonetes' },
+  { icon: <Cake className="w-7 h-7" />, title: 'Confeitarias' },
+  { icon: <UtensilsCrossed className="w-7 h-7" />, title: 'Restaurantes' },
+  { icon: <Truck className="w-7 h-7" />, title: 'Delivery' },
+  { icon: <Store className="w-7 h-7" />, title: 'Pequenos negócios' },
+]
+
+// Mockup ilustrativo: o aviso de pedido novo no celular do lojista (push
+// do painel) e o cartão do pedido como aparece em Pedidos.
+function NewOrderMockup({ compact = false }: { compact?: boolean }) {
+  const textSize = compact ? 'text-[9px] leading-tight' : 'text-[11px] leading-snug'
+  return (
+    <div className="h-full flex flex-col bg-gradient-to-b from-gray-800 to-gray-900 p-3">
+      <p className="text-center text-white/80 text-2xl font-light mt-4">10:24</p>
+      <div className={`mt-4 rounded-2xl bg-white/95 p-2.5 shadow-lg text-gray-900 ${textSize}`}>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="w-4 h-4 rounded bg-primary-600 text-white flex items-center justify-center"><Store className="w-2.5 h-2.5" /></span>
+          <span className="font-semibold">Freguês · agora</span>
+        </div>
+        <p className="font-bold">Novo pedido!</p>
+        <p>Ana Souza · R$ 56,90</p>
+      </div>
+      <div className={`mt-3 rounded-2xl bg-amber-300 p-2.5 text-gray-900 ${textSize}`}>
+        <p className="font-bold">🔔 Pedido #A1B2C3</p>
+        <p>1x Pizza Margherita</p>
+        <p>2x Refrigerante Lata</p>
+        <p className="mt-1">🛵 Entrega · Rua das Flores, 123</p>
+        <p className="font-bold mt-1">Total R$ 56,90</p>
+        <div className="mt-2 rounded-lg bg-gray-900 text-white text-center py-1 font-semibold">Aceitar (35 min)</div>
+      </div>
+    </div>
+  )
+}
+
+// Pergunta do cartão depende da oferta (teste grátis ligado ou não).
+function offerFaq(offer: SignupOffer) {
+  if (hasTrial(offer)) {
+    return { question: 'Preciso de cartão de crédito para testar?', answer: `Não. Você cria a conta e já usa os ${daysText(offer.trialDays)} grátis com tudo liberado, sem precisar cadastrar cartão.` }
+  }
+  const d = discountText(offer)
+  return { question: 'Como funciona a assinatura?', answer: `Você cria a conta, escolhe o plano e paga a mensalidade no cartão${d ? ` (com ${d})` : ''}. Sem fidelidade e sem comissão sobre as suas vendas: cancele quando quiser.` }
+}
+
+export function LandingPage({ offer }: { offer: SignupOffer }) {
+  const trial = hasTrial(offer)
+  const badge = offerBadge(offer)
+  const faqItems = [...FAQ_ITEMS, offerFaq(offer)]
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0)
+
+  useEffect(() => {
+    setIsVisible(true)
+  }, [])
+
+  const navLinks = [
+    { href: '#funcionalidades', label: 'Recursos' },
+    { href: '#veja-como-funciona', label: 'Como funciona' },
+    { href: '#planos', label: 'Planos' },
+    { href: '#depoimentos', label: 'Depoimentos' },
+  ]
+
+  return (
+    <div className="min-h-screen bg-white">
+      <TrackVisit event="landing_view" />
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link href="/" aria-label={BRAND.name}>
+              <BrandLockup size={32} textClassName="text-2xl text-ink" />
+            </Link>
+
+            {/* Desktop Nav */}
+            <nav className="hidden md:flex items-center gap-8">
+              {navLinks.map((link) => (
+                <a key={link.href} href={link.href} className="text-gray-600 hover:text-gray-900 transition-colors">
+                  {link.label}
+                </a>
+              ))}
+              <Link href="/login" className="text-gray-600 hover:text-gray-900 transition-colors">Entrar</Link>
+              <Link href="/cadastro" className="btn-primary">
+                {trial ? 'Começar grátis' : 'Criar minha loja'}
+                <ChevronRight size={18} />
+              </Link>
+            </nav>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+            >
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden bg-white border-t border-gray-100 animate-fade-in">
+            <div className="px-4 py-4 space-y-3">
+              {navLinks.map((link) => (
+                <a key={link.href} href={link.href} className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>
+                  {link.label}
+                </a>
+              ))}
+              <a href="#faq" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>FAQ</a>
+              <Link href="/login" className="block py-2 text-gray-600 hover:text-gray-900" onClick={() => setIsMenuOpen(false)}>Entrar</Link>
+              <Link href="/cadastro" className="btn-primary w-full text-center" onClick={() => setIsMenuOpen(false)}>
+                {trial ? 'Começar grátis' : 'Criar minha loja'}
+              </Link>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-amber-50" />
+        <div className="absolute top-20 right-20 w-72 h-72 bg-primary-200/30 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 left-20 w-72 h-72 bg-amber-200/40 rounded-full blur-3xl" />
+
+        <div className={`relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <CheckCircle size={16} />
+              <span>{badge ? `${badge} • ` : ''}Sem comissão nos pedidos pelo seu link</span>
+            </div>
+            <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[0.98] mb-6">
+              Seu cliente vira <span className="text-primary-500">freguês</span><span className="text-comanda">.</span>
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-xl mx-auto lg:mx-0">
+              Cardápio digital com a sua marca, pedido direto sem comissão de aplicativo e pontos
+              de fidelidade que fazem o cliente voltar. Seu balcão no celular de todo mundo.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
+              <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
+                {startLabel(offer)}
+                <ChevronRight size={20} />
+              </Link>
+              <a href="#veja-como-funciona" className="btn-secondary text-lg px-8 py-4">
+                <PlayCircle size={20} />
+                Ver como funciona
+              </a>
+            </div>
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-500">
+              <span className="flex items-center gap-1.5"><CheckCircle size={16} className="text-primary-500" /> {trial ? 'Sem cartão de crédito' : 'Sem fidelidade'}</span>
+              <span className="flex items-center gap-1.5"><CheckCircle size={16} className="text-primary-500" /> Configuração rápida</span>
+              <span className="flex items-center gap-1.5"><CheckCircle size={16} className="text-primary-500" /> Funciona no celular</span>
+            </div>
+          </div>
+
+          <div className="relative flex justify-center lg:justify-end items-center h-[520px] sm:h-[600px]" aria-label="Exemplo do cardápio no celular">
+            <div className="absolute left-1/2 -translate-x-[88%] sm:-translate-x-[92%] rotate-[-4deg]">
+              <MenuScreen />
+            </div>
+            <div className="absolute left-1/2 translate-x-[-10%] sm:translate-x-[-6%] rotate-[4deg] z-10">
+              <TrackingScreen size="sm" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Resumo rápido (4 destaques) */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-10">
+            Tudo que você precisa para vender direto, sem comissão
+          </h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: <ClipboardList className="w-5 h-5" />, title: 'Cardápio profissional', desc: 'Mostre seus produtos de forma bonita e organizada.' },
+              { icon: <Smartphone className="w-5 h-5" />, title: 'App com a sua marca', desc: 'Seu cliente instala o app da sua loja, com seu logo, e recebe o status do pedido e suas ofertas por notificação.' },
+              { icon: <Zap className="w-5 h-5" />, title: 'Pedido rápido', desc: 'Menos mensagens de ida e volta. O pedido chega organizado.' },
+              { icon: <LineChart className="w-5 h-5" />, title: 'Gestão simples', desc: 'Tenha controle dos produtos, categorias e pedidos em um só lugar.' },
+            ].map((item, index) => (
+              <div key={index} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm animate-fade-in" style={{ animationDelay: `${index * 80}ms` }}>
+                <div className="w-10 h-10 rounded-lg bg-primary-500 text-white flex items-center justify-center mb-4">
+                  {item.icon}
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-1">{item.title}</h3>
+                <p className="text-sm text-gray-500">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Comece a vender em poucos minutos (3 passos) */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Comece a vender em poucos minutos
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              É simples, rápido e sem complicação. Em 3 passos você já está recebendo pedidos no seu painel.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4 items-start">
+            {[
+              { step: '01', icon: <Sparkles className="w-6 h-6" />, title: 'Crie sua conta', description: trial ? `Cadastre seu negócio: ${daysText(offer.trialDays)} grátis, tudo liberado, sem cartão.` : 'Cadastre seu negócio e escolha o plano. Em minutos sua loja está no ar.' },
+              { step: '02', icon: <ShoppingCart className="w-6 h-6" />, title: 'Monte seu cardápio', description: 'Adicione produtos, fotos, preços e categorias pelo painel intuitivo.' },
+              { step: '03', icon: <MessageCircle className="w-6 h-6" />, title: 'Compartilhe seu link', description: 'Mande o link no WhatsApp e no Instagram. Os pedidos chegam no painel na hora, com aviso no seu celular.' },
+            ].map((item, index, arr) => (
+              <div key={index} className="flex items-center gap-4">
+                <div className="text-center animate-fade-in flex-1" style={{ animationDelay: `${index * 150}ms` }}>
+                  <div className="relative w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-5 text-white">
+                    {item.icon}
+                    <span className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center">{item.step}</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                  <p className="text-gray-600 text-sm max-w-[220px] mx-auto">{item.description}</p>
+                </div>
+                {index < arr.length - 1 && (
+                  <ArrowRight className="hidden md:block w-6 h-6 text-gray-300 flex-shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Veja como é fácil receber pedidos (5 passos visuais, com prints reais) */}
+      <section id="veja-como-funciona" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Veja como é fácil receber pedidos
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Do cardápio ao pedido entregue, sem cadastro, sem senha e sem baixar aplicativo.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap justify-center items-start gap-x-3 gap-y-10">
+            {[
+              { kind: 'menu' as const, label: '1. Abre o link da loja' },
+              { kind: 'product' as const, label: '2. Escolhe e personaliza' },
+              { kind: 'checkout' as const, label: '3. Faz o pedido em 3 toques' },
+              { kind: 'tracking' as const, label: '4. Acompanha até chegar' },
+              { kind: 'alert' as const, label: '5. A loja recebe com alarme' },
+            ].map((step, index, arr) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="text-center">
+                  {step.kind === 'menu' ? (
+                    <MenuScreen size="sm" />
+                  ) : step.kind === 'product' ? (
+                    <ProductScreen size="sm" />
+                  ) : step.kind === 'checkout' ? (
+                    <CheckoutScreen size="sm" />
+                  ) : step.kind === 'tracking' ? (
+                    <TrackingScreen size="sm" />
+                  ) : (
+                    <div className="relative w-[170px] sm:w-[190px] h-[368px] sm:h-[412px] rounded-[2.2rem] border-[7px] border-gray-900 shadow-2xl overflow-hidden bg-gray-900">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-gray-900 rounded-b-xl z-10" />
+                      <NewOrderMockup compact />
+                    </div>
+                  )}
+                  <p className="mt-3 text-sm font-medium text-gray-700 max-w-[190px] mx-auto">{step.label}</p>
+                </div>
+                {index < arr.length - 1 && (
+                  <ArrowRight className="hidden lg:block w-5 h-5 text-gray-300 flex-shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-gray-400 mt-2">
+            Na loja, o pedido toca no painel até alguém aceitar e chega como notificação no celular, mesmo com o painel fechado.
+          </p>
+
+          <div className="text-center mt-10">
+            <a
+              href="/loja/pizzaria-demo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary text-lg px-8 py-4 inline-flex"
+            >
+              Abrir cardápio de demonstração
+              <ChevronRight size={20} />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Funcionalidades Section */}
+      <section id="funcionalidades" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Tudo que você precisa em um só lugar
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Ferramentas completas para gerenciar seu cardápio, pedidos e vendas.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              {
+                icon: <Smartphone className="w-6 h-6" />,
+                title: 'Cardápio Digital',
+                description: 'Cardápio online profissional com fotos, descrições, preços e variações. Atualize em tempo real.',
+                color: 'bg-green-100 text-green-600'
+              },
+              {
+                icon: <ShoppingCart className="w-6 h-6" />,
+                title: 'Pedidos direto no painel',
+                description: 'O pedido chega na hora com campainha e notificação no seu celular. O cliente acompanha cada etapa por notificação do app da sua loja.',
+                color: 'bg-blue-100 text-blue-600'
+              },
+              {
+                icon: <Bike className="w-6 h-6" />,
+                title: 'Entrega ou retirada',
+                description: 'O cliente escolhe como quer receber, com endereço estruturado quando for entrega. Você decide quais opções oferece.',
+                color: 'bg-cyan-100 text-cyan-600'
+              },
+              {
+                icon: <Sparkles className="w-6 h-6" />,
+                title: 'Painel sob medida',
+                description: 'Um quiz rápido no cadastro ajusta o painel pro seu negócio: com preparo, produto pronto ou os dois.',
+                color: 'bg-amber-100 text-amber-600'
+              },
+              {
+                icon: <Layers className="w-6 h-6" />,
+                title: 'Combos de Produtos',
+                description: 'Monte kits com produtos do seu catálogo por um preço fixo — serve pra qualquer tipo de negócio, não só comida.',
+                color: 'bg-cyan-100 text-cyan-700'
+              },
+              {
+                icon: <Package className="w-6 h-6" />,
+                title: 'Controle de Estoque',
+                description: 'Gerencie estoque em tempo real. Baixa automática ao confirmar pedidos.',
+                color: 'bg-purple-100 text-purple-600',
+                completo: true,
+              },
+              {
+                icon: <LineChart className="w-6 h-6" />,
+                title: 'Relatórios e Insights',
+                description: 'Faturamento por período, ticket médio, mais vendidos e horário de pico — com produtos mais vendidos por dia da semana e por horário.',
+                color: 'bg-orange-100 text-orange-600',
+                completo: true,
+              },
+              {
+                icon: <Store className="w-6 h-6" />,
+                title: 'Balcão / PDV',
+                description: 'Venda presencial rápida com busca de produtos e baixa de estoque automática.',
+                color: 'bg-pink-100 text-pink-600',
+                completo: true,
+              },
+              {
+                icon: <Palette className="w-6 h-6" />,
+                title: 'Cor de marca própria',
+                description: 'Escolha a cor do seu cardápio — botões e destaques seguem a identidade da sua loja.',
+                color: 'bg-rose-100 text-rose-600'
+              },
+              {
+                icon: <ClipboardList className="w-6 h-6" />,
+                title: 'Histórico sem cadastro',
+                description: 'Seu cliente consulta os próprios pedidos anteriores só com o telefone, sem precisar criar conta.',
+                color: 'bg-indigo-100 text-indigo-600'
+              },
+              {
+                icon: <Smartphone className="w-6 h-6" />,
+                title: 'PWA Instalável',
+                description: 'Seu cardápio funciona como app no celular do cliente. Instalação em um clique.',
+                color: 'bg-teal-100 text-teal-600'
+              },
+              {
+                icon: <Gift className="w-6 h-6" />,
+                title: 'Programa de Fidelidade',
+                description: 'Cliente ganha pontos a cada compra e troca por desconto ou frete grátis. Você define a regra.',
+                color: 'bg-lime-100 text-lime-600',
+                completo: true,
+              },
+              {
+                icon: <Tag className="w-6 h-6" />,
+                title: 'Cupons de Desconto',
+                description: 'Crie cupons por código, com validade e limite de uso por cliente — sem depender de planilha.',
+                color: 'bg-fuchsia-100 text-fuchsia-600',
+                completo: true,
+              },
+              {
+                icon: <Zap className="w-6 h-6" />,
+                title: 'Pix Automático',
+                description: 'Cliente paga na hora e o pedido é confirmado sozinho — sem precisar checar comprovante.',
+                color: 'bg-emerald-100 text-emerald-600',
+                completo: true,
+              },
+              {
+                icon: <Instagram className="w-6 h-6" />,
+                title: 'Perfil Completo da Loja',
+                description: 'Endereço, horário de funcionamento, WhatsApp e Instagram, tudo num só lugar pro cliente ver.',
+                color: 'bg-violet-100 text-violet-600'
+              },
+              {
+                icon: <QrCode className="w-6 h-6" />,
+                title: 'Cardápio de Mesa com QR Code',
+                description: 'Cada mesa tem um QR Code. O cliente escaneia, pede pelo celular e tudo fica na comanda até você fechar a conta pelo painel.',
+                color: 'bg-sky-100 text-sky-600',
+                completo: true,
+              },
+              {
+                icon: <RotateCcw className="w-6 h-6" />,
+                title: 'Recuperação de Carrinho',
+                description: 'Veja quem chegou a informar o telefone mas não confirmou o pedido, e lembre o cliente com uma notificação no celular dele.',
+                color: 'bg-yellow-100 text-yellow-700'
+              },
+              {
+                icon: <UserX className="w-6 h-6" />,
+                title: 'Clientes Inativos',
+                description: 'Lista de clientes que já compraram mas sumiram há um tempo (configurável), com um clique pra chamar de volta.',
+                color: 'bg-red-100 text-red-600'
+              }
+            ].map((feature, index) => (
+              <div
+                key={index}
+                className="card-hover animate-fade-in relative"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                {feature.completo && (
+                  <span className="absolute top-4 right-4 text-[10px] font-semibold bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                    Completo
+                  </span>
+                )}
+                <div className={`w-12 h-12 rounded-lg ${feature.color} flex items-center justify-center mb-4`}>
+                  {feature.icon}
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-16">{feature.title}</h3>
+                <p className="text-gray-600">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-sm text-gray-400 mt-8">
+            Recursos marcados <span className="text-primary-600 font-medium">Completo</span> fazem parte do plano Completo — os demais já vêm no Essencial.
+          </p>
+        </div>
+      </section>
+
+      {/* Feito para quem vende todos os dias */}
+      <section id="para-quem" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Feito para quem vende todos os dias
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Serve para qualquer tipo de negócio — de comida a produto pronto. No cadastro, um quiz ajusta o painel pro seu jeito de vender.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {CATEGORIES.map((cat, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-xl p-6 text-center shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all animate-fade-in"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-500">
+                  {cat.icon}
+                </div>
+                <h3 className="font-semibold text-gray-900 text-sm">{cat.title}</h3>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Quem usa, vende com mais praticidade (depoimentos reais) */}
+      <section id="depoimentos" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">53</p>
+              <p className="text-gray-600">lojas ativas usando o {BRAND.name}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">+1.500</p>
+              <p className="text-gray-600">pedidos processados pela plataforma</p>
+            </div>
+            <div className="text-center">
+              <p className="text-4xl font-bold text-primary-500 mb-1">0%</p>
+              <p className="text-gray-600">de comissão nos pedidos pelo seu link</p>
+            </div>
+          </div>
+
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Quem usa, vende com mais praticidade
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Depoimentos reais de quem já colocou o cardápio digital pra rodar.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {TESTIMONIALS.map((item, index) => (
+              <div
+                key={index}
+                className="card-hover animate-fade-in flex flex-col"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary-700 font-semibold text-sm">{item.name.charAt(0)}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{item.role}</p>
+                  </div>
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2 text-sm">{item.title}</h3>
+                <p className="text-gray-600 text-sm flex-1">{item.quote}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Integrações Section */}
+      <section className="py-14 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-6">Já integrado com</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
+              <Smartphone size={20} className="text-primary-500" />
+              <span className="font-medium text-gray-700">App da loja (PWA)</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
+              <Wallet size={20} className="text-blue-500" />
+              <span className="font-medium text-gray-700">Mercado Pago</span>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 mt-4">
+            App da loja e notificações vêm em todos os planos. Pix automático faz parte do plano Completo, com tarifa de
+            R$ 1 por pedido pago (além da taxa do próprio Mercado Pago).
+          </p>
+        </div>
+      </section>
+
+      {/* Planos (com o teste grátis, quando estiver ligado) */}
+      <section id="planos" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              {trial ? <>Comece grátis <span className="text-primary-500">por {daysText(offer.trialDays)}</span></> : <>Escolha o plano <span className="text-primary-500">do seu negócio</span></>}
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              {trial ? `Nos ${daysText(offer.trialDays)} de teste, tudo dos dois planos vem liberado. Depois, escolha o que faz sentido para o seu negócio. ` : discountText(offer) ? `Quem entra agora tem ${discountText(offer)}. ` : ''}Sem comissão sobre as suas vendas em nenhum dos dois (o Pix automático opcional cobra R$ 1 por pedido pago).
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            {/* Essencial */}
+            <div className="card relative overflow-hidden">
+              <h3 className="font-semibold text-gray-900 text-lg mb-1">Essencial</h3>
+              <p className="text-sm text-gray-500 mb-4">Pra colocar seu cardápio no ar e vender direto, sem comissão.</p>
+              <p className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">R$ 49,90</span>
+                <span className="text-gray-500">/mês</span>
+              </p>
+              <div className="space-y-2.5 mb-8 text-left">
+                {ESSENCIAL_FEATURES.map((feature) => (
+                  <div key={feature} className="flex items-center gap-2">
+                    <CheckCircle size={16} className="text-primary-500 flex-shrink-0" />
+                    <span className="text-gray-700 text-sm">{feature}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/cadastro" className="btn-secondary w-full justify-center">
+                {startLabel(offer)}
+              </Link>
+            </div>
+
+            {/* Completo */}
+            <div className="card border-2 border-primary-500 relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
+                Mais completo
+              </div>
+              <h3 className="font-semibold text-gray-900 text-lg mb-1 flex items-center gap-1.5">
+                <Layers size={18} className="text-primary-600" /> Completo
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">Tudo do Essencial + ferramentas pra operar e vender mais.</p>
+              <p className="mb-6">
+                <span className="text-4xl font-bold text-gray-900">{`R$ ${COMPLETO_MONTHLY_PRICE.toFixed(2).replace('.', ',')}`}</span>
+                <span className="text-gray-500">/mês</span>
+              </p>
+              <div className="space-y-2.5 mb-8 text-left">
+                {COMPLETO_FEATURES.map((feature) => (
+                  <div key={feature} className="flex items-center gap-2">
+                    <CheckCircle size={16} className="text-primary-500 flex-shrink-0" />
+                    <span className="text-gray-700 text-sm">{feature}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/cadastro" className="btn-primary w-full justify-center">
+                {startLabel(offer)}
+                <ChevronRight size={20} />
+              </Link>
+            </div>
+          </div>
+
+          <p className="text-center text-sm text-gray-400 mt-8">
+            {offerFinePrint(offer)}
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Perguntas frequentes</h2>
+          </div>
+          <div className="space-y-3">
+            {faqItems.map((item, index) => {
+              const isOpen = openFaqIndex === index
+              return (
+                <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                    className="w-full flex items-center justify-between gap-4 text-left px-4 py-3"
+                    aria-expanded={isOpen}
+                  >
+                    <span className="font-medium text-gray-900 text-sm">{item.question}</span>
+                    <ChevronDown
+                      size={18}
+                      className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-3 text-gray-600 text-sm animate-fade-in">
+                      {item.answer}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA final */}
+      <section className="px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-6xl mx-auto bg-gradient-to-r from-primary-600 to-green-700 rounded-3xl px-8 py-12 sm:px-14 flex flex-col sm:flex-row items-center justify-between gap-8 relative overflow-hidden">
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+          <div className="flex items-center gap-5 relative">
+            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={28} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">
+                Pronto para ter o app da sua loja no celular dos seus clientes?
+              </h2>
+              <p className="text-primary-100">{trial ? 'Crie seu cardápio digital e comece seu teste grátis hoje.' : 'Crie seu cardápio digital e comece a vender hoje.'}</p>
+            </div>
+          </div>
+          <Link href="/cadastro" className="bg-white text-primary-700 hover:bg-gray-50 font-semibold px-8 py-4 rounded-xl inline-flex items-center gap-2 transition-colors flex-shrink-0 relative">
+            {startLabel(offer)}
+            <ChevronRight size={20} />
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-400 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 mb-8">
+            <div>
+              <div className="mb-4">
+                <BrandLockup size={32} textClassName="text-2xl text-white" />
+              </div>
+              <p className="text-sm">{BRAND.tagline} Cardápio digital, pedido direto e fidelidade.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-4">Produto</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#funcionalidades" className="hover:text-white transition-colors">Recursos</a></li>
+                <li><a href="#veja-como-funciona" className="hover:text-white transition-colors">Como funciona</a></li>
+                <li><a href="#planos" className="hover:text-white transition-colors">Planos</a></li>
+                <li><a href="#faq" className="hover:text-white transition-colors">FAQ</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-4">Suporte</h4>
+              <ul className="space-y-2 text-sm">
+                <li><Link href="/login" className="hover:text-white transition-colors">Acessar painel</Link></li>
+                <li><Link href="/cadastro" className="hover:text-white transition-colors">Criar conta</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 pt-8 text-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p>&copy; {new Date().getFullYear()} {BRAND.name}, um produto GL Digital. Todos os direitos reservados.</p>
+            <div className="flex gap-4">
+              <Link href="/termos" className="hover:text-white transition-colors">Termos de Uso</Link>
+              <Link href="/privacidade" className="hover:text-white transition-colors">Privacidade</Link>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}
