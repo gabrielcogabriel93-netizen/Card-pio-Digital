@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { drawProductArt } from '@/lib/marketingArt'
 import { formatBRL } from '@/lib/money'
+import { TOPIC_LABELS, type TopicKind } from '@/lib/marketingTopics'
 import { toast } from '@/components/Feedback'
 import { Bell, Copy, Download, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 
@@ -17,6 +18,9 @@ interface Suggestion {
   push_body: string
   provider: 'claude' | 'gemini' | 'fregues'
   product_ids: string[]
+  topic?: TopicKind | null
+  highlight?: string | null
+  image_url?: string | null
   products: { id: string; name: string; price: number; image_url: string | null }[]
 }
 
@@ -65,7 +69,8 @@ export function DailySuggestion({
       url,
       themeColor: store.theme_color,
       logoUrl: store.logo_url,
-      productImageUrl: product?.image_url,
+      productImageUrl: s.image_url || product?.image_url,
+      highlight: s.highlight || null,
       headline: s.headline,
       subline: s.subline || (product ? `${product.name} · ${formatBRL(Number(product.price))}` : ''),
     }
@@ -124,7 +129,9 @@ export function DailySuggestion({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-display text-lg font-extrabold text-gray-900 flex items-center gap-2"><Sparkles size={18} className="text-primary-600" /> Sugestão de hoje</h2>
-          <p className="text-xs text-gray-500">{PROVIDER_LABEL[s.provider]} · com a foto de {product?.name || 'um produto seu'}</p>
+          <p className="text-xs text-gray-500">
+            {PROVIDER_LABEL[s.provider]} · {s.topic && s.topic !== 'produto' ? `Tema: ${TOPIC_LABELS[s.topic] || s.topic}` : `com a foto de ${product?.name || 'um produto seu'}`}
+          </p>
         </div>
         <button onClick={regenerate} disabled={regenerating} className="btn-secondary text-sm">
           {regenerating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Gerar outra

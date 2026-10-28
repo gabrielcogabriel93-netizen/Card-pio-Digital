@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPlatformAdminUser } from '@/lib/platformAdmin'
 import { logError } from '@/lib/logger'
+import { addOwnerAlert } from '@/lib/ownerAlerts'
 
 export const runtime = 'nodejs'
 
@@ -28,6 +29,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const { error } = await admin.from('platform_settings').update({ monthly_price: monthlyPrice }).eq('id', true)
     if (error) throw error
+    await addOwnerAlert(admin, { kind: 'admin', title: 'Configuração da plataforma alterada', body: `Por ${adminUser.email}.`, url: '/admin' })
     return NextResponse.json({ ok: true })
   } catch (err) {
     logError('api:admin:settings', 'erro ao atualizar valor da mensalidade', err)

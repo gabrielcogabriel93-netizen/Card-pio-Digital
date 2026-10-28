@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { TrackVisit } from '@/components/TrackVisit'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { useEscapeKey } from '@/lib/useEscapeKey'
@@ -118,6 +119,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-blue-50 flex items-center justify-center px-4">
+      <TrackVisit event="login_view" />
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -199,7 +201,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center text-sm text-gray-600">
             Ainda não tem conta?{' '}
             <Link href="/cadastro" className="text-primary-600 hover:text-primary-700 font-medium">
-              Testar 7 dias grátis
+              Testar 30 dias grátis
             </Link>
           </div>
         </div>

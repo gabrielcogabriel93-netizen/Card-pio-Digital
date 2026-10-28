@@ -344,3 +344,17 @@ export async function disableStoreNotifications(establishmentId: string): Promis
     } catch {}
   }
 }
+
+// Avisos do dono da plataforma (aba Crescimento do admin, migration 057):
+// mesma inscrição do navegador, guardada em owner_push_subscriptions.
+export async function enableOwnerAlerts(): Promise<{ ok: boolean; error?: string }> {
+  const sub = await ensureBrowserSubscription()
+  if (!sub.ok) return { ok: false, error: sub.error }
+  const res = await fetch('/api/admin/alerts/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth }),
+  })
+  const data = await res.json().catch(() => ({}))
+  return res.ok ? { ok: true } : { ok: false, error: data.error || 'Não foi possível ativar os avisos.' }
+}

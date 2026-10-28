@@ -14,6 +14,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
   const [checking, setChecking] = useState(true)
+  const [role, setRole] = useState<'dono' | 'crescimento'>('dono')
 
   useEffect(() => {
     const check = async () => {
@@ -23,6 +24,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           router.push('/painel')
           return
         }
+        const data = await response.json().catch(() => ({}))
+        const nextRole = data.role === 'crescimento' ? 'crescimento' : 'dono'
+        setRole(nextRole)
+        // Equipe de crescimento só vê a aba Crescimento (cobrança, planos e
+        // logs ficam com o dono; as rotas de API também barram).
+        if (nextRole === 'crescimento' && !pathname.startsWith('/admin/crescimento')) {
+          router.replace('/admin/crescimento')
+          return
+        }
         setChecking(false)
       } catch (err) {
         logError('admin:layout', 'erro ao checar acesso de admin', err)
@@ -30,7 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     check()
-  }, [router])
+  }, [router, pathname])
 
   if (checking) {
     return (
@@ -52,12 +62,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <ArrowLeft size={16} />
             Voltar ao painel
           </Link>
-          <nav className="flex gap-1 text-sm" aria-label="Admin">
-            {[
-              { href: '/admin', label: 'Visão geral' },
-              { href: '/admin/divulgadores', label: 'Divulgadores' },
-              { href: '/admin/logs', label: 'Logs' },
-            ].map((item) => (
+          <nav className="flex gap-1 text-sm overflow-x-auto max-w-full" aria-label="Admin">
+            {(role === 'crescimento'
+              ? [{ href: '/admin/crescimento', label: 'Crescimento' }]
+              : [
+                  { href: '/admin', label: 'Visão geral' },
+                  { href: '/admin/crescimento', label: 'Crescimento' },
+                  { href: '/admin/divulgadores', label: 'Divulgadores' },
+                  { href: '/admin/logs', label: 'Logs' },
+                ]
+            ).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

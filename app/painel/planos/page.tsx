@@ -134,7 +134,7 @@ export default function PlanosPage() {
           {loadingSub ? (
             <Loader2 size={16} className="animate-spin text-gray-400" />
           ) : !subscription || !subscription.billingEnabled ? (
-            <span className="badge bg-primary-100 text-primary-700">7 dias grátis</span>
+            <span className="badge bg-primary-100 text-primary-700">30 dias grátis</span>
           ) : subscription.status === 'exempt' ? (
             <span className="badge bg-purple-100 text-purple-700">Isento</span>
           ) : subscription.status === 'active' ? (
@@ -147,7 +147,7 @@ export default function PlanosPage() {
         {!loadingSub && subscription && (
           !subscription.billingEnabled ? (
             <p className="text-gray-600 text-sm">
-              Você tem 7 dias grátis, com todas as funcionalidades dos dois planos já liberadas — sem
+              Você tem 30 dias grátis, com todas as funcionalidades dos dois planos já liberadas — sem
               precisar de cartão de crédito.
             </p>
           ) : subscription.status === 'exempt' ? (
@@ -275,7 +275,7 @@ export default function PlanosPage() {
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Gostou do sistema?</h2>
             <p className="text-gray-600 text-sm mb-4">
-              Você tem 7 dias grátis com tudo liberado pra testar o sistema. Se ele está te ajudando a
+              Você tem 30 dias grátis com tudo liberado pra testar o sistema. Se ele está te ajudando a
               vender mais, uma doação (de qualquer valor) nos incentiva a continuar trazendo
               melhorias — e até outros sistemas — para você.
             </p>

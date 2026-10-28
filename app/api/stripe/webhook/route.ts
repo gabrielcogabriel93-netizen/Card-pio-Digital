@@ -146,6 +146,17 @@ async function handleInvoicePaymentSucceeded(admin: SupabaseClient, invoice: Str
 
   log('api:stripe:webhook', 'assinatura da plataforma confirmada', { establishmentId: establishment.id, tier, periodEnd })
 
+  // Métricas e aviso ao dono (migration 057). Único por fatura: reenvio
+  // do webhook não duplica (23505 ignorado).
+  const { error: eventError } = await admin.from('subscription_events').insert({
+    establishment_id: establishment.id,
+    event: 'paid',
+    plan_tier: tier,
+    amount: typeof invoice.amount_paid === 'number' ? invoice.amount_paid / 100 : null,
+    external_id: invoice.id,
+  })
+  if (eventError && eventError.code !== '23505') log('api:stripe:webhook', 'evento de assinatura não gravado', { error: eventError.message })
+
   await recordCommissionIfReferred(admin, {
     establishmentId: establishment.id,
     invoice,
@@ -208,11 +219,19 @@ async function recordCommissionIfReferred(
 // current_period_end refletir o fim de verdade. Setar pra agora bloqueia
 // o painel imediatamente, sem esperar um cron.
 async function handleSubscriptionDeleted(admin: SupabaseClient, subscription: Stripe.Subscription) {
-  const { error } = await admin
+  const { data: canceled, error } = await admin
     .from('establishments')
     .update({ current_period_end: new Date().toISOString() })
     .eq('stripe_subscription_id', subscription.id)
+    .select('id, plan_tier')
   if (error) throw error
+
+  for (const est of canceled || []) {
+    const { error: eventError } = await admin.from('subscription_events').insert({
+      establishment_id: est.id, event: 'canceled', plan_tier: est.plan_tier, external_id: subscription.id,
+    })
+    if (eventError && eventError.code !== '23505') log('api:stripe:webhook', 'evento de cancelamento não gravado', { error: eventError.message })
+  }
 
   log('api:stripe:webhook', 'assinatura da plataforma cancelada', { subscriptionId: subscription.id })
 }

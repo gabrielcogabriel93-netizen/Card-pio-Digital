@@ -111,7 +111,7 @@ export default function DivulgarPage() {
     <div className="space-y-6">
       <div>
         <h1 className="page-title">Divulgar minha loja</h1>
-        <p className="text-gray-600 mt-1">Todo dia uma sugestão nova com a foto dos seus produtos, e artes prontas com a sua marca e o QR Code do cardápio.</p>
+        <p className="text-gray-600 mt-1">Todo dia uma sugestão nova com o que está acontecendo na sua loja (produtos, cupons, avaliações, combos, novidades e conquistas), e artes prontas com a sua marca e o QR Code do cardápio.</p>
       </div>
 
       <DailySuggestion store={store} url={url} />

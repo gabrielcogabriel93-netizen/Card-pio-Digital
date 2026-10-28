@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
-import { getPlatformAdminUser } from '@/lib/platformAdmin'
+import { getAdminAccess } from '@/lib/adminAccess'
 
 export const runtime = 'nodejs'
 
-// Só pra app/admin/layout.tsx decidir se redireciona ou não — a
-// segurança de verdade é cada rota /api/admin/** revalidando o e-mail
+// Só pra app/admin/layout.tsx decidir se redireciona e quais abas mostrar
+// — a segurança de verdade é cada rota /api/admin/** revalidando o acesso
 // por conta própria, não confiar nesse check isolado.
 export async function GET() {
-  const user = await getPlatformAdminUser()
-  if (!user) {
+  const access = await getAdminAccess()
+  if (!access) {
     return NextResponse.json({ isAdmin: false }, { status: 403 })
   }
-  return NextResponse.json({ isAdmin: true })
+  return NextResponse.json({ isAdmin: true, role: access.role, email: access.email })
 }

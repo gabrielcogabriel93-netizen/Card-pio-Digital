@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPlatformAdminUser } from '@/lib/platformAdmin'
 import { log, logError } from '@/lib/logger'
+import { addOwnerAlert } from '@/lib/ownerAlerts'
 
 export const runtime = 'nodejs'
 
 // Ação única e explícita: liga a cobrança da plataforma e, no mesmo
-// golpe, dá 7 dias de prazo pra todo estabelecimento que hoje está sem
+// golpe, dá 30 dias de prazo pra todo estabelecimento que hoje está sem
 // prazo nenhum (o "trial livre" de quem se cadastrou antes da ativação).
 // Quem se cadastrar DEPOIS já nasce com prazo sozinho (trigger da
 // migration 032) — esta rota só cobre quem já existia.
@@ -30,7 +31,7 @@ export async function POST() {
       return NextResponse.json({ error: 'A cobrança já está ativa.' }, { status: 400 })
     }
 
-    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: grandfathered, error: grandfatherError } = await admin
       .from('establishments')
@@ -51,6 +52,7 @@ export async function POST() {
       estabelecimentosComPrazoNovo: grandfathered?.length ?? 0,
     })
 
+    await addOwnerAlert(admin, { kind: 'admin', title: 'Cobrança da plataforma LIGADA', body: `Por ${adminUser.email}. ${grandfathered?.length ?? 0} loja(s) ganharam 30 dias de teste.`, url: '/admin' })
     return NextResponse.json({ ok: true, grandfathered: grandfathered?.length ?? 0, trialEndsAt })
   } catch (err) {
     logError('api:admin:billing:activate', 'erro ao ativar cobrança', err)

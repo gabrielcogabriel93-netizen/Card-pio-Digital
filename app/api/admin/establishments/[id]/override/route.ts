@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPlatformAdminUser } from '@/lib/platformAdmin'
 import { log, logError } from '@/lib/logger'
+import { addOwnerAlert } from '@/lib/ownerAlerts'
 
 export const runtime = 'nodejs'
 
@@ -9,7 +10,7 @@ interface OverrideBody {
   // 'exempt' isenta de cobrança pra sempre (cortesia); 'restore' volta ao
   // fluxo normal de trial/assinatura; 'set_trial_ends_at' ajusta o prazo
   // manualmente — útil tanto pro suporte quanto pra testar o bloqueio sem
-  // esperar 7 dias de verdade. 'set_plan_tier' (migration 041) muda o
+  // esperar 30 dias de verdade. 'set_plan_tier' (migration 041) muda o
   // plano manualmente, sem passar pelo checkout Stripe -- pra corrigir
   // caso a caso sem precisar mexer direto no banco.
   action: 'exempt' | 'restore' | 'set_trial_ends_at' | 'set_plan_tier'
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     log('api:admin:establishments:override', 'override aplicado', { admin: adminUser.email, establishmentId: params.id, action: body.action })
+    await addOwnerAlert(admin, { kind: 'admin', title: 'Ajuste manual em uma loja', body: `${body.action} por ${adminUser.email}`, url: '/admin' })
     return NextResponse.json({ ok: true })
   } catch (err) {
     logError('api:admin:establishments:override', 'erro ao aplicar override', err)

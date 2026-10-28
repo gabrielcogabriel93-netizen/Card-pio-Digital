@@ -86,7 +86,7 @@ export default function AdminPage() {
   const handleActivate = async () => {
     if (!overview) return
     const confirmed = (await confirmDialog(
-      `Isso vai LIGAR a cobrança da plataforma agora. Todos os ${overview.counts.total} estabelecimentos que hoje têm acesso livre (sem prazo) vão ganhar 7 dias de prazo a partir de agora — depois disso, quem não pagar tem o painel bloqueado. Não dá pra desfazer o prazo já concedido. Continuar?`
+      `Isso vai LIGAR a cobrança da plataforma agora. Todos os ${overview.counts.total} estabelecimentos que hoje têm acesso livre (sem prazo) vão ganhar 30 dias de prazo a partir de agora — depois disso, quem não pagar tem o painel bloqueado. Não dá pra desfazer o prazo já concedido. Continuar?`
     ))
     if (!confirmed) return
 

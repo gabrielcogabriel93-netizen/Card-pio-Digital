@@ -11,6 +11,9 @@ import { log, logError } from '@/lib/logger'
 import { translateAuthError } from '@/lib/authErrors'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Mail } from 'lucide-react'
 import { BrandLockup } from '@/components/Logo'
+import { TrackVisit } from '@/components/TrackVisit'
+import { registerSignupLead, trackPlatformEvent } from '@/lib/platformTracking'
+import { isValidBrazilWhatsapp } from '@/lib/whatsapp'
 
 export default function CadastroPage() {
   const router = useRouter()
@@ -35,6 +38,32 @@ export default function CadastroPage() {
     setSlug(slugify(value))
   }
 
+  // Passo 1: nome, WhatsApp, e-mail e senha. O contato já fica salvo
+  // (migration 057) para a equipe ajudar quem parar antes de terminar.
+  const handleStep1 = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!isValidBrazilWhatsapp(formData.whatsapp)) {
+      setError('Informe um WhatsApp válido com DDD, ex.: (11) 99999-8888.')
+      return
+    }
+    if (formData.password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.')
+      return
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Senhas não conferem.')
+      return
+    }
+    setLoading(true)
+    await Promise.all([
+      registerSignupLead({ name: formData.name.trim(), email: formData.email.trim(), whatsapp: formData.whatsapp }),
+      trackPlatformEvent('signup_step1'),
+    ])
+    setLoading(false)
+    setStep(2)
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -56,6 +85,7 @@ export default function CadastroPage() {
     }
 
     const supabase = createClient()
+    void registerSignupLead({ name: formData.name.trim(), email: formData.email.trim(), whatsapp: formData.whatsapp, store_name: formData.establishmentName.trim() })
 
     try {
       // 1. Criar usuário no Supabase Auth. Os dados da loja ficam guardados
@@ -154,12 +184,13 @@ export default function CadastroPage() {
         </div>
 
         <div className="card">
+          <TrackVisit event="signup_view" />
           {step === 1 ? (
             <>
               <h1 className="page-title mb-2">Criar conta</h1>
               <p className="text-gray-600 mb-6">Informe seus dados pessoais para começar.</p>
 
-              <form onSubmit={(e) => { e.preventDefault(); setStep(2) }} className="space-y-4">
+              <form onSubmit={handleStep1} className="space-y-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                     Seu nome
@@ -173,6 +204,26 @@ export default function CadastroPage() {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
                   />
+                </div>
+
+                <div>
+                  <label htmlFor="whatsapp" className="block text-sm font-medium text-gray-700 mb-1">
+                    Seu WhatsApp
+                  </label>
+                  <input
+                    id="whatsapp"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="(11) 99999-8888"
+                    className="input-field"
+                    value={formData.whatsapp}
+                    onChange={(e) => setFormData({ ...formData, whatsapp: formatPhoneNumber(e.target.value) })}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Com DDD. Nossa equipe usa para te ajudar a deixar a loja pronta, e ele aparece no cardápio como contato da loja.
+                  </p>
                 </div>
 
                 <div>
@@ -198,7 +249,7 @@ export default function CadastroPage() {
                     <input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 8 caracteres"
                       className="input-field pr-10"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -231,8 +282,15 @@ export default function CadastroPage() {
                   />
                 </div>
 
-                <button type="submit" className="btn-primary w-full">
-                  Próximo passo
+                {error && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start gap-2" role="alert">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <button type="submit" className="btn-primary w-full" disabled={loading}>
+                  {loading ? <Loader2 size={20} className="animate-spin" /> : 'Próximo passo'}
                 </button>
               </form>
             </>
@@ -262,23 +320,6 @@ export default function CadastroPage() {
                   )}
                 </div>
 
-                <div>
-                  <label htmlFor="whatsapp" className="block text-sm font-medium text-gray-700 mb-1">
-                    WhatsApp para receber pedidos
-                  </label>
-                  <input
-                    id="whatsapp"
-                    type="tel"
-                    placeholder="(11) 99999-8888"
-                    className="input-field"
-                    value={formData.whatsapp}
-                    onChange={(e) => setFormData({ ...formData, whatsapp: formatPhoneNumber(e.target.value) })}
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Os pedidos dos clientes serão enviados para este número.
-                  </p>
-                </div>
 
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input
@@ -309,14 +350,14 @@ export default function CadastroPage() {
                 )}
 
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => setStep(1)} className="btn-secondary flex-1">
+                  <button type="button" onClick={() => { setError(null); setStep(1) }} className="btn-secondary flex-1">
                     Voltar
                   </button>
                   <button type="submit" className="btn-primary flex-1" disabled={loading || !acceptedTerms}>
                     {loading ? (
                       <Loader2 size={20} className="animate-spin" />
                     ) : (
-                      'Testar 7 dias grátis'
+                      'Testar 30 dias grátis'
                     )}
                   </button>
                 </div>

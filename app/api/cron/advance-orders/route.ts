@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { applyAutomaticOrderConfirmation, applyStatusOnly, resolveNextAutomaticStatus } from '@/lib/orderAutoConfirm'
 import { log, logError } from '@/lib/logger'
 import { runOpenPushes } from '@/lib/openPush'
+import { flushOwnerAlerts, runDailyDigest } from '@/lib/ownerAlerts'
 import { safeCompareSecret } from '@/lib/safeCompare'
 import type { Order } from '@/types'
 
@@ -33,6 +34,15 @@ export async function POST(request: NextRequest) {
     await runOpenPushes(admin)
   } catch (err) {
     logError('api:cron:advance-orders', 'erro no aviso de loja aberta', err)
+  }
+
+  // Avisos para o dono da plataforma (migration 057): resumo das 9h e
+  // envio dos avisos pendentes.
+  try {
+    await runDailyDigest(admin)
+    await flushOwnerAlerts(admin)
+  } catch (err) {
+    logError('api:cron:advance-orders', 'erro nos avisos para o dono', err)
   }
 
   try {

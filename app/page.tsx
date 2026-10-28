@@ -10,6 +10,7 @@ import {
 import { BrandLockup } from '@/components/Logo'
 import { MenuScreen, ProductScreen, CheckoutScreen, TrackingScreen } from '@/components/landing/Mockups'
 import { BRAND } from '@/lib/brand'
+import { TrackVisit } from '@/components/TrackVisit'
 import { COMPLETO_MONTHLY_PRICE, ESSENCIAL_FEATURES, COMPLETO_FEATURES } from '@/lib/plans'
 
 const TESTIMONIALS = [
@@ -66,7 +67,7 @@ const TESTIMONIALS = [
 const FAQ_ITEMS = [
   {
     question: 'Qual a diferença entre os planos Essencial e Completo?',
-    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender direto: cardápio digital, pedidos no painel com alarme, app da loja com notificações, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante os 7 dias grátis, os dois planos vêm liberados.',
+    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender direto: cardápio digital, pedidos no painel com alarme, app da loja com notificações, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante os 30 dias grátis, os dois planos vêm liberados.',
   },
   {
     question: 'Tem taxa ou comissão por pedido?',
@@ -94,7 +95,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Preciso de cartão de crédito para testar?',
-    answer: 'Não. Você cria a conta e já usa os 7 dias grátis com tudo liberado, sem precisar cadastrar cartão.',
+    answer: 'Não. Você cria a conta e já usa os 30 dias grátis com tudo liberado, sem precisar cadastrar cartão.',
   },
   {
     question: 'Posso cancelar quando quiser?',
@@ -156,6 +157,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      <TrackVisit event="landing_view" />
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -218,7 +220,7 @@ export default function LandingPage() {
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <CheckCircle size={16} />
-              <span>7 dias grátis • Sem comissão nos pedidos pelo seu link</span>
+              <span>30 dias grátis • Sem comissão nos pedidos pelo seu link</span>
             </div>
             <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[0.98] mb-6">
               Seu cliente vira <span className="text-primary-500">freguês</span><span className="text-comanda">.</span>
@@ -229,7 +231,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               <Link href="/cadastro" className="btn-primary text-lg px-8 py-4">
-                Começar 7 dias grátis
+                Começar 30 dias grátis
                 <ChevronRight size={20} />
               </Link>
               <a href="#veja-como-funciona" className="btn-secondary text-lg px-8 py-4">
@@ -294,7 +296,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-4 items-start">
             {[
-              { step: '01', icon: <Sparkles className="w-6 h-6" />, title: 'Crie sua conta', description: 'Cadastre seu negócio gratuitamente — 7 dias grátis, tudo liberado, sem cartão.' },
+              { step: '01', icon: <Sparkles className="w-6 h-6" />, title: 'Crie sua conta', description: 'Cadastre seu negócio gratuitamente — 30 dias grátis, tudo liberado, sem cartão.' },
               { step: '02', icon: <ShoppingCart className="w-6 h-6" />, title: 'Monte seu cardápio', description: 'Adicione produtos, fotos, preços e categorias pelo painel intuitivo.' },
               { step: '03', icon: <MessageCircle className="w-6 h-6" />, title: 'Compartilhe seu link', description: 'Mande o link no WhatsApp e no Instagram. Os pedidos chegam no painel na hora, com aviso no seu celular.' },
             ].map((item, index, arr) => (
@@ -634,15 +636,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Comece grátis por 7 dias: dois planos */}
+      {/* Comece grátis por 30 dias: dois planos */}
       <section id="planos" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Comece grátis <span className="text-primary-500">por 7 dias</span>
+              Comece grátis <span className="text-primary-500">por 30 dias</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Nos 7 dias de teste, tudo dos dois planos vem liberado. Depois, escolha o que faz sentido para o seu negócio. Sem comissão sobre as suas vendas em nenhum dos dois (o Pix automático opcional cobra R$ 1 por pedido pago).
+              Nos 30 dias de teste, tudo dos dois planos vem liberado. Depois, escolha o que faz sentido para o seu negócio. Sem comissão sobre as suas vendas em nenhum dos dois (o Pix automático opcional cobra R$ 1 por pedido pago).
             </p>
           </div>
 
@@ -664,7 +666,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <Link href="/cadastro" className="btn-secondary w-full justify-center">
-                Começar 7 dias grátis
+                Começar 30 dias grátis
               </Link>
             </div>
 
@@ -690,7 +692,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <Link href="/cadastro" className="btn-primary w-full justify-center">
-                Começar 7 dias grátis
+                Começar 30 dias grátis
                 <ChevronRight size={20} />
               </Link>
             </div>
@@ -753,7 +755,7 @@ export default function LandingPage() {
             </div>
           </div>
           <Link href="/cadastro" className="bg-white text-primary-700 hover:bg-gray-50 font-semibold px-8 py-4 rounded-xl inline-flex items-center gap-2 transition-colors flex-shrink-0 relative">
-            Começar 7 dias grátis
+            Começar 30 dias grátis
             <ChevronRight size={20} />
           </Link>
         </div>

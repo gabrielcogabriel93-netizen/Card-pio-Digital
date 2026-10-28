@@ -10,6 +10,7 @@ import { SubscriptionPaywall } from '@/components/SubscriptionPaywall'
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext'
 import { BrandLockup } from '@/components/Logo'
 import type { PlanTier } from '@/lib/plans'
+import { NpsPrompt } from '@/components/painel/NpsPrompt'
 import {
   LayoutDashboard,
   Package,
@@ -35,6 +36,7 @@ import {
   Layers,
   ExternalLink,
   Megaphone,
+  LifeBuoy,
 } from 'lucide-react'
 
 // Menu agrupado pelo que o lojista quer fazer (antes eram 17 itens
@@ -90,6 +92,7 @@ const navigationGroups: { title: string | null; items: NavItem[] }[] = [
       { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
       { name: 'Planos', href: '/painel/planos', icon: Sparkles },
       { name: 'Tutorial', href: '/painel/tutorial', icon: BookOpen },
+      { name: 'Ajuda', href: '/painel/ajuda', icon: LifeBuoy },
     ],
   },
 ]
@@ -194,6 +197,18 @@ export default function PainelLayout({
           setEstablishmentName(est.name)
           setEstablishmentSlug(est.slug)
           setThemeColor(est.theme_color || null)
+
+          // Uso do painel (aba Crescimento do admin): um registro por dia.
+          try {
+            const key = 'fregues_activity_day'
+            const today = new Date().toDateString()
+            if (localStorage.getItem(key) !== today) {
+              localStorage.setItem(key, today)
+              supabase.rpc('touch_owner_activity').then(() => {}, () => {})
+            }
+          } catch {
+            // sem storage: não registra
+          }
 
           const { data: subStatus, error: subError } = await supabase.rpc('get_my_subscription_status')
           if (subError) {
@@ -401,6 +416,7 @@ export default function PainelLayout({
               monthlyPrice: subscription?.monthlyPrice ?? 49.9,
             }}
           >
+            <NpsPrompt />
             {children}
           </SubscriptionProvider>
         </main>

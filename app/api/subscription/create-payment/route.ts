@@ -118,6 +118,9 @@ export async function POST(request: NextRequest) {
       divulgadorConnect,
     })
 
+    // Abandono do pagamento (aba Crescimento): checkout aberto sem 'paid' depois.
+    await admin.from('subscription_events').insert({ establishment_id: establishment.id, event: 'checkout_started', plan_tier: tier, amount }).then(() => {}, () => {})
+
     return NextResponse.json({ url })
   } catch (err: any) {
     logError('api:subscription:create-payment', 'erro ao criar cobrança de assinatura', err)

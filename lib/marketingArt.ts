@@ -243,6 +243,8 @@ export interface ProductArtInput {
   productImageUrl?: string | null
   headline: string
   subline: string
+  // Destaque grande: código do cupom, estrelas, "NOVO", número de pedidos.
+  highlight?: string | null
 }
 
 function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
@@ -307,12 +309,27 @@ export async function drawProductArt(canvas: HTMLCanvasElement, input: ProductAr
   const after = drawText(ctx, input.headline, pad, top, w - pad * 2, headlineSize * 1.02)
   ctx.font = `600 48px ${body}`
   ctx.globalAlpha = 0.95
-  drawText(ctx, input.subline, pad, after + 24, w - pad * 2, 58)
+  const afterSub = drawText(ctx, input.subline, pad, after + 24, w - pad * 2, 58)
   ctx.globalAlpha = 1
 
   // Botão "Peça aqui".
   const btnH = 130
   const btnY = h - pad - btnH
+
+  if (input.highlight) {
+    ctx.font = `800 76px ${display}`
+    const tw = Math.min(ctx.measureText(input.highlight).width, w - pad * 2 - 80)
+    const boxH = 120
+    const boxY = Math.min(afterSub + 30, btnY - boxH - 30)
+    if (boxY > after) {
+      ctx.fillStyle = "#ffffff"
+      roundRect(ctx, pad, boxY, tw + 80, boxH, 28)
+      ctx.fill()
+      ctx.fillStyle = dark
+      ctx.textAlign = "left"
+      ctx.fillText(input.highlight, pad + 40, boxY + 86, w - pad * 2 - 80)
+    }
+  }
   ctx.fillStyle = '#FFD43B'
   roundRect(ctx, pad, btnY, w - pad * 2, btnH, 34)
   ctx.fill()

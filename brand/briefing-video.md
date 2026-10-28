@@ -116,11 +116,11 @@ no computador do dono.
 
 ## Cena final
 
-- **Chamada para ação:** "Teste 7 dias grátis", com o endereço do site.
+- **Chamada para ação:** "Teste 30 dias grátis", com o endereço do site.
   Hoje o endereço é `card-pio-digital-hazel.vercel.app`. Se o dono tiver
   domínio próprio ou @ do Instagram, use-os no lugar: **[DECISÃO DO DONO]**.
 - **Teste e preços (reais):**
-  - **7 dias grátis com tudo liberado, sem cartão de crédito.**
+  - **30 dias grátis com tudo liberado, sem cartão de crédito.**
   - Essencial: **R$ 49,90/mês**.
   - Completo: **R$ 97/mês**.
   - Sem comissão sobre os pedidos. O Pix automático opcional cobra R$ 1 por

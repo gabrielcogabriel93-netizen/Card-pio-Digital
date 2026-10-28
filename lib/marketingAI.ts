@@ -3,6 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { formatBRL } from '@/lib/money'
 import { logWarning } from '@/lib/logger'
+import { freeTopicText, TOPIC_LABELS, type Topic, type TopicText } from '@/lib/marketingTopics'
 
 // Sugestão de divulgação do dia: escolhe o produto da vez e escreve o
 // post (legenda, hashtags, chamada da arte) e a notificação.
@@ -223,4 +224,91 @@ export async function generateSuggestion(input: SuggestionInput): Promise<Sugges
     logWarning('marketing:sugestao', 'IA indisponível, usando o gerador próprio', err)
   }
   return freeSuggestion(input, candidates[0])
+}
+
+// ---------- Temas além do produto (cupom, avaliação, fidelidade...) ----------
+// A IA recebe só os fatos do tema (lib/marketingTopics.ts) e escreve o texto;
+// sem chave ou com falha, fica o texto do gerador próprio.
+const TopicTextSchema = z.object({
+  headline: z.string(),
+  subline: z.string(),
+  caption: z.string(),
+  hashtags: z.array(z.string()),
+  push_title: z.string(),
+  push_body: z.string(),
+})
+
+function topicPrompt(storeName: string, storeDescription: string | null | undefined, topic: Topic, timeZone: string) {
+  return [
+    `Loja: ${storeName}${storeDescription ? ` (${clip(storeDescription, 200)})` : ''}.`,
+    `Hoje é ${WEEKDAYS[weekday(new Date(), timeZone)]}.`,
+    `Tema do post de hoje: ${TOPIC_LABELS[topic.kind]}.`,
+    `Fatos reais (use exatamente estes, sem inventar nada além): ${JSON.stringify(topic.facts)}`,
+    '',
+    'Escreva em português do Brasil, tom próximo e animado, sem exagero. Não invente desconto, prazo, preço ou regra que não esteja nos fatos. Não use travessão.',
+    topic.kind === 'avaliacao' ? 'Cite o texto da avaliação entre aspas e o nome do cliente exatamente como veio.' : '',
+    'headline: chamada curta para a arte (até 40 caracteres).',
+    'subline: complemento da arte (até 70 caracteres).',
+    'caption: legenda do Instagram com 3 a 6 linhas curtas, 1 ou 2 emojis, terminando com o convite para pedir pelo link na bio.',
+    'hashtags: de 5 a 8, cada uma começando com #, sem espaço.',
+    'push_title: título da notificação no celular (até 50 caracteres).',
+    'push_body: texto da notificação (até 140 caracteres).',
+  ].filter(Boolean).join('\n')
+}
+
+function finalizeTopic(ai: z.infer<typeof TopicTextSchema>, fallback: TopicText): TopicText | null {
+  if (!ai.headline || !ai.caption || !ai.push_title || !ai.push_body) return null
+  return {
+    headline: clip(clean(ai.headline), 48),
+    subline: clip(clean(ai.subline || fallback.subline), 90),
+    highlight: fallback.highlight,
+    caption: clip(clean(ai.caption), 1200),
+    hashtags: ai.hashtags.map((h) => (h.startsWith('#') ? h : '#' + h).replace(/\s+/g, '')).filter((h) => h.length > 2).slice(0, 10),
+    push_title: clip(clean(ai.push_title), 60),
+    push_body: clip(clean(ai.push_body), 160),
+  }
+}
+
+export async function generateTopicText(
+  input: { storeName: string; storeDescription?: string | null; timeZone: string },
+  topic: Topic,
+): Promise<TopicText & { provider: Suggestion['provider'] }> {
+  const free = freeTopicText(topic, input.storeName)
+  try {
+    if (process.env.ANTHROPIC_API_KEY) {
+      const client = new Anthropic({ timeout: 45_000, maxRetries: 1 })
+      const response = await client.messages.parse({
+        model: 'claude-opus-5-5',
+        max_tokens: 4000,
+        system: 'Você é redator de marketing para pequenos restaurantes e lojas no Brasil.',
+        messages: [{ role: 'user', content: topicPrompt(input.storeName, input.storeDescription, topic, input.timeZone) }],
+        output_config: { effort: 'low', format: zodOutputFormat(TopicTextSchema) },
+      })
+      if (response.stop_reason !== 'refusal' && response.parsed_output) {
+        const t = finalizeTopic(response.parsed_output, free)
+        if (t) return { ...t, provider: 'claude' }
+      }
+    } else if (process.env.GEMINI_API_KEY) {
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY || '' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: topicPrompt(input.storeName, input.storeDescription, topic, input.timeZone) + '\n\nResponda só com um JSON com as chaves headline, subline, caption, hashtags (lista), push_title, push_body.' }] }],
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.9 },
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || ''
+        const parsed = TopicTextSchema.safeParse(JSON.parse(text))
+        const t = parsed.success ? finalizeTopic(parsed.data, free) : null
+        if (t) return { ...t, provider: 'gemini' }
+      }
+    }
+  } catch (err) {
+    logWarning('marketing:sugestao', 'IA indisponível para o tema, usando o gerador próprio', err)
+  }
+  return { ...free, provider: 'fregues' }
 }

@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     default: `${BRAND.name} - Cardápio digital com pedido direto e fidelidade`,
     template: `%s | ${BRAND.name}`,
   },
-  description: `${BRAND.description} 7 dias grátis, com todas as funções liberadas.`,
+  description: `${BRAND.description} 30 dias grátis, com todas as funções liberadas.`,
   keywords: ['cardápio digital', 'cardápio online', 'pedidos whatsapp', 'delivery próprio', 'programa de fidelidade', 'menu digital'],
   authors: [{ name: BRAND.name }],
   creator: BRAND.name,

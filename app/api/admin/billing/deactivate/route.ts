@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPlatformAdminUser } from '@/lib/platformAdmin'
 import { log, logError } from '@/lib/logger'
+import { addOwnerAlert } from '@/lib/ownerAlerts'
 
 export const runtime = 'nodejs'
 
@@ -25,6 +26,7 @@ export async function POST() {
     if (error) throw error
 
     log('api:admin:billing:deactivate', 'cobrança desativada', { admin: adminUser.email })
+    await addOwnerAlert(admin, { kind: 'admin', title: 'Cobrança da plataforma DESLIGADA', body: `Por ${adminUser.email}.`, url: '/admin' })
     return NextResponse.json({ ok: true })
   } catch (err) {
     logError('api:admin:billing:deactivate', 'erro ao desativar cobrança', err)
