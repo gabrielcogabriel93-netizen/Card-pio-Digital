@@ -29,7 +29,9 @@ async function createStore(extra = {}) {
 }
 const offer = async (code = null) => (await as(db, 'anon', null, `SELECT get_signup_offer($1) o`, [code])).rows[0].o
 
-await test('padrão: teste grátis ligado com 30 dias', async () => {
+await test('padrão depois da migration: teste desligado (site não promete dias grátis)', async () => {
+  assert.equal((await offer()).trial_days, 0)
+  await db.exec(`UPDATE platform_settings SET trial_enabled = true`)
   const o = await offer()
   assert.equal(o.trial_days, 30)
   assert.equal(o.campaign_code, null)

@@ -15,7 +15,9 @@
 --    mostram ("Testar 30 dias grátis", "Criar minha loja", desconto).
 -- ============================================================
 
-ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS trial_enabled BOOLEAN NOT NULL DEFAULT true;
+-- Começa DESLIGADO (out/2026: o site passou a cobrar desde o cadastro);
+-- o dono religa e escolhe o prazo em Admin > Teste grátis do site.
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS trial_enabled BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS trial_days INT NOT NULL DEFAULT 30;
 DO $$ BEGIN
   ALTER TABLE platform_settings ADD CONSTRAINT platform_settings_trial_days_check CHECK (trial_days BETWEEN 1 AND 365);
@@ -77,7 +79,7 @@ BEGIN
       'campaign_ends_at', c.ends_at);
   END IF;
   RETURN jsonb_build_object(
-    'trial_days', CASE WHEN COALESCE(s.trial_enabled, true) THEN COALESCE(s.trial_days, 30) ELSE 0 END,
+    'trial_days', CASE WHEN COALESCE(s.trial_enabled, false) THEN COALESCE(s.trial_days, 30) ELSE 0 END,
     'campaign_code', NULL, 'campaign_name', NULL, 'discount_percent', 0, 'discount_months', 0, 'campaign_ends_at', NULL);
 END;
 $$;
@@ -106,7 +108,7 @@ BEGIN
   IF COALESCE(s.billing_enabled, false) AND NEW.subscription_status = 'trial' THEN
     IF c.code IS NOT NULL THEN
       NEW.trial_ends_at := now() + make_interval(days => c.trial_days);
-    ELSIF COALESCE(s.trial_enabled, true) THEN
+    ELSIF COALESCE(s.trial_enabled, false) THEN
       NEW.trial_ends_at := now() + make_interval(days => COALESCE(s.trial_days, 30));
     ELSE
       NEW.trial_ends_at := now(); -- sem teste: já pede o plano
