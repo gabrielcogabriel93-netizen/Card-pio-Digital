@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { logCritical } from '@/lib/logger'
+import { isThirdPartyNoise } from '@/lib/thirdPartyErrors'
 
 // error.tsx (error boundary) só pega erro de RENDER. Erro dentro de um
 // handler de evento, callback assíncrono, ou promise sem `.catch` nunca
@@ -11,12 +12,15 @@ import { logCritical } from '@/lib/logger'
 export default function GlobalErrorTracker() {
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
+      // Script injetado pelo Instagram/Facebook, extensão etc.: não é do app.
+      if (isThirdPartyNoise({ message: event.message, stack: event.error?.stack, filename: event.filename })) return
       logCritical('window:error', event.message || 'Erro não tratado', event.error || event.message)
     }
 
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason
       const message = reason instanceof Error ? reason.message : String(reason)
+      if (isThirdPartyNoise({ message, stack: reason instanceof Error ? reason.stack : null })) return
       logCritical('window:unhandledrejection', message || 'Promise rejeitada sem tratamento', reason)
     }
 
