@@ -2,6 +2,7 @@
 // sempre com o id da loja do dono logado).
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPromotions, weekKeyOf, type StrategyProduct } from './promoStrategist'
+import { localDate } from './promoCalendar'
 import { weekdayIn } from './weekdays'
 import { fetchAllRows } from './salesReport'
 
@@ -69,6 +70,8 @@ export async function loadPromotionContext(admin: SupabaseClient, store: Store, 
     existingCouponCodes: (coupons.data || []).map((c) => c.code),
     activeKeys: active.map((p) => (p.payload as { key?: string })?.key).filter(Boolean) as string[],
     weekKey: weekKeyOf(now),
+    today: localDate(now, store.timezone || undefined),
+    timezone: store.timezone || undefined,
   })
   return { suggestions, promotions: promos.data || [], promotionsError: promos.error?.message || null, orders30: orders.length }
 }

@@ -5,6 +5,7 @@
 // por que ela dá lucro (margem, quanto precisa vender a mais, ticket).
 // Puro e determinístico (a semana escolhe a ordem), para testar.
 import { formatBRL } from './money'
+import { endOfLocalDay, upcomingOccasions } from './promoCalendar'
 
 export const ASSUMED_COST_RATE = 0.35 // custo típico de comida (ingredientes + embalagem)
 
@@ -33,6 +34,8 @@ export interface StrategyInput {
   existingCouponCodes: string[]
   activeKeys: string[] // chaves de promoções já ativas (não repete)
   weekKey: string
+  today?: string // AAAA-MM-DD no fuso da loja (liga as datas comemorativas)
+  timezone?: string
 }
 
 export type PromoKind = 'preco' | 'combo' | 'cupom' | 'frete'
@@ -52,6 +55,8 @@ export interface PromoSuggestion {
     | { kind: 'frete'; threshold: number }
   banner: { title: string; subtitle: string; link_type: 'produto' | 'combo' | 'cupom' | 'nenhum'; link_ref?: string | null }
   score: number
+  endsAt?: string // termina num instante exato (fim do dia da data comemorativa)
+  occasion?: { name: string; date: string; daysUntil: number }
 }
 
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
@@ -264,6 +269,8 @@ export function buildPromotions(input: StrategyInput): PromoSuggestion[] {
     })
   }
 
+  if (input.today) out.push(...occasionPromotions(input, products, comboMains, addOns))
+
   const active = new Set(input.activeKeys)
   const ranked = out
     .filter((s) => !active.has(s.key))
@@ -281,4 +288,66 @@ export function weekKeyOf(date = new Date()): string {
   const day = (d.getUTCDay() + 6) % 7
   d.setUTCDate(d.getUTCDate() - day)
   return d.toISOString().slice(0, 10)
+}
+
+// 7. Datas comemorativas: aparecem dentro da janela de antecedência de cada
+// data (Mães e Pais 3 semanas antes, Namorados 2 etc.) e valem até o fim do dia.
+function occasionPromotions(input: StrategyInput, products: StrategyProduct[], comboMains: StrategyProduct[], addOns: StrategyProduct[]): PromoSuggestion[] {
+  const out: PromoSuggestion[] = []
+  const ticket = input.avgTicket || (products.length ? Math.max(...products.map((p) => p.price)) * 1.5 : 30)
+  for (const o of upcomingOccasions(input.today!)) {
+    if (o.needs && !products.some((p) => o.needs!.test(`${p.category || ''} ${p.name}`))) continue
+    const key = `data:${o.id}:${o.date.slice(0, 4)}`
+    const endsAt = endOfLocalDay(o.date, input.timezone)
+    const durationDays = o.daysUntil + 1
+    const day = `${o.date.slice(8, 10)}/${o.date.slice(5, 7)}`
+    const when = o.daysUntil === 0 ? 'é hoje' : o.daysUntil === 1 ? 'é amanhã' : `faltam ${o.daysUntil} dias`
+    const occasion = { name: o.name, date: o.date, daysUntil: o.daysUntil }
+    const score = 80 + Math.max(0, 10 - o.daysUntil)
+    const timing = `${o.name} (${day}) ${when}: a oferta entra agora e sai sozinha no fim do dia ${day}.`
+
+    // Namorados: combo para dois quando há pratos sem opções e bebida.
+    if (o.pairs && comboMains.length >= 2 && addOns[0]) {
+      const items = [comboMains[0], comboMains[1], addOns[0]]
+      const full = items.reduce((a, p) => a + p.price, 0)
+      const price = charmPrice(full * 0.9)
+      const costs = items.map(costOf)
+      const margin = price - costs.reduce((a, c) => a + c.cost, 0)
+      if (price < full && margin > 0) {
+        out.push({
+          key, kind: 'combo', occasion, endsAt, durationDays, score,
+          title: `${o.theme}: combo para 2 por ${brl(price)}`,
+          summary: `${items.map((p) => p.name).join(' + ')} por ${brl(price)} (separados dão ${brl(full)}), até o ${o.name}.`,
+          why: [
+            timing,
+            o.angle,
+            `Lucro do combo: ${brl(margin)}${costs.some((c) => c.assumed) ? ` (custo estimado em ${pct(ASSUMED_COST_RATE)} do preço)` : ''}; é um pedido de três itens no lugar de um.`,
+          ],
+          howToPromote: o.promote,
+          apply: { kind: 'combo', name: `Combo ${o.theme}`, price, description: items.map((p) => p.name).join(' + '), product_ids: items.map((p) => p.id) },
+          banner: { title: `${o.theme} · ${brl(price)}`, subtitle: `Combo para 2 · até ${day}`, link_type: 'combo' },
+        })
+        continue
+      }
+    }
+
+    const disc = o.discount / 100
+    const code = uniqueCode(`${o.code}${o.discount}`, input.existingCouponCodes)
+    const left = ticket * (1 - disc - ASSUMED_COST_RATE)
+    out.push({
+      key, kind: 'cupom', occasion, endsAt, durationDays, score,
+      title: `${o.name}: cupom ${code} (${o.discount}%)`,
+      summary: `${o.discount}% de desconto divulgado no banner do cardápio até o fim do dia ${day}${o.discount >= 15 ? ', uma vez por cliente' : ', até 2 usos por cliente'}.`,
+      why: [
+        timing,
+        o.angle,
+        `Num pedido de ${brl(ticket)} o desconto é ${brl(ticket * disc)} e ainda sobram ≈ ${brl(left)} de margem (custo estimado em ${pct(ASSUMED_COST_RATE)}).`,
+        'O cupom tem prazo: o cliente sente urgência e o desconto não vira permanente.',
+      ],
+      howToPromote: `${o.promote} Use o código ${code}.`,
+      apply: { kind: 'cupom', code, discount_type: 'percent', discount_value: o.discount, max_uses_per_customer: o.discount >= 15 ? 1 : 2, days: durationDays, show_on_menu: true },
+      banner: { title: `${o.theme}: ${o.discount}% off`, subtitle: `Cupom ${code} · até ${day}`, link_type: 'cupom', link_ref: code },
+    })
+  }
+  return out
 }

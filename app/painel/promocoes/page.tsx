@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { PromoSuggestion } from '@/lib/promoStrategist'
 import { toast, confirmDialog } from '@/components/Feedback'
-import { BadgePercent, CheckCircle2, Lightbulb, Loader2, RefreshCw, Sparkles, TrendingUp, XCircle } from 'lucide-react'
+import { BadgePercent, CalendarHeart, CheckCircle2, Lightbulb, Loader2, RefreshCw, Sparkles, TrendingUp, XCircle } from 'lucide-react'
 
 interface Applied {
   id: string
@@ -122,7 +122,12 @@ export default function PromocoesPage() {
         ) : visible.map((s) => (
           <article key={s.key} className="card space-y-3">
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-primary-700 font-semibold">{KIND_LABEL[s.kind]} · {s.durationDays} dias</p>
+              {s.occasion && (
+                <p className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-0.5 mb-1.5">
+                  <CalendarHeart size={13} /> {s.occasion.name} · {s.occasion.date.slice(8, 10)}/{s.occasion.date.slice(5, 7)} · {s.occasion.daysUntil === 0 ? 'é hoje' : s.occasion.daysUntil === 1 ? 'amanhã' : `em ${s.occasion.daysUntil} dias`}
+                </p>
+              )}
+              <p className="text-[11px] uppercase tracking-wide text-primary-700 font-semibold">{KIND_LABEL[s.kind]} · {s.occasion ? `até ${s.occasion.date.slice(8, 10)}/${s.occasion.date.slice(5, 7)}` : `${s.durationDays} dias`}</p>
               <h3 className="text-lg font-bold text-gray-900">{s.title}</h3>
               <p className="text-sm text-gray-700 mt-0.5">{s.summary}</p>
             </div>

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       const { data: completo } = await admin.rpc('establishment_has_completo_access', { p_establishment_id: store.id })
       if (completo === false) return NextResponse.json({ error: 'Cupons fazem parte do plano Completo. As ofertas de preço e de entrega grátis funcionam no seu plano.' }, { status: 403 })
     }
-    const endsAt = new Date(Date.now() + s.durationDays * DAY).toISOString()
+    const endsAt = s.endsAt || new Date(Date.now() + s.durationDays * DAY).toISOString()
     const ids: { coupon_id?: string; combo_id?: string; product_id?: string } = {}
     let bannerRef: string | null = s.banner.link_ref || null
 
