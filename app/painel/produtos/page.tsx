@@ -9,7 +9,7 @@ import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
 import { FeatureGateInline } from '@/components/FeatureGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
-import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers, Copy } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ChevronDown, ChevronUp, X, GripVertical, Loader2, ToggleLeft, ToggleRight, Layers, Copy, Pencil } from 'lucide-react'
 import { toast, confirmDialog } from '@/components/Feedback'
 
 type GroupWithOptions = VariationGroup & { options: VariationOption[] }
@@ -304,6 +304,71 @@ export default function ProdutosPage() {
     } catch (error: any) {
       toast.error('Erro ao adicionar opção: ' + error.message)
     }
+  }
+
+  // Editar opção/grupo: só neste prato ou em todos os pratos que têm o mesmo
+  // grupo e a mesma opção (mesmo nome, sem diferenciar maiúsculas).
+  const [optEdit, setOptEdit] = useState<{ id: string; name: string; price: string; others: string[] | null } | null>(null)
+  const [groupEdit, setGroupEdit] = useState<{ id: string; name: string; others: string[] | null } | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+  const loadStoreGroups = async () => {
+    const { data, error } = await createClient()
+      .from('variation_groups')
+      .select('id, name, products!inner(establishment_id), options:variation_options(id, name)')
+      .eq('products.establishment_id', establishmentId)
+    if (error) throw error
+    return (data || []) as unknown as { id: string; name: string; options: { id: string; name: string }[] }[]
+  }
+
+  const startEditOption = async (group: GroupWithOptions, option: VariationOption) => {
+    setGroupEdit(null)
+    setOptEdit({ id: option.id, name: option.name, price: Number(option.price_delta) ? String(Number(option.price_delta)) : '', others: null })
+    try {
+      const others = (await loadStoreGroups())
+        .filter((g) => g.id !== group.id && sameName(g.name, group.name))
+        .flatMap((g) => g.options.filter((o) => sameName(o.name, option.name)).map((o) => o.id))
+      setOptEdit((cur) => (cur && cur.id === option.id ? { ...cur, others } : cur))
+    } catch {
+      setOptEdit((cur) => (cur && cur.id === option.id ? { ...cur, others: [] } : cur))
+    }
+  }
+
+  const saveOption = async (all: boolean) => {
+    if (!editingProduct || !optEdit || !optEdit.name.trim()) return
+    const price = parseFloat(optEdit.price.replace(',', '.')) || 0
+    if (price < 0) return toast.error('O acréscimo não pode ser negativo.')
+    setSavingEdit(true)
+    const ids = [optEdit.id, ...(all ? optEdit.others || [] : [])]
+    const { error } = await createClient().from('variation_options').update({ name: optEdit.name.trim(), price_delta: price }).in('id', ids)
+    setSavingEdit(false)
+    if (error) return toast.error('Erro ao salvar opção: ' + error.message)
+    toast.success(all && ids.length > 1 ? `Opção atualizada em ${ids.length} pratos.` : 'Opção atualizada.')
+    setOptEdit(null)
+    await loadVariations(editingProduct.id)
+  }
+
+  const startEditGroup = async (group: GroupWithOptions) => {
+    setOptEdit(null)
+    setGroupEdit({ id: group.id, name: group.name, others: null })
+    try {
+      const others = (await loadStoreGroups()).filter((g) => g.id !== group.id && sameName(g.name, group.name)).map((g) => g.id)
+      setGroupEdit((cur) => (cur && cur.id === group.id ? { ...cur, others } : cur))
+    } catch {
+      setGroupEdit((cur) => (cur && cur.id === group.id ? { ...cur, others: [] } : cur))
+    }
+  }
+
+  const saveGroup = async (all: boolean) => {
+    if (!editingProduct || !groupEdit || !groupEdit.name.trim()) return
+    setSavingEdit(true)
+    const ids = [groupEdit.id, ...(all ? groupEdit.others || [] : [])]
+    const { error } = await createClient().from('variation_groups').update({ name: groupEdit.name.trim() }).in('id', ids)
+    setSavingEdit(false)
+    if (error) return toast.error('Erro ao renomear grupo: ' + error.message)
+    toast.success(all && ids.length > 1 ? `Grupo renomeado em ${ids.length} pratos.` : 'Grupo renomeado.')
+    setGroupEdit(null)
+    await loadVariations(editingProduct.id)
   }
 
   const handleDeleteOption = async (option: VariationOption) => {
@@ -635,8 +700,8 @@ export default function ProdutosPage() {
             const category = categories.find((c) => c.id === product.category_id)
             return (
               <div key={product.id} className={`card-hover ${!product.is_active ? 'opacity-60' : ''}`}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-y-1 mb-3">
+                  <div className="flex-1 min-w-[10rem]">
                     <h3 className="font-medium text-gray-900 truncate flex items-center gap-1.5">
                       {product.name}
                       {product.pizza_flavor_id && (
@@ -652,7 +717,7 @@ export default function ProdutosPage() {
                       <span className="ml-1.5 text-[11px] font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">Esgotado hoje</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-0.5 ml-2 flex-wrap justify-end">
+                  <div className="flex items-center gap-0.5 ml-auto flex-wrap justify-end">
                     <button
                       onClick={() => moveProduct(index, 'up')}
                       disabled={index === 0}
@@ -731,7 +796,7 @@ export default function ProdutosPage() {
                         Estoque: {product.stock_qty}
                       </span>
                     ) : (
-                      <span>Sem estoque</span>
+                      <span title="Este produto não controla quantidade em estoque">Estoque livre</span>
                     )}
                   </div>
                 </div>
@@ -960,16 +1025,48 @@ export default function ProdutosPage() {
                   <div className="space-y-3">
                     {variationGroups.map((group) => (
                       <div key={group.id} className="border border-gray-200 rounded-lg p-3">
+                        {groupEdit?.id === group.id ? (
+                          <div className="mb-2 space-y-2 rounded-lg bg-primary-50/60 p-2">
+                            <input
+                              autoFocus
+                              className="input-field text-sm py-1.5"
+                              value={groupEdit.name}
+                              onChange={(e) => setGroupEdit({ ...groupEdit, name: e.target.value })}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveGroup(false) } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOptEdit(null); setGroupEdit(null) } }}
+                              aria-label="Nome do grupo"
+                            />
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button type="button" disabled={savingEdit} onClick={() => saveGroup(false)} className="btn-secondary text-xs py-1 px-2.5">Salvar neste prato</button>
+                                  {groupEdit.others === null ? (
+                                    <span className="text-xs text-gray-400 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> procurando outros pratos…</span>
+                                  ) : groupEdit.others.length > 0 ? (
+                                    <button type="button" disabled={savingEdit} onClick={() => saveGroup(true)} className="btn-primary text-xs py-1 px-2.5">
+                                      Salvar em todos os pratos ({groupEdit.others.length + 1})
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">Nenhum outro prato tem um grupo com esse nome.</span>
+                                  )}
+                                  <button type="button" onClick={() => setGroupEdit(null)} className="text-xs text-gray-500 hover:underline">Cancelar</button>
+                                </div>
+                          </div>
+                        ) : (
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium text-sm text-gray-900">{group.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteGroup(group)}
-                            className="p-1 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 size={14} className="text-red-400" />
-                          </button>
+                          <div className="flex items-center gap-0.5">
+                            <button type="button" onClick={() => startEditGroup(group)} className="p-1 hover:bg-gray-100 rounded" aria-label={`Renomear grupo ${group.name}`} title="Renomear grupo">
+                              <Pencil size={14} className="text-gray-500" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGroup(group)}
+                              className="p-1 hover:bg-red-50 rounded"
+                              aria-label={`Excluir grupo ${group.name}`}
+                            >
+                              <Trash2 size={14} className="text-red-400" />
+                            </button>
+                          </div>
                         </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
                           <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
                             <input
@@ -1017,7 +1114,42 @@ export default function ProdutosPage() {
                         </div>
 
                         <div className="space-y-1.5 mb-2">
-                          {group.options.map((option) => (
+                          {group.options.map((option) => optEdit?.id === option.id ? (
+                            <div key={option.id} className="space-y-2 rounded-lg bg-primary-50/60 p-2">
+                              <div className="flex gap-2">
+                                <input
+                                  autoFocus
+                                  className="input-field text-sm py-1.5"
+                                  value={optEdit.name}
+                                  onChange={(e) => setOptEdit({ ...optEdit, name: e.target.value })}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveOption(false) } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOptEdit(null); setGroupEdit(null) } }}
+                                  aria-label="Nome da opção"
+                                />
+                                <input
+                                  className="input-field text-sm py-1.5 w-28"
+                                  inputMode="decimal"
+                                  placeholder="+R$"
+                                  value={optEdit.price}
+                                  onChange={(e) => setOptEdit({ ...optEdit, price: e.target.value })}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveOption(false) } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOptEdit(null); setGroupEdit(null) } }}
+                                  aria-label="Acréscimo no preço"
+                                />
+                              </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button type="button" disabled={savingEdit} onClick={() => saveOption(false)} className="btn-secondary text-xs py-1 px-2.5">Salvar neste prato</button>
+                                  {optEdit.others === null ? (
+                                    <span className="text-xs text-gray-400 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> procurando outros pratos…</span>
+                                  ) : optEdit.others.length > 0 ? (
+                                    <button type="button" disabled={savingEdit} onClick={() => saveOption(true)} className="btn-primary text-xs py-1 px-2.5">
+                                      Salvar em todos os pratos ({optEdit.others.length + 1})
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">Nenhum outro prato tem essa opção nesse grupo.</span>
+                                  )}
+                                  <button type="button" onClick={() => setOptEdit(null)} className="text-xs text-gray-500 hover:underline">Cancelar</button>
+                                </div>
+                            </div>
+                          ) : (
                             <div key={option.id} className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${isSoldOut(option.sold_out_until) ? 'bg-gray-100 opacity-70' : 'bg-gray-50'}`}>
                               <span className={`text-sm text-gray-700 ${isSoldOut(option.sold_out_until) ? 'line-through' : ''}`}>
                                 {option.name}
@@ -1034,6 +1166,15 @@ export default function ProdutosPage() {
                                 title="Marque quando acabar hoje"
                               >
                                 {isSoldOut(option.sold_out_until) ? 'Acabou hoje' : 'Disponível'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => startEditOption(group, option)}
+                                className="p-0.5 hover:bg-gray-100 rounded"
+                                aria-label={`Editar opção ${option.name}`}
+                                title="Editar"
+                              >
+                                <Pencil size={12} className="text-gray-500" />
                               </button>
                               <button
                                 type="button"

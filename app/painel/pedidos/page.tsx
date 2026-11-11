@@ -49,7 +49,11 @@ export default function PedidosPage() {
   const [establishmentId, setEstablishmentId] = useState('')
   const [establishmentName, setEstablishmentName] = useState('')
   const [tableLabelByTabId, setTableLabelByTabId] = useState<Map<string, string>>(new Map())
-  const [printOrder, setPrintOrder] = useState<Order | null>(null)
+  // Fila de impressão: dois pedidos chegando juntos imprimem os dois, um
+  // depois do outro (antes o segundo substituía o primeiro).
+  const [printQueue, setPrintQueue] = useState<Order[]>([])
+  const printOrder = printQueue[0] || null
+  const enqueuePrint = useCallback((order: Order) => setPrintQueue((q) => [...q, { ...order }]), [])
   const [autoPrintEnabled, setAutoPrintEnabled] = useState<boolean | null>(null)
   const [printerLabel, setPrinterLabel] = useState('')
   const [paperWidth, setPaperWidth] = useState<PaperWidth>(80)
@@ -71,7 +75,7 @@ export default function PedidosPage() {
   const announceNewOrder = useCallback((newOrder: Order) => {
     if (newOrder.source !== 'balcao') {
       setUnseen((prev) => new Set(prev).add(newOrder.id))
-      if (autoPrintRef.current === true) setPrintOrder({ ...newOrder })
+      if (autoPrintRef.current === true) enqueuePrint(newOrder)
       if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
         try {
           new Notification('Novo pedido!', { body: `${newOrder.customer_name} · ${formatBRL(Number(newOrder.total))}`, tag: newOrder.id })
@@ -80,9 +84,9 @@ export default function PedidosPage() {
     } else if (newOrder.status !== 'completed' && autoPrintRef.current === true) {
       // Venda de balcão mandada para a fila: imprime a comanda da
       // cozinha, sem campainha (foi o próprio lojista que lançou).
-      setPrintOrder({ ...newOrder })
+      enqueuePrint(newOrder)
     }
-  }, [])
+  }, [enqueuePrint])
 
   useEffect(() => {
     autoPrintRef.current = autoPrintEnabled
@@ -258,8 +262,14 @@ export default function PedidosPage() {
   // Impressão: abre quando printOrder muda (manual ou automática).
   useEffect(() => {
     if (!printOrder) return
-    const id = requestAnimationFrame(() => window.print())
-    return () => cancelAnimationFrame(id)
+    // setTimeout (e não requestAnimationFrame): o navegador pausa animações
+    // com a janela minimizada ou atrás de outra, e a impressão automática
+    // só sairia quando o lojista voltasse para a tela.
+    const id = window.setTimeout(() => {
+      window.print()
+      setPrintQueue((q) => q.slice(1))
+    }, 80)
+    return () => window.clearTimeout(id)
   }, [printOrder])
 
   const openOrder = (order: Order) => {
@@ -343,7 +353,7 @@ export default function PedidosPage() {
         next.delete(order.id)
         return next
       })
-      if (autoPrintEnabled && quick) setPrintOrder(updated)
+      if (autoPrintEnabled && quick) enqueuePrint(updated)
     }
   }
 
@@ -581,7 +591,7 @@ export default function PedidosPage() {
                   <p className="text-sm text-gray-500 font-mono">#{selectedOrder.id.slice(0, 8)} · {new Date(selectedOrder.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button onClick={() => setPrintOrder({ ...selectedOrder })} className="btn-secondary text-sm py-2 px-3" title="Imprimir comanda"><Printer size={16} /></button>
+                  <button onClick={() => enqueuePrint(selectedOrder)} className="btn-secondary text-sm py-2 px-3" title="Imprimir comanda"><Printer size={16} /></button>
                   <a href={rawbtPrintUrl(buildReceiptText(selectedOrder, { storeName: establishmentName, width: paperWidth, tableLabel: tableLabel(selectedOrder) }))} className="btn-secondary text-sm py-2 px-3 sm:hidden" title="Imprimir na térmica (app RawBT)">Térmica</a>
                 </div>
               </div>
