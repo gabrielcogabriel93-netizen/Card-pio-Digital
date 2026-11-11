@@ -37,6 +37,9 @@ import {
   ExternalLink,
   Megaphone,
   LifeBuoy,
+  CalendarDays,
+  BadgePercent,
+  GalleryHorizontalEnd,
 } from 'lucide-react'
 
 // Menu agrupado pelo que o lojista quer fazer (antes eram 17 itens
@@ -63,6 +66,7 @@ const navigationGroups: { title: string | null; items: NavItem[] }[] = [
   {
     title: 'Cardápio',
     items: [
+      { name: 'Cardápio do dia', href: '/painel/cardapio-do-dia', icon: CalendarDays },
       { name: 'Produtos', href: '/painel/produtos', icon: Package },
       { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
       { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
@@ -74,6 +78,8 @@ const navigationGroups: { title: string | null; items: NavItem[] }[] = [
     title: 'Clientes e divulgação',
     items: [
       { name: 'Divulgar minha loja', href: '/painel/divulgar', icon: Megaphone },
+      { name: 'Sugestões de promoções', href: '/painel/promocoes', icon: BadgePercent },
+      { name: 'Banners do cardápio', href: '/painel/banners', icon: GalleryHorizontalEnd },
       { name: 'Fidelidade', href: '/painel/fidelidade', icon: Gift, requiresCompleto: true },
       { name: 'Cupons', href: '/painel/cupons', icon: Tag, requiresCompleto: true },
       { name: 'Notificações', href: '/painel/notificacoes', icon: Bell },

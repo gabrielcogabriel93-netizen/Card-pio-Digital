@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
+import { endOfTodayIso, isSoldOut } from '@/lib/soldOut'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
 import { FeatureGateInline } from '@/components/FeatureGate'
@@ -35,6 +36,9 @@ export default function ProdutosPage() {
     is_active: true,
     is_featured: false,
     image_url: '',
+    promo_price: '',
+    promo_until: '',
+    cost_price: '',
   })
 
   // Variações
@@ -112,6 +116,9 @@ export default function ProdutosPage() {
       is_active: true,
       is_featured: false,
       image_url: '',
+      promo_price: '',
+      promo_until: '',
+      cost_price: '',
     })
     setVariationGroups([])
     setShowModal(true)
@@ -129,6 +136,9 @@ export default function ProdutosPage() {
       is_active: product.is_active,
       is_featured: product.is_featured ?? false,
       image_url: product.image_url || '',
+      promo_price: product.promo_price != null ? String(product.promo_price) : '',
+      promo_until: product.promo_until ? product.promo_until.slice(0, 10) : '',
+      cost_price: product.cost_price != null ? String(product.cost_price) : '',
     })
     setShowModal(true)
     loadVariations(product.id)
@@ -222,6 +232,57 @@ export default function ProdutosPage() {
     else await loadVariations(editingProduct.id)
   }
 
+  const handleSetGroupMin = async (group: GroupWithOptions, value: string) => {
+    if (!editingProduct) return
+    const min = value ? Math.max(1, parseInt(value)) : null
+    const { error } = await createClient().from('variation_groups').update({ min_select: min }).eq('id', group.id)
+    if (error) toast.error('Erro ao atualizar grupo: ' + error.message)
+    else await loadVariations(editingProduct.id)
+  }
+
+  // "Acabou hoje" desta opção (vale só para este prato; para todos, use o Cardápio do dia).
+  const handleToggleOptionAvailable = async (option: VariationOption) => {
+    if (!editingProduct) return
+    const { error } = await createClient().from('variation_options').update({ sold_out_until: isSoldOut(option.sold_out_until) ? null : endOfTodayIso() }).eq('id', option.id)
+    if (error) toast.error('Erro ao atualizar opção: ' + error.message)
+    else await loadVariations(editingProduct.id)
+  }
+
+  // Copia todos os grupos e opções de outro prato (acompanhamentos, saladas...).
+  const [copyFrom, setCopyFrom] = useState('')
+  const handleCopyOptions = async () => {
+    if (!editingProduct || !copyFrom) return
+    try {
+      const supabase = createClient()
+      const { data: groups, error } = await supabase
+        .from('variation_groups')
+        .select('*, options:variation_options(*)')
+        .eq('product_id', copyFrom)
+        .order('display_order')
+      if (error) throw error
+      let order = variationGroups.reduce((max, g) => Math.max(max, g.display_order), -1)
+      for (const g of (groups || []) as GroupWithOptions[]) {
+        const { data: created, error: gErr } = await supabase
+          .from('variation_groups')
+          .insert({ product_id: editingProduct.id, name: g.name, is_required: g.is_required, allow_multiple: g.allow_multiple, max_select: g.max_select ?? null, min_select: g.min_select ?? null, display_order: ++order })
+          .select('id')
+          .single()
+        if (gErr) throw gErr
+        if (g.options.length) {
+          const { error: oErr } = await supabase.from('variation_options').insert(
+            g.options.map((o) => ({ variation_group_id: created.id, name: o.name, price_delta: o.price_delta, display_order: o.display_order }))
+          )
+          if (oErr) throw oErr
+        }
+      }
+      toast.success(`${(groups || []).length} grupo(s) copiado(s).`)
+      setCopyFrom('')
+      await loadVariations(editingProduct.id)
+    } catch (error: any) {
+      toast.error('Erro ao copiar opções: ' + error.message)
+    }
+  }
+
   const handleAddOption = async (group: GroupWithOptions) => {
     if (!editingProduct) return
     const draft = optionDrafts[group.id]
@@ -291,26 +352,38 @@ export default function ProdutosPage() {
         is_active: formData.is_active,
         is_featured: formData.is_featured,
         image_url: formData.image_url || null,
+        // Oferta "de/por" e custo (migration 060).
+        promo_price: formData.promo_price ? parseFloat(formData.promo_price) : null,
+        promo_until: formData.promo_price && formData.promo_until ? new Date(`${formData.promo_until}T23:59:59`).toISOString() : null,
+        cost_price: formData.cost_price ? parseFloat(formData.cost_price) : null,
       }
+      if (productData.promo_price != null && productData.promo_price >= productData.price) {
+        toast.error('O preço da oferta precisa ser menor que o preço normal.')
+        return
+      }
+      const withoutNew = (d: typeof productData) => {
+        const { promo_price: _a, promo_until: _b, cost_price: _c, ...rest } = d
+        return rest
+      }
+      const missingColumns = (e: { message?: string } | null) => !!e && /promo_price|promo_until|cost_price/.test(e.message || '')
 
       if (editingProduct) {
-        const { error } = await supabase
-          .from('products')
-          .update(productData)
-          .eq('id', editingProduct.id)
-        
+        let { error } = await supabase.from('products').update(productData).eq('id', editingProduct.id)
+        if (missingColumns(error)) ({ error } = await supabase.from('products').update(withoutNew(productData)).eq('id', editingProduct.id))
         if (error) throw error
+        log('painel:produtos', 'produto salvo com sucesso')
+        await loadData()
+        setShowModal(false)
       } else {
-        const { error } = await supabase
-          .from('products')
-          .insert(productData)
-        
+        let { data: created, error } = await supabase.from('products').insert(productData).select().single()
+        if (missingColumns(error)) ({ data: created, error } = await supabase.from('products').insert(withoutNew(productData)).select().single())
         if (error) throw error
+        await loadData()
+        // Continua aberto para cadastrar as opções (tamanho, acompanhamentos...).
+        setEditingProduct(created as Product)
+        setVariationGroups([])
+        toast.success('Produto criado. Agora adicione as opções logo abaixo, se tiver.')
       }
-
-      log('painel:produtos', 'produto salvo com sucesso')
-      await loadData()
-      setShowModal(false)
     } catch (error: any) {
       logError('painel:produtos', 'erro ao salvar produto', error)
       toast.error('Erro ao salvar: ' + error.message)
@@ -764,6 +837,28 @@ export default function ProdutosPage() {
                 </div>
               </div>
 
+              <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+                <p className="text-sm font-medium text-gray-700">Oferta e custo <span className="text-xs font-normal text-gray-500">(opcional)</span></p>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="text-xs text-gray-600">
+                    Preço da oferta
+                    <input type="number" step="0.01" min="0" className="input-field mt-1" value={formData.promo_price} onChange={(e) => setFormData({ ...formData, promo_price: e.target.value })} placeholder="Ex: 13,90" />
+                  </label>
+                  <label className="text-xs text-gray-600">
+                    Oferta até
+                    <input type="date" className="input-field mt-1" value={formData.promo_until} onChange={(e) => setFormData({ ...formData, promo_until: e.target.value })} disabled={!formData.promo_price} />
+                  </label>
+                  <label className="text-xs text-gray-600">
+                    Custo do prato
+                    <input type="number" step="0.01" min="0" className="input-field mt-1" value={formData.cost_price} onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })} placeholder="Ex: 6,00" />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Com oferta, o cliente vê o preço riscado e o novo preço; sem data, vale até você tirar.
+                  {formData.cost_price && formData.price && Number(formData.price) > 0 ? ` Margem: ${Math.round((1 - Number(formData.cost_price) / Number(formData.promo_price || formData.price)) * 100)}% por unidade.` : ' O custo (ingredientes + embalagem) ajuda nas Sugestões de promoções a calcular o lucro.'}
+                </p>
+              </div>
+
               {hasCompletoAccess ? (
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -839,12 +934,12 @@ export default function ProdutosPage() {
               <div className="pt-4 border-t border-gray-200">
                 <div className="flex items-center gap-2 mb-3">
                   <Layers size={16} className="text-gray-400" />
-                  <h3 className="text-sm font-medium text-gray-700">Variações (tamanho, sabor, adicionais...)</h3>
+                  <h3 className="text-sm font-medium text-gray-700">Opções (tamanho, acompanhamentos, carnes, adicionais...)</h3>
                 </div>
 
                 {!editingProduct ? (
                   <p className="text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
-                    Salve o produto primeiro. Depois, clique em &quot;Editar&quot; para adicionar variações.
+                    Clique em &quot;Criar&quot;: a janela continua aberta para você adicionar as opções (ex.: Tamanho, Acompanhamentos, Salada).
                   </p>
                 ) : loadingVariations ? (
                   <div className="flex justify-center py-4">
@@ -875,7 +970,7 @@ export default function ProdutosPage() {
                             <Trash2 size={14} className="text-red-400" />
                           </button>
                         </div>
-                        <div className="flex items-center gap-4 mb-2">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
                           <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
                             <input
                               type="checkbox"
@@ -896,7 +991,17 @@ export default function ProdutosPage() {
                           </label>
                           {group.allow_multiple && (
                             <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                              Até
+                              De
+                              <input
+                                type="number"
+                                min={1}
+                                defaultValue={group.min_select ?? ''}
+                                onBlur={(e) => handleSetGroupMin(group, e.target.value)}
+                                className="w-14 rounded border-gray-300 text-xs py-1 px-1.5"
+                                placeholder="0"
+                                aria-label="Mínimo de escolhas"
+                              />
+                              até
                               <input
                                 type="number"
                                 min={1}
@@ -913,8 +1018,8 @@ export default function ProdutosPage() {
 
                         <div className="space-y-1.5 mb-2">
                           {group.options.map((option) => (
-                            <div key={option.id} className="flex items-center justify-between bg-gray-50 rounded px-2 py-1.5">
-                              <span className="text-sm text-gray-700">
+                            <div key={option.id} className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${isSoldOut(option.sold_out_until) ? 'bg-gray-100 opacity-70' : 'bg-gray-50'}`}>
+                              <span className={`text-sm text-gray-700 ${isSoldOut(option.sold_out_until) ? 'line-through' : ''}`}>
                                 {option.name}
                                 {Number(option.price_delta) > 0 && (
                                   <span className="text-primary-600 ml-1">
@@ -922,6 +1027,14 @@ export default function ProdutosPage() {
                                   </span>
                                 )}
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleOptionAvailable(option)}
+                                className={`ml-auto text-[11px] px-2 py-0.5 rounded-full ${isSoldOut(option.sold_out_until) ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}
+                                title="Marque quando acabar hoje"
+                              >
+                                {isSoldOut(option.sold_out_until) ? 'Acabou hoje' : 'Disponível'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteOption(option)}
@@ -971,11 +1084,21 @@ export default function ProdutosPage() {
                       </div>
                     ))}
 
+                    {products.filter((p) => p.id !== editingProduct!.id && !p.pizza_flavor_id).length > 0 && (
+                      <div className="flex gap-2 items-center">
+                        <select className="input-field text-sm py-1.5" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)} aria-label="Copiar opções de outro produto">
+                          <option value="">Copiar opções de outro prato…</option>
+                          {products.filter((p) => p.id !== editingProduct!.id && !p.pizza_flavor_id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <button type="button" onClick={handleCopyOptions} disabled={!copyFrom} className="btn-secondary text-sm py-1.5 px-3 whitespace-nowrap">Copiar</button>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 items-start bg-gray-50 rounded-lg p-3">
                       <div className="flex-1 space-y-2">
                         <input
                           type="text"
-                          placeholder="Ex: Tamanho, Sabor, Adicionais"
+                          placeholder="Ex: Tamanho, Acompanhamentos, Salada, Adicionais"
                           className="input-field text-sm py-1.5"
                           value={newGroupName}
                           onChange={(e) => setNewGroupName(e.target.value)}

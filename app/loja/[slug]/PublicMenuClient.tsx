@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { SmartImage } from '@/components/SmartImage'
+import { servedToday, weekdaysLabel } from '@/lib/weekdays'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError, logCritical } from '@/lib/logger'
 import { getStoreAvailability, getWeeklyHours } from '@/lib/hours'
@@ -47,6 +48,7 @@ import type {
 } from '@/types'
 import { PizzaOrderModal, type PizzaOrderResult } from '@/components/PizzaOrderModal'
 import { ComboOrderModal, type ComboOrderResult } from '@/components/ComboOrderModal'
+import { BannerCarousel } from '@/components/store/BannerCarousel'
 import { MercadoPagoPixCheckout } from '@/components/MercadoPagoPixCheckout'
 import { ProductSheet, type GroupWithOptions, type ProductSheetResult } from '@/components/store/ProductSheet'
 import { VerifyPhone } from '@/components/store/VerifyPhone'
@@ -601,14 +603,24 @@ export default function PublicMenuClient({
     })
   }, [establishment.id, hasCompleto, supabase])
 
-  const applyCoupon = async () => {
-    if (!couponInput.trim()) return
+  const applyCoupon = () => applyCouponCode(couponInput)
+
+  // Banner de cupom: preenche e aplica na sacola.
+  const applyBannerCoupon = (code: string) => {
+    setCouponInput(code.toUpperCase())
+    setShowCart(true)
+    applyCouponCode(code)
+  }
+
+  const applyCouponCode = async (rawCode: string) => {
+    const code = rawCode.trim()
+    if (!code) return
     setCouponLoading(true)
     setCouponError(null)
     try {
       const { data, error } = await supabase.rpc('validate_coupon', {
         p_establishment_id: establishment.id,
-        p_code: couponInput.trim(),
+        p_code: code,
         p_customer_phone: customerPhone.trim() || null,
       })
       if (error) throw error
@@ -618,7 +630,7 @@ export default function PublicMenuClient({
         setAppliedCoupon(null)
         return
       }
-      setAppliedCoupon({ code: couponInput.trim().toUpperCase(), discountType: result.discount_type, discountValue: Number(result.discount_value) })
+      setAppliedCoupon({ code: code.toUpperCase(), discountType: result.discount_type, discountValue: Number(result.discount_value) })
       setAppliedReward(null)
     } catch (err) {
       logError('loja', 'erro ao validar cupom', err)
@@ -879,9 +891,15 @@ export default function PublicMenuClient({
           {product.description && <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{product.description}</p>}
           <p className="mt-2 font-bold text-gray-900 tabular-nums">
             {product.pizza_flavor_id ? <span className="text-xs font-medium text-gray-500 mr-1">a partir de</span> : null}
-            {formatBRL(Number(product.price))}
+            {product.original_price ? <span className="text-xs font-medium text-gray-400 line-through mr-1.5">{formatBRL(Number(product.original_price))}</span> : null}
+            <span className={product.original_price ? 'text-green-700' : undefined}>{formatBRL(Number(product.price))}</span>
+            {product.original_price ? <span className="ml-1.5 text-[10px] font-bold uppercase text-white bg-green-600 px-1.5 py-0.5 rounded">Oferta</span> : null}
           </p>
-          {disabled && <p className="text-xs font-semibold text-red-500 mt-1">Esgotado</p>}
+          {disabled && (
+            servedToday(product.available_weekdays, establishment.timezone)
+              ? <p className="text-xs font-semibold text-red-500 mt-1">Esgotado</p>
+              : <p className="text-xs font-semibold text-gray-500 mt-1">Hoje não tem · sai {weekdaysLabel(product.available_weekdays)}</p>
+          )}
         </button>
         <div className="relative flex-shrink-0">
           {product.image_url ? (
@@ -986,6 +1004,20 @@ export default function PublicMenuClient({
             </div>
           )}
         </div>
+
+        {!isTableMode && (
+          <BannerCarousel
+            establishmentId={establishment.id}
+            products={products}
+            onProduct={openProduct}
+            onCombo={(id) => {
+              const c = combos.find((x) => x.id === id)
+              if (c && canOrder) setComboOpen(c)
+            }}
+            onCategory={scrollToSection}
+            onCoupon={applyBannerCoupon}
+          />
+        )}
 
         <div className="sticky top-0 z-30 bg-white border-b border-gray-100" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
           <div className="max-w-2xl mx-auto px-4 pt-1 pb-2">

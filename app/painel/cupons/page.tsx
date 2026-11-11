@@ -26,6 +26,7 @@ export default function CuponsPage() {
     max_uses: '',
     max_uses_per_customer: '',
     is_active: true,
+    show_on_menu: false,
   })
 
   useEscapeKey(() => setShowModal(false), showModal)
@@ -77,6 +78,7 @@ export default function CuponsPage() {
       max_uses: '',
       max_uses_per_customer: '',
       is_active: true,
+      show_on_menu: false,
     })
     setShowModal(true)
   }
@@ -91,6 +93,7 @@ export default function CuponsPage() {
       max_uses: coupon.max_uses ? String(coupon.max_uses) : '',
       max_uses_per_customer: coupon.max_uses_per_customer ? String(coupon.max_uses_per_customer) : '',
       is_active: coupon.is_active,
+      show_on_menu: coupon.show_on_menu ?? false,
     })
     setShowModal(true)
   }
@@ -111,13 +114,19 @@ export default function CuponsPage() {
         max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
         max_uses_per_customer: formData.max_uses_per_customer ? parseInt(formData.max_uses_per_customer) : null,
         is_active: formData.is_active,
+        show_on_menu: formData.show_on_menu,
       }
+      // Sem a migration 060 a coluna não existe: salva sem ela.
+      const noMenu = (e: { message?: string } | null) => !!e && /show_on_menu/.test(e.message || '')
+      const { show_on_menu: _m, ...couponBase } = couponData
 
       if (editingCoupon) {
-        const { error } = await supabase.from('coupons').update(couponData).eq('id', editingCoupon.id)
+        let { error } = await supabase.from('coupons').update(couponData).eq('id', editingCoupon.id)
+        if (noMenu(error)) ({ error } = await supabase.from('coupons').update(couponBase).eq('id', editingCoupon.id))
         if (error) throw error
       } else {
-        const { error } = await supabase.from('coupons').insert(couponData)
+        let { error } = await supabase.from('coupons').insert(couponData)
+        if (noMenu(error)) ({ error } = await supabase.from('coupons').insert(couponBase))
         if (error) throw error
       }
 
@@ -384,6 +393,16 @@ export default function CuponsPage() {
                   className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                 />
                 <span className="text-sm text-gray-700">Cupom ativo</span>
+              </label>
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.show_on_menu}
+                  onChange={(e) => setFormData({ ...formData, show_on_menu: e.target.checked })}
+                  className="mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                />
+                <span className="text-sm text-gray-700">Divulgar no banner do cardápio <span className="block text-xs text-gray-500">O cliente vê o cupom no topo do cardápio e aplica com um toque. Deixe desmarcado para cupons secretos (parceiros, influenciadores).</span></span>
               </label>
 
               <div className="flex gap-3 pt-4 border-t border-gray-200">

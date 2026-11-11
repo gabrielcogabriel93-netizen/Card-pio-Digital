@@ -137,6 +137,12 @@ export interface Product {
   pizza_flavor_id?: string | null
   // "Acabou hoje" (migration 044): esgotado até esta data, sem mexer no estoque.
   sold_out_until?: string | null
+  // Oferta "de/por" e custo do prato (migration 060).
+  promo_price?: number | null
+  promo_until?: string | null
+  cost_price?: number | null
+  // Dias em que o prato sai (0 = domingo); vazio = todos (migration 060).
+  available_weekdays?: number[] | null
   // Relações
   category?: Category
   variation_groups?: VariationGroup[]
@@ -158,6 +164,10 @@ export interface PublicProduct {
   is_bestseller?: boolean
   in_stock: boolean
   pizza_flavor_id?: string | null
+  // Promoção valendo (migration 060): price já é o "por"; este é o "de".
+  original_price?: number | null
+  promo_until?: string | null
+  available_weekdays?: number[] | null
 }
 
 // Grupo de Variação
@@ -169,6 +179,8 @@ export interface VariationGroup {
   allow_multiple: boolean
   // Limite de escolhas em grupo de múltipla escolha ("escolha até 3").
   max_select?: number | null
+  // "Escolha pelo menos N" (migration 060).
+  min_select?: number | null
   display_order: number
   options?: VariationOption[]
 }
@@ -180,6 +192,8 @@ export interface VariationOption {
   name: string
   price_delta: number
   display_order: number
+  // "Acabou hoje" no Cardápio do dia, até a meia-noite (migration 060).
+  sold_out_until?: string | null
 }
 
 // ============================================================
@@ -509,6 +523,8 @@ export interface Coupon {
   max_uses_per_customer?: number | null
   used_count: number
   created_at?: string
+  // Aparece no banner do cardápio (migration 060).
+  show_on_menu?: boolean
 }
 
 // Programa de fidelidade (pontos) — migrations 037/038.

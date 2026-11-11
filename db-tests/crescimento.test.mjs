@@ -36,6 +36,7 @@ const alerts = async (kind) => (await db.query('SELECT * FROM owner_alerts WHERE
 await db.exec(`
   INSERT INTO auth.users VALUES ('${OWNER}', 'dono@loja.com'), ('${OWNER2}', 'outro@loja.com');
   INSERT INTO platform_settings (id, billing_enabled, monthly_price) VALUES (true, true, 49.9) ON CONFLICT (id) DO UPDATE SET billing_enabled = true;
+  UPDATE platform_settings SET trial_enabled = true, trial_days = 30;
 `)
 
 await test('cadastro: passo 1 grava o contato com WhatsApp e avisa o dono', async () => {

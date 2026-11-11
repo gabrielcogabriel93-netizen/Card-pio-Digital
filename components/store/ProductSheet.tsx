@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { SmartImage } from '@/components/SmartImage'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { formatBRL } from '@/lib/money'
-import { toggleGroupOption } from '@/lib/variations'
+import { isSoldOut } from '@/lib/soldOut'
+import { toggleGroupOption, isGroupMissing, minRequired, groupRuleLabel } from '@/lib/variations'
 import type { PublicProduct, VariationGroup, VariationOption } from '@/types'
 import { AlertCircle, Minus, Plus, X } from 'lucide-react'
 
@@ -52,7 +53,9 @@ export function ProductSheet({
   }, [groups])
 
   const sortedGroups = useMemo(() => [...groups].sort((a, b) => a.display_order - b.display_order), [groups])
-  const missingGroups = sortedGroups.filter((g) => g.is_required && (selected[g.id]?.length || 0) === 0)
+  const missingGroups = sortedGroups.filter((g) => isGroupMissing(g, selected[g.id]?.length || 0))
+  // Grupo obrigatório sem nenhuma opção disponível hoje: o prato não sai.
+  const blockedGroup = sortedGroups.find((g) => g.is_required && (g.options || []).every((o) => isSoldOut(o.sold_out_until)))
 
   const chosen = sortedGroups.flatMap((g) =>
     [...(g.options || [])]
@@ -101,17 +104,18 @@ export function ProductSheet({
           <div className="p-5">
             <h2 id="product-sheet-title" className="font-display text-2xl font-extrabold text-gray-900 leading-tight pr-8">{product.name}</h2>
             {product.description && <p className="text-sm text-gray-600 mt-1.5">{product.description}</p>}
-            <p className="text-lg font-bold text-primary-600 mt-2">{formatBRL(Number(product.price))}</p>
+            <p className="text-lg font-bold text-primary-600 mt-2">
+              {product.original_price && <span className="text-sm font-medium text-gray-400 line-through mr-2">{formatBRL(Number(product.original_price))}</span>}
+              {formatBRL(Number(product.price))}
+            </p>
+            {blockedGroup && <p className="mt-2 text-sm text-amber-700 bg-amber-50 rounded-lg p-2">Hoje acabou tudo em “{blockedGroup.name}”. Este prato volta assim que a loja repor.</p>}
 
             <div className="mt-5 space-y-6">
               {sortedGroups.map((group) => {
                 const count = selected[group.id]?.length || 0
-                const missing = attempted && group.is_required && count === 0
-                const limitLabel = group.allow_multiple
-                  ? group.max_select
-                    ? `Escolha até ${group.max_select}`
-                    : 'Escolha quantos quiser'
-                  : 'Escolha 1'
+                const missing = attempted && isGroupMissing(group, count)
+                const need = minRequired(group, count)
+                const limitLabel = groupRuleLabel(group) + (group.is_required ? '' : ' (opcional)')
                 return (
                   <fieldset key={group.id} id={`group-${group.id}`} className={missing ? 'rounded-xl ring-2 ring-red-300 p-3 -m-3' : ''}>
                     <legend className="w-full">
@@ -122,24 +126,28 @@ export function ProductSheet({
                         </div>
                         {group.is_required && (
                           <span className={`text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white'}`}>
-                            {count > 0 ? 'Ok' : 'Obrigatório'}
+                            {count >= Math.max(1, need) ? 'Ok' : 'Obrigatório'}
                           </span>
                         )}
                       </div>
                     </legend>
-                    {missing && <p className="text-xs text-red-600 mt-2">Escolha uma opção para continuar.</p>}
+                    {missing && <p className="text-xs text-red-600 mt-2">{need > 1 ? `Escolha pelo menos ${need} opções para continuar.` : 'Escolha uma opção para continuar.'}</p>}
                     <div className="mt-2 divide-y divide-gray-100">
                       {[...(group.options || [])]
                         .sort((a, b) => a.display_order - b.display_order)
                         .map((option) => {
                           const isSelected = (selected[group.id] || []).includes(option.id)
-                          const atLimit = !isSelected && group.allow_multiple && !!group.max_select && count >= group.max_select
+                          const soldOut = isSoldOut(option.sold_out_until)
+                          const atLimit = soldOut || (!isSelected && group.allow_multiple && !!group.max_select && count >= group.max_select)
                           return (
                             <label
                               key={option.id}
                               className={`flex items-center justify-between gap-3 py-3 cursor-pointer ${atLimit ? 'opacity-40 cursor-not-allowed' : ''}`}
                             >
-                              <span className="text-sm text-gray-800">{option.name}</span>
+                              <span className="text-sm text-gray-800">
+                                {option.name}
+                                {soldOut && <span className="ml-2 text-xs font-medium text-gray-500">Acabou hoje</span>}
+                              </span>
                               <span className="flex items-center gap-3">
                                 {Number(option.price_delta) > 0 && (
                                   <span className="text-sm text-gray-600">+ {formatBRL(Number(option.price_delta))}</span>
@@ -147,7 +155,7 @@ export function ProductSheet({
                                 <input
                                   type={group.allow_multiple ? 'checkbox' : 'radio'}
                                   name={`group-${group.id}`}
-                                  checked={isSelected}
+                                  checked={isSelected && !soldOut}
                                   disabled={atLimit}
                                   onChange={() =>
                                     setSelected((prev) => ({ ...prev, [group.id]: toggleGroupOption(prev[group.id] || [], option.id, group) }))
@@ -195,8 +203,8 @@ export function ProductSheet({
                 <Plus size={18} />
               </button>
             </div>
-            <button onClick={confirm} disabled={!canOrder} className="btn-primary flex-1 h-11 justify-between disabled:opacity-50">
-              <span>{canOrder ? 'Adicionar' : 'Loja fechada'}</span>
+            <button onClick={confirm} disabled={!canOrder || !!blockedGroup} className="btn-primary flex-1 h-11 justify-between disabled:opacity-50">
+              <span>{!canOrder ? 'Loja fechada' : blockedGroup ? 'Indisponível hoje' : 'Adicionar'}</span>
               <span className="tabular-nums">{formatBRL(unitPrice * quantity)}</span>
             </button>
           </div>

@@ -3,77 +3,82 @@
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { compressImage, extensionForBlob } from '@/lib/image'
+import { IMAGE_FORMATS, type ImageFolder } from '@/lib/imageFormats'
 import { log, logError } from '@/lib/logger'
 import { SmartImage } from '@/components/SmartImage'
+import { ImageCropper } from '@/components/ImageCropper'
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
 
-const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB (antes da compressão)
+const MAX_FILE_SIZE = 12 * 1024 * 1024 // 12MB (antes do recorte e da compressão)
 
 interface ImageUploadProps {
   value: string
   onChange: (url: string) => void
   establishmentId: string
-  folder: 'products' | 'logo' | 'pizza-flavors' | 'combos'
+  folder: ImageFolder
   label?: string
   aspectClassName?: string
 }
 
-export function ImageUpload({
-  value,
-  onChange,
-  establishmentId,
-  folder,
-  label = 'Imagem',
-  aspectClassName = 'h-40 w-full max-w-xs',
-}: ImageUploadProps) {
+// Moldura da prévia na mesma proporção do formato padrão.
+const PREVIEW: Record<ImageFolder, string> = {
+  products: 'w-full max-w-xs aspect-[4/3]',
+  combos: 'w-full max-w-xs aspect-[4/3]',
+  'pizza-flavors': 'w-full max-w-xs aspect-[4/3]',
+  logo: 'h-20 w-20',
+  banners: 'w-full max-w-md aspect-[8/3]',
+}
+
+export function ImageUpload({ value, onChange, establishmentId, folder, label = 'Imagem', aspectClassName }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState<File | null>(null)
+  const format = IMAGE_FORMATS[folder]
+  const frame = aspectClassName || PREVIEW[folder]
 
-  const handleFile = async (file: File | undefined) => {
+  const pick = (file: File | undefined) => {
+    if (inputRef.current) inputRef.current.value = ''
     if (!file) return
     setError(null)
-
     if (!file.type.startsWith('image/')) {
       setError('Selecione um arquivo de imagem (JPG, PNG, WEBP...).')
       return
     }
     if (file.size > MAX_FILE_SIZE) {
-      setError('Imagem muito grande. O limite é 8MB.')
+      setError('Imagem muito grande. O limite é 12MB.')
       return
     }
     if (!establishmentId) {
       setError('Aguarde o carregamento da loja e tente novamente.')
       return
     }
+    setPending(file)
+  }
 
+  const upload = async (cropped: File) => {
+    setPending(null)
     setUploading(true)
-    log('upload', 'iniciando upload de imagem', { folder, originalSize: file.size })
-
+    log('upload', 'iniciando upload de imagem', { folder, size: cropped.size })
     try {
       const supabase = createClient()
-      // Logo sai em PNG (512px): mantém transparência e funciona na imagem
-      // de prévia do link e no ícone do app instalado da loja.
-      const compressed = folder === 'logo' ? await compressImage(file, 512, 0.9, 'png') : await compressImage(file)
-      log('upload', 'imagem comprimida', { compressedSize: compressed.size })
-
+      // Já vem no tamanho padrão do recorte; aqui só comprime (WebP).
+      const compressed = folder === 'logo'
+        ? await compressImage(cropped, format.width, 0.9, 'png')
+        : await compressImage(cropped, format.width, 0.85)
       const path = `${establishmentId}/${folder}/${crypto.randomUUID()}.${extensionForBlob(compressed)}`
       const { error: uploadError } = await supabase.storage.from('uploads').upload(path, compressed, {
         contentType: compressed.type || 'image/jpeg',
         upsert: true,
       })
-
       if (uploadError) throw uploadError
-
       const { data } = supabase.storage.from('uploads').getPublicUrl(path)
-      log('upload', 'upload concluído', { url: data.publicUrl })
       onChange(data.publicUrl)
     } catch (err: any) {
       logError('upload', 'erro ao enviar imagem', err)
       setError(err.message || 'Erro ao enviar imagem. Tente novamente.')
     } finally {
       setUploading(false)
-      if (inputRef.current) inputRef.current.value = ''
     }
   }
 
@@ -81,43 +86,29 @@ export function ImageUpload({
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])}
-      />
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
 
       {value ? (
-        <div className="relative inline-block">
-          <div className={`relative ${aspectClassName} rounded-lg overflow-hidden border border-gray-200`}>
-            <SmartImage src={value} alt="Preview" fill sizes="320px" className="object-cover" />
+        <div className="relative inline-block w-full max-w-md">
+          <div className={`relative ${frame} rounded-lg overflow-hidden border border-gray-200`}>
+            <SmartImage src={value} alt="Prévia" fill sizes="448px" className="object-cover" />
           </div>
-          <button
-            type="button"
-            onClick={() => onChange('')}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow"
-            title="Remover imagem"
-          >
-            <X size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1"
-          >
-            {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-            Trocar
-          </button>
+          <div className="flex gap-2 mt-2">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className="btn-secondary text-xs py-1.5">
+              {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Trocar imagem
+            </button>
+            <button type="button" onClick={() => onChange('')} className="btn-secondary text-xs py-1.5 text-red-600">
+              <X size={12} /> Remover
+            </button>
+          </div>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className={`${aspectClassName} border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors disabled:opacity-60`}
+          className={`${frame} border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors disabled:opacity-60 p-2`}
         >
           {uploading ? (
             <>
@@ -126,14 +117,19 @@ export function ImageUpload({
             </>
           ) : (
             <>
-              <ImageIcon size={24} />
-              <span className="text-sm">Clique para enviar uma foto</span>
+              <ImageIcon size={22} />
+              <span className="text-sm text-center">Enviar foto</span>
             </>
           )}
         </button>
       )}
 
+      <p className="text-xs text-gray-500 mt-1.5">
+        Tamanho ideal: <strong>{format.label}</strong> ({format.ratioLabel}). Ao enviar, você ajusta o recorte.
+      </p>
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+
+      {pending && <ImageCropper file={pending} format={format} onCancel={() => setPending(null)} onDone={upload} />}
     </div>
   )
 }
