@@ -70,7 +70,7 @@ const SECTIONS: TutorialSection[] = [
       'Com "acompanhamento detalhado" ativo (Configurações), o pedido passa por Pendente → Confirmado → Em Preparo → Concluído.',
       'Com o acompanhamento desligado (produto pronto), é só Pendente → Concluído, num clique.',
       'Ao confirmar, informe o frete final e a forma de pagamento — isso baixa o estoque e lança no financeiro automaticamente.',
-      'Use "Imprimir" para gerar a comanda do pedido.',
+      'Use "Imprimir" para gerar a comanda do pedido. Para configurar a impressora térmica e a impressão automática (sem janela de impressão), veja o menu Impressora.',
       'O campo de busca filtra por nome ou telefone do cliente.',
     ],
   },

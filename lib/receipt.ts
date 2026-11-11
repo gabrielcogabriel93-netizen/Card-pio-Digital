@@ -74,7 +74,10 @@ export function buildReceiptText(order: Order, opts: ReceiptOptions): string {
   out.push(dash)
 
   for (const item of order.items) {
-    out.push(line(`${item.quantity}x ${item.product_name}`.slice(0, cols - 9), money(item.total_price), cols))
+    // Nome comprido quebra em linhas (antes era cortado); o valor fica na última.
+    const nameLines = wrap(`${item.quantity}x ${item.product_name}`, cols - 9, '')
+    const last = nameLines.pop() || ''
+    out.push(...nameLines, line(last, money(item.total_price), cols))
     for (const v of item.variations || []) out.push(...wrap(`- ${v.option_name}`, cols, '  '))
     if (item.note) out.push(...wrap(`OBS: ${item.note}`, cols, '  '))
   }
@@ -104,4 +107,14 @@ export function buildReceiptText(order: Order, opts: ReceiptOptions): string {
 export function rawbtPrintUrl(text: string): string {
   const base64 = typeof btoa === 'function' ? btoa(unescape(encodeURIComponent(text))) : Buffer.from(text, 'utf8').toString('base64')
   return `rawbt:base64,${base64}`
+}
+
+// Estilo da área impressa pelo navegador. A letra monoespaçada tem largura
+// de 0,6 do tamanho: 72 mm / 48 colunas (80 mm) e 48 mm / 32 colunas (58 mm)
+// dão 2,5 mm por letra; 2,4 mm deixa folga para o driver e nada quebra linha.
+export function receiptPrintStyle(width: PaperWidth) {
+  return {
+    box: { width: width === 58 ? '48mm' : '72mm' },
+    text: { fontFamily: '"Courier New", Courier, monospace', fontSize: '2.4mm', lineHeight: 1.25, whiteSpace: 'pre' as const, margin: 0, color: '#000' },
+  }
 }

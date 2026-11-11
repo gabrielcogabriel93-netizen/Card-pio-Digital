@@ -37,6 +37,7 @@ import {
   ExternalLink,
   Megaphone,
   LifeBuoy,
+  Printer,
   CalendarDays,
   BadgePercent,
   GalleryHorizontalEnd,
@@ -96,6 +97,7 @@ const navigationGroups: { title: string | null; items: NavItem[] }[] = [
     title: 'Conta',
     items: [
       { name: 'Configurações', href: '/painel/configuracoes', icon: Settings },
+      { name: 'Impressora', href: '/painel/impressora', icon: Printer },
       { name: 'Planos', href: '/painel/planos', icon: Sparkles },
       { name: 'Tutorial', href: '/painel/tutorial', icon: BookOpen },
       { name: 'Ajuda', href: '/painel/ajuda', icon: LifeBuoy },

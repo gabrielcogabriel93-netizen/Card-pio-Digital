@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildReceiptText, rawbtPrintUrl } from './receipt'
+import { buildReceiptText, rawbtPrintUrl, receiptPrintStyle } from './receipt'
 import type { Order } from '@/types'
 
 const order: Order = {
@@ -55,5 +55,26 @@ describe('rawbtPrintUrl', () => {
     const url = rawbtPrintUrl('Olá')
     expect(url.startsWith('rawbt:base64,')).toBe(true)
     expect(Buffer.from(url.slice('rawbt:base64,'.length), 'base64').toString('utf8')).toBe('Olá')
+  })
+})
+
+describe('cabe no papel', () => {
+  it('nenhuma linha passa das colunas e a letra cabe na largura impressa', () => {
+    const long = { ...order, customer_name: 'Maria Aparecida dos Santos Oliveira Pereira', items: [{ ...order.items[0], product_name: 'Marmita G - Filé de frango à milanesa com fritas e salada completa', quantity: 12, total_price: 1234.5 }], notes: 'Entregar no portão dos fundos, tocar a campainha duas vezes e esperar' }
+    for (const [width, cols, mm] of [[80, 48, 72], [58, 32, 48]] as const) {
+      const lines = buildReceiptText(long, { storeName: 'Restaurante com um nome bem comprido demais', width }).split('\n')
+      expect(Math.max(...lines.map((l) => l.length))).toBeLessThanOrEqual(cols)
+      const s = receiptPrintStyle(width)
+      expect(s.box.width).toBe(`${mm}mm`)
+      expect(cols * 0.6 * parseFloat(s.text.fontSize)).toBeLessThanOrEqual(mm)
+    }
+  })
+})
+
+describe('nome comprido', () => {
+  it('quebra o nome em linhas e mantém o valor alinhado', () => {
+    const text = buildReceiptText({ ...order, items: [{ ...order.items[0], product_name: 'Refrigerante lata 350 ml', quantity: 2, total_price: 12, variations: [], note: undefined }] }, { storeName: 'L', width: 58 })
+    expect(text).toContain('2x Refrigerante lata')
+    expect(text).toMatch(/350 ml\s+12,00/)
   })
 })

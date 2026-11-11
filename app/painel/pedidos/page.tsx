@@ -12,7 +12,7 @@ import { PAYMENT_METHODS, paymentMethodLabel } from '@/lib/paymentMethods'
 import type { NotifiableStep } from '@/lib/orderStatusMessages'
 import { toWhatsAppNumber } from '@/lib/phone'
 import { formatBRL } from '@/lib/money'
-import { buildReceiptText, rawbtPrintUrl, type PaperWidth } from '@/lib/receipt'
+import { buildReceiptText, rawbtPrintUrl, receiptPrintStyle, type PaperWidth } from '@/lib/receipt'
 import { toast, confirmDialog } from '@/components/Feedback'
 import type { Order, OrderItem, OrderAutomationMode } from '@/types'
 import {
@@ -439,6 +439,7 @@ export default function PedidosPage() {
             <option value={80}>Papel 80 mm</option>
             <option value={58}>Papel 58 mm</option>
           </select>
+          <Link href="/painel/impressora" className="text-sm text-primary-700 hover:underline whitespace-nowrap">Configurar impressora</Link>
           <div className="relative sm:w-64">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="search" placeholder="Nome, telefone ou nº" className="input-field pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -791,8 +792,8 @@ export default function PedidosPage() {
 
       {/* Comanda impressa (largura do papel escolhida acima) */}
       {printOrder && (
-        <div className="print-area hidden print:block" style={{ width: paperWidth === 58 ? '48mm' : '72mm' }}>
-          <pre style={{ fontFamily: 'Courier New, monospace', fontSize: paperWidth === 58 ? '10px' : '12px', whiteSpace: 'pre-wrap', margin: 0 }}>
+        <div className="print-area hidden print:block" style={receiptPrintStyle(paperWidth).box}>
+          <pre style={receiptPrintStyle(paperWidth).text}>
             {buildReceiptText(printOrder, { storeName: establishmentName, width: paperWidth, tableLabel: tableLabel(printOrder) })}
           </pre>
         </div>
