@@ -37,9 +37,11 @@ interface Props {
   iosSrc?: string | null
   poster?: string | null
   alt: string
+  /** QR code "abra no celular" quando o aparelho não tem RA (desligado na landing, que já explica isso). */
+  qrHint?: boolean
 }
 
-export function Model3DViewer({ src, iosSrc, poster, alt }: Props) {
+export function Model3DViewer({ src, iosSrc, poster, alt, qrHint = true }: Props) {
   const ref = useRef<HTMLElement | null>(null)
   const [ready, setReady] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -135,7 +137,7 @@ export function Model3DViewer({ src, iosSrc, poster, alt }: Props) {
       {canAR === false && touch && (
         <p className="absolute bottom-2 left-2 right-2 rounded-xl bg-white/95 shadow p-2 text-xs text-gray-700">Este celular não tem realidade aumentada. Arraste para girar o prato em 3D.</p>
       )}
-      {canAR === false && !touch && pageUrl && (
+      {qrHint && canAR === false && !touch && pageUrl && (
         <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 rounded-xl bg-white/95 shadow p-2 text-xs text-gray-700">
           <QrCodeImage value={pageUrl} size={64} className="rounded" />
           <span className="flex-1"><span className="font-semibold text-gray-900 flex items-center gap-1"><Smartphone size={13} /> Ver na sua mesa</span>Aponte a câmera do celular para o código e abra este prato em 3D. A realidade aumentada funciona no celular.</span>

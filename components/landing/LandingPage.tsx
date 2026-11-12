@@ -11,7 +11,7 @@ import {
 import { BrandLockup } from '@/components/Logo'
 import { MenuScreen, ProductScreen, CheckoutScreen, TrackingScreen } from '@/components/landing/Mockups'
 import { PanelDemo } from '@/components/landing/PanelDemo'
-import { Lazy3D } from '@/components/landing/Lazy3D'
+import { Lazy3D, LazyVideo } from '@/components/landing/Lazy3D'
 import { BRAND } from '@/lib/brand'
 import { TrackVisit } from '@/components/TrackVisit'
 import { hasTrial, daysText, startLabel, offerBadge, offerFinePrint, discountText, type SignupOffer } from '@/lib/offer'
@@ -418,8 +418,10 @@ export function LandingPage({ offer }: { offer: SignupOffer }) {
       </section>
 
       {/* Prato em 3D e realidade aumentada */}
-      <section id="prato-3d" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white overflow-hidden">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+      <section id="prato-3d" className="relative py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white overflow-hidden">
+        <LazyVideo src="/landing/prato-close.mp4" poster="/landing/prato-close.jpg" label="" className="absolute inset-0 w-full h-full object-cover opacity-20 blur-[2px] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/90 to-gray-900/60 pointer-events-none" />
+        <div className="relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
             <span className="inline-flex items-center gap-2 text-sm font-semibold text-amber-300 bg-white/10 rounded-full px-3 py-1"><Box size={15} /> Novo · plano Completo</span>
             <h2 className="font-display text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.05]">O prato aparece na mesa do cliente antes de ele pedir.</h2>
@@ -432,12 +434,19 @@ export function LandingPage({ offer }: { offer: SignupOffer }) {
               <li className="flex gap-3"><CheckCircle size={20} className="text-amber-300 flex-shrink-0 mt-0.5" /> Selo 3D no cardápio. O modelo só carrega quando o cliente toca, então o cardápio continua leve.</li>
               <li className="flex gap-3"><CheckCircle size={20} className="text-amber-300 flex-shrink-0 mt-0.5" /> Um vídeo do prato aparecendo na mesa é o tipo de post que as pessoas compartilham.</li>
             </ul>
-            <p className="text-sm text-gray-400">Experimente ao lado: arraste para girar. No celular, toque em <strong className="text-gray-200">Ver na minha mesa</strong> e aponte a câmera para uma mesa.</p>
+            <p className="text-sm text-gray-400">Experimente: arraste o prato para girar. No celular, toque em <strong className="text-gray-200">Ver na minha mesa</strong> e aponte a câmera para uma mesa.</p>
           </div>
-          <div className="flex justify-center">
-            <div className="relative w-[300px] sm:w-[340px] h-[560px] sm:h-[620px] max-w-full rounded-[2.6rem] border-[10px] border-black bg-black shadow-2xl overflow-hidden">
+          <div className="flex flex-col sm:flex-row justify-center items-center sm:items-start gap-8">
+            <figure className="text-center">
+              <div className="relative w-[260px] h-[462px] max-w-full rounded-[2.4rem] border-[9px] border-black bg-black shadow-2xl overflow-hidden">
+                <LazyVideo src="/landing/prato-na-mesa-ra.mp4" poster="/landing/prato-na-mesa-ra.jpg" label="Cliente vendo o prato em tamanho real sobre a mesa pela câmera do celular" className="w-full h-full object-cover" />
+              </div>
+              <figcaption className="mt-3 text-sm text-gray-300">Na mesa do cliente, pela câmera</figcaption>
+            </figure>
+            <figure className="text-center">
+            <div className="relative w-[260px] h-[462px] max-w-full rounded-[2.4rem] border-[9px] border-black bg-black shadow-2xl overflow-hidden">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-b-2xl z-20" />
-              <div className="h-full bg-white text-gray-900 flex flex-col">
+              <div className="h-full bg-white text-gray-900 flex flex-col text-left">
                 <div className="relative h-[58%]">
                   <Lazy3D src="/landing/prato-3d.glb" alt="Marmita de filé de frango à milanesa em 3D" />
                   <span className="absolute top-8 left-3 text-[11px] font-bold rounded-full bg-gray-900 text-amber-300 px-2 py-0.5">3D</span>
@@ -450,6 +459,8 @@ export function LandingPage({ offer }: { offer: SignupOffer }) {
                 </div>
               </div>
             </div>
+              <figcaption className="mt-3 text-sm text-gray-300">Gire o prato: arraste com o dedo</figcaption>
+            </figure>
           </div>
         </div>
       </section>
