@@ -15,6 +15,9 @@ export const ESSENCIAL_FEATURES = [
   'Link personalizado',
   'PWA instalável',
   'Combos de produtos',
+  'Cardápio do dia e pizzas por sabor',
+  'Sugestões de promoções e banners',
+  'Taxa por bairro e impressão de comandas',
 ]
 
 export const COMPLETO_FEATURES = [
@@ -26,4 +29,6 @@ export const COMPLETO_FEATURES = [
   'Pix automático',
   'Cardápio de mesa com QR Code',
   'Relatórios financeiros',
+  'Prato em 3D e na mesa do cliente',
+  'Domínio próprio',
 ]

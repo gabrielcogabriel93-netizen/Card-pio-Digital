@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { ImageUpload } from '@/components/ImageUpload'
+import { Model3DField } from '@/components/painel/Model3DField'
 import { endOfTodayIso, isSoldOut } from '@/lib/soldOut'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import type { Product, Category, VariationGroup, VariationOption } from '@/types'
@@ -959,6 +960,24 @@ export default function ProdutosPage() {
                 establishmentId={establishmentId}
                 folder="products"
               />
+
+              {!editingProduct?.pizza_flavor_id && !hasCompletoAccess && <FeatureGateInline featureName="Prato em 3D e realidade aumentada" />}
+              {!editingProduct?.pizza_flavor_id && hasCompletoAccess && (
+                <Model3DField
+                  establishmentId={establishmentId}
+                  productId={editingProduct?.id || null}
+                  productName={formData.name}
+                  imageUrl={formData.image_url || null}
+                  value={editingProduct?.model_3d_url || null}
+                  iosValue={editingProduct?.model_3d_ios_url || null}
+                  onChange={(next) => {
+                    if (!editingProduct) return
+                    const updated = { ...editingProduct, ...next }
+                    setEditingProduct(updated)
+                    setProducts((list) => list.map((p) => (p.id === updated.id ? { ...p, ...next } : p)))
+                  }}
+                />
+              )}
 
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

@@ -894,6 +894,7 @@ export default function PublicMenuClient({
             {product.original_price ? <span className="text-xs font-medium text-gray-400 line-through mr-1.5">{formatBRL(Number(product.original_price))}</span> : null}
             <span className={product.original_price ? 'text-green-700' : undefined}>{formatBRL(Number(product.price))}</span>
             {product.original_price ? <span className="ml-1.5 text-[10px] font-bold uppercase text-white bg-green-600 px-1.5 py-0.5 rounded">Oferta</span> : null}
+            {product.model_3d_url ? <span className="ml-1.5 text-[10px] font-bold text-amber-300 bg-gray-900 px-1.5 py-0.5 rounded" title="Veja em 3D e na sua mesa">3D</span> : null}
           </p>
           {disabled && (
             servedToday(product.available_weekdays, establishment.timezone)

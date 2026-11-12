@@ -38,6 +38,7 @@ import {
   Megaphone,
   LifeBuoy,
   Printer,
+  Box,
   CalendarDays,
   BadgePercent,
   GalleryHorizontalEnd,
@@ -69,6 +70,7 @@ const navigationGroups: { title: string | null; items: NavItem[] }[] = [
     items: [
       { name: 'Cardápio do dia', href: '/painel/cardapio-do-dia', icon: CalendarDays },
       { name: 'Produtos', href: '/painel/produtos', icon: Package },
+      { name: 'Pratos em 3D', href: '/painel/pratos-3d', icon: Box },
       { name: 'Categorias', href: '/painel/categorias', icon: ListOrdered },
       { name: 'Pizzas', href: '/painel/pizzas', icon: Pizza },
       { name: 'Combos', href: '/painel/combos', icon: Layers },

@@ -6,9 +6,12 @@ import {
   Menu, X, Smartphone, ShoppingCart, LineChart, Package, Store, Pizza, ChevronRight, ChevronDown,
   CheckCircle, Palette, Bike, ClipboardList, Sparkles, Gift, Tag, Zap, Instagram, MessageCircle, Wallet, QrCode,
   PlayCircle, ArrowRight, Sandwich, Cake, UtensilsCrossed, Truck, Send, RotateCcw, UserX, Layers,
+  Box, CalendarDays, BadgePercent, GalleryHorizontalEnd, Printer, MapPin, Bell, Megaphone, DollarSign, Globe,
 } from 'lucide-react'
 import { BrandLockup } from '@/components/Logo'
 import { MenuScreen, ProductScreen, CheckoutScreen, TrackingScreen } from '@/components/landing/Mockups'
+import { PanelDemo } from '@/components/landing/PanelDemo'
+import { Lazy3D } from '@/components/landing/Lazy3D'
 import { BRAND } from '@/lib/brand'
 import { TrackVisit } from '@/components/TrackVisit'
 import { hasTrial, daysText, startLabel, offerBadge, offerFinePrint, discountText, type SignupOffer } from '@/lib/offer'
@@ -68,7 +71,7 @@ const TESTIMONIALS = [
 const FAQ_ITEMS = [
   {
     question: 'Qual a diferença entre os planos Essencial e Completo?',
-    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender direto: cardápio digital, pedidos no painel com alarme, app da loja com notificações, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code e relatórios. Durante o teste grátis (quando houver), os dois planos vêm liberados.',
+    answer: 'O Essencial tem tudo pra colocar seu cardápio no ar e vender direto: cardápio digital, pedidos no painel com alarme, app da loja com notificações, entrega/retirada, combos e mais. O Completo soma ferramentas de operação e venda: controle de estoque, Balcão/PDV, programa de fidelidade, cupons, Pix automático, cardápio de mesa com QR Code, relatórios, prato em 3D na mesa do cliente e domínio próprio. Durante o teste grátis (quando houver), os dois planos vêm liberados.',
   },
   {
     question: 'Tem taxa ou comissão por pedido?',
@@ -93,6 +96,14 @@ const FAQ_ITEMS = [
   {
     question: 'Dá pra usar com iFood ao mesmo tempo?',
     answer: 'Hoje o Freguês é o seu canal de vendas próprio (cardápio + app da sua loja), sem comissão nenhuma. Você pode continuar vendendo pelo iFood em paralelo — só não fica centralizado no mesmo painel.',
+  },
+  {
+    question: 'Como funciona o prato em 3D e na mesa do cliente?',
+    answer: 'No plano Completo você envia o arquivo 3D do prato (feito com o celular em apps gratuitos de escaneamento, como Polycam ou RealityScan) e o cardápio ganha o botão "Ver em 3D e na sua mesa". O cliente gira o prato e, pela câmera, vê o prato em tamanho real sobre a mesa dele, no Android e no iPhone, sem instalar nada. O painel traz o passo a passo completo.',
+  },
+  {
+    question: 'Imprime a comanda automaticamente?',
+    answer: 'Sim. Com uma impressora térmica (recomendamos 80 mm, USB, com guilhotina) ligada ao computador do balcão, cada pedido aceito sai impresso sozinho. No painel há um guia com a configuração, recibo de teste e solução de problemas. No Android, dá para imprimir pedido a pedido numa térmica Bluetooth.',
   },
   {
     question: 'Posso cancelar quando quiser?',
@@ -160,6 +171,7 @@ export function LandingPage({ offer }: { offer: SignupOffer }) {
   const navLinks = [
     { href: '#funcionalidades', label: 'Recursos' },
     { href: '#veja-como-funciona', label: 'Como funciona' },
+    { href: '#teste-o-painel', label: 'Teste o painel' },
     { href: '#planos', label: 'Planos' },
     { href: '#depoimentos', label: 'Depoimentos' },
   ]
@@ -390,6 +402,58 @@ export function LandingPage({ offer }: { offer: SignupOffer }) {
         </div>
       </section>
 
+      {/* Teste o painel (lado da loja) */}
+      <section id="teste-o-painel" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="inline-block text-sm font-semibold text-primary-700 bg-primary-50 rounded-full px-3 py-1 mb-4">Agora o lado da loja</span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Teste o painel. Aqui você pode mexer em tudo.</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Aceite um pedido, mude um preço, marque que acabou, aplique uma promoção ou troque a cor da loja e veja o celular do cliente mudar na hora.
+              É uma loja de teste só sua: nada aqui é salvo.
+            </p>
+          </div>
+          <PanelDemo />
+        </div>
+      </section>
+
+      {/* Prato em 3D e realidade aumentada */}
+      <section id="prato-3d" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-900 text-white overflow-hidden">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+          <div className="space-y-6">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-amber-300 bg-white/10 rounded-full px-3 py-1"><Box size={15} /> Novo · plano Completo</span>
+            <h2 className="font-display text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.05]">O prato aparece na mesa do cliente antes de ele pedir.</h2>
+            <p className="text-lg text-gray-300 max-w-xl">
+              O cliente gira o prato em 3D no cardápio e toca em <strong className="text-white">Ver na minha mesa</strong>: a câmera do celular coloca o prato em tamanho real sobre a mesa dele.
+              Funciona no Android e no iPhone, pelo navegador ou pelo app da sua loja, sem instalar nada.
+            </p>
+            <ul className="space-y-3 text-gray-200">
+              <li className="flex gap-3"><CheckCircle size={20} className="text-amber-300 flex-shrink-0 mt-0.5" /> Você faz o 3D do prato com o próprio celular, em apps gratuitos de escaneamento. O painel ensina passo a passo.</li>
+              <li className="flex gap-3"><CheckCircle size={20} className="text-amber-300 flex-shrink-0 mt-0.5" /> Selo 3D no cardápio. O modelo só carrega quando o cliente toca, então o cardápio continua leve.</li>
+              <li className="flex gap-3"><CheckCircle size={20} className="text-amber-300 flex-shrink-0 mt-0.5" /> Um vídeo do prato aparecendo na mesa é o tipo de post que as pessoas compartilham.</li>
+            </ul>
+            <p className="text-sm text-gray-400">Experimente ao lado: arraste para girar. No celular, toque em <strong className="text-gray-200">Ver na minha mesa</strong> e aponte a câmera para uma mesa.</p>
+          </div>
+          <div className="flex justify-center">
+            <div className="relative w-[300px] sm:w-[340px] h-[560px] sm:h-[620px] max-w-full rounded-[2.6rem] border-[10px] border-black bg-black shadow-2xl overflow-hidden">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-b-2xl z-20" />
+              <div className="h-full bg-white text-gray-900 flex flex-col">
+                <div className="relative h-[58%]">
+                  <Lazy3D src="/landing/prato-3d.glb" alt="Marmita de filé de frango à milanesa em 3D" />
+                  <span className="absolute top-8 left-3 text-[11px] font-bold rounded-full bg-gray-900 text-amber-300 px-2 py-0.5">3D</span>
+                </div>
+                <div className="p-4 space-y-2 flex-1">
+                  <p className="font-display font-extrabold text-lg leading-tight">Filé de Frango à Milanesa</p>
+                  <p className="text-sm text-gray-500">Arroz, feijão, farofa e salada de alface e tomate.</p>
+                  <p className="font-bold text-primary-600">R$ 15,00</p>
+                  <div className="rounded-xl bg-primary-600 text-white font-bold text-sm px-4 py-3 flex justify-between mt-3"><span>Adicionar</span><span>R$ 15,00</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Funcionalidades Section */}
       <section id="funcionalidades" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -427,6 +491,74 @@ export function LandingPage({ offer }: { offer: SignupOffer }) {
                 title: 'Painel sob medida',
                 description: 'Um quiz rápido no cadastro ajusta o painel pro seu negócio: com preparo, produto pronto ou os dois.',
                 color: 'bg-amber-100 text-amber-600'
+              },
+              {
+                icon: <Box className="w-6 h-6" />,
+                title: "Prato em 3D e na mesa",
+                description: "O cliente gira o prato em 3D e vê em tamanho real sobre a mesa dele pela câmera do celular (realidade aumentada).",
+                color: "bg-gray-900 text-amber-300",
+                completo: true,
+              },
+              {
+                icon: <CalendarDays className="w-6 h-6" />,
+                title: "Cardápio do dia",
+                description: "Marque o que acabou hoje (o prato inteiro ou só uma carne, um acompanhamento) e em quais dias da semana cada prato sai. Volta sozinho no dia seguinte.",
+                color: "bg-orange-100 text-orange-700",
+              },
+              {
+                icon: <BadgePercent className="w-6 h-6" />,
+                title: "Sugestões de promoções",
+                description: "Toda semana o Freguês sugere ofertas, combos e cupons com a conta do lucro, inclusive para Dia das Mães, Namorados, Pais, Black Friday e Natal. Um toque aplica no cardápio.",
+                color: "bg-green-100 text-green-700",
+              },
+              {
+                icon: <GalleryHorizontalEnd className="w-6 h-6" />,
+                title: "Banners no cardápio",
+                description: "Carrossel no topo do cardápio com os mais pedidos, os cupons e os seus banners, com link para o prato, o combo ou o cupom.",
+                color: "bg-blue-100 text-blue-700",
+              },
+              {
+                icon: <Pizza className="w-6 h-6" />,
+                title: "Pizzas por tamanho e sabor",
+                description: "Tamanhos, até 4 sabores (meio a meio) e adicionais, com o preço calculado sozinho.",
+                color: "bg-red-100 text-red-600",
+              },
+              {
+                icon: <MapPin className="w-6 h-6" />,
+                title: "Taxa por bairro",
+                description: "Cadastre os bairros com a taxa de cada um e, se quiser, entrega grátis acima de um valor. O carrinho mostra quanto falta.",
+                color: "bg-cyan-100 text-cyan-700",
+              },
+              {
+                icon: <Printer className="w-6 h-6" />,
+                title: "Impressão de comandas",
+                description: "Comanda para térmica de 58 ou 80 mm, impressão automática a cada pedido e um guia de configuração no painel.",
+                color: "bg-slate-100 text-slate-700",
+              },
+              {
+                icon: <Bell className="w-6 h-6" />,
+                title: "Notificações para clientes",
+                description: "Mande ofertas para quem instalou o app da sua loja, avise quando a loja abrir e parabenize os aniversariantes.",
+                color: "bg-amber-100 text-amber-700",
+              },
+              {
+                icon: <Megaphone className="w-6 h-6" />,
+                title: "Divulgar minha loja",
+                description: "Artes prontas para story e feed, postagens com o que acontece na loja, QR code e link para compartilhar.",
+                color: "bg-pink-100 text-pink-700",
+              },
+              {
+                icon: <DollarSign className="w-6 h-6" />,
+                title: "Financeiro",
+                description: "Entradas, saídas e o resultado do mês, com as vendas lançadas sozinhas quando você aceita o pedido.",
+                color: "bg-emerald-100 text-emerald-700",
+              },
+              {
+                icon: <Globe className="w-6 h-6" />,
+                title: "Domínio próprio",
+                description: "Use o endereço da sua marca (ex.: pedido.sualoja.com.br) e tire o selo da plataforma do cardápio.",
+                color: "bg-indigo-100 text-indigo-700",
+                completo: true,
               },
               {
                 icon: <Layers className="w-6 h-6" />,

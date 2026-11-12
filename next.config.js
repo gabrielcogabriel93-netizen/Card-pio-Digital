@@ -38,16 +38,20 @@ const remotePatterns = supabaseHost
 // dangerouslySetInnerHTML é o JSON-LD, JSON.stringify'd, não executável).
 const connectSrcHosts = [
   "'self'",
+  'blob:', // texturas embutidas nos modelos 3D
   supabaseHost ? `https://${supabaseHost}` : '',
   supabaseHost ? `wss://${supabaseHost}` : '', // Supabase Realtime (painel/pedidos, acompanhamento do pedido)
   'https://viacep.com.br', // busca de endereço por CEP no checkout
 ].filter(Boolean).join(' ')
 
-const imgSrcHosts = ["'self'", 'data:', supabaseHost ? `https://${supabaseHost}` : ''].filter(Boolean).join(' ')
+// blob: vem das texturas dos pratos em 3D (o leitor de modelos cria a imagem na memória).
+const imgSrcHosts = ["'self'", 'data:', 'blob:', supabaseHost ? `https://${supabaseHost}` : ''].filter(Boolean).join(' ')
 
 const CSP_DIRECTIVES = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline'`,
+  // 'wasm-unsafe-eval': só WebAssembly (decodificadores 3D em /vendor), não libera eval de JavaScript.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`,
+  `worker-src 'self' blob:`,
   `style-src 'self' 'unsafe-inline'`,
   `img-src ${imgSrcHosts}`,
   `font-src 'self' data:`,

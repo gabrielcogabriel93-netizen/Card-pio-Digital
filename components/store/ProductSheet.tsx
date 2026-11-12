@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { SmartImage } from '@/components/SmartImage'
+import { Model3DViewer } from '@/components/store/Model3DViewer'
+import { isSafeModelUrl } from '@/lib/model3d'
 import { useEscapeKey } from '@/lib/useEscapeKey'
 import { formatBRL } from '@/lib/money'
 import { isSoldOut } from '@/lib/soldOut'
 import { toggleGroupOption, isGroupMissing, minRequired, groupRuleLabel } from '@/lib/variations'
 import type { PublicProduct, VariationGroup, VariationOption } from '@/types'
-import { AlertCircle, Minus, Plus, X } from 'lucide-react'
+import { AlertCircle, Box, Minus, Plus, X } from 'lucide-react'
 
 export type GroupWithOptions = VariationGroup & { options: VariationOption[] }
 
@@ -41,6 +43,9 @@ export function ProductSheet({
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState('')
   const [attempted, setAttempted] = useState(false)
+  // 3D só carrega quando o cliente toca (o modelo pesa alguns MB).
+  const has3D = isSafeModelUrl(product.model_3d_url)
+  const [view3D, setView3D] = useState(false)
 
   useEscapeKey(onClose, true)
 
@@ -93,9 +98,27 @@ export function ProductSheet({
         </button>
 
         <div className="overflow-y-auto flex-1">
-          {product.image_url ? (
+          {has3D && view3D ? (
+            <div className="relative w-full aspect-[4/3] bg-gray-100">
+              <Model3DViewer src={product.model_3d_url!} iosSrc={isSafeModelUrl(product.model_3d_ios_url) ? product.model_3d_ios_url : null} poster={product.image_url} alt={`${product.name} em 3D`} />
+              {product.image_url && (
+                <button type="button" onClick={() => setView3D(false)} className="absolute top-3 left-3 rounded-full bg-gray-900/75 text-white text-xs font-bold px-3 py-1.5">Ver foto</button>
+              )}
+            </div>
+          ) : product.image_url ? (
             <div className="relative w-full aspect-[4/3] bg-gray-100">
               <SmartImage src={product.image_url} alt={product.name} fill sizes="(max-width: 640px) 100vw, 448px" className="object-cover" />
+              {has3D && (
+                <button type="button" onClick={() => setView3D(true)} className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full bg-gray-900/80 text-white text-sm font-bold px-4 py-2 shadow-lg">
+                  <Box size={16} /> Ver em 3D e na sua mesa
+                </button>
+              )}
+            </div>
+          ) : has3D ? (
+            <div className="relative w-full aspect-[4/3] bg-gray-100">
+              <button type="button" onClick={() => setView3D(true)} className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-700 font-semibold">
+                <Box size={28} className="text-primary-600" /> Ver em 3D e na sua mesa
+              </button>
             </div>
           ) : (
             <div className="h-10" />

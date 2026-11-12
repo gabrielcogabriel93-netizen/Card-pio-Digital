@@ -143,6 +143,9 @@ export interface Product {
   cost_price?: number | null
   // Dias em que o prato sai (0 = domingo); vazio = todos (migration 060).
   available_weekdays?: number[] | null
+  // Prato em 3D / realidade aumentada (migration 061): .glb e, opcional, .usdz do iPhone.
+  model_3d_url?: string | null
+  model_3d_ios_url?: string | null
   // Relações
   category?: Category
   variation_groups?: VariationGroup[]
@@ -168,6 +171,8 @@ export interface PublicProduct {
   original_price?: number | null
   promo_until?: string | null
   available_weekdays?: number[] | null
+  model_3d_url?: string | null
+  model_3d_ios_url?: string | null
 }
 
 // Grupo de Variação
