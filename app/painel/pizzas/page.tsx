@@ -330,6 +330,10 @@ export default function PizzasPage() {
       const supabase = createClient()
       const { error } = await supabase.from('pizza_flavors').update({ is_active: !flavor.is_active }).eq('id', flavor.id)
       if (error) throw error
+      // O produto ligado ao sabor acompanha (o cardápio esconde pizza de sabor desativado).
+      toast(flavor.is_active
+        ? `"${flavor.name}" saiu do cardápio, inclusive do meio a meio. Reative quando voltar a ter.`
+        : `"${flavor.name}" voltou ao cardápio.`)
       await loadData()
     } catch (error: any) {
       logError('painel:pizzas', 'erro ao alterar status do sabor', error)

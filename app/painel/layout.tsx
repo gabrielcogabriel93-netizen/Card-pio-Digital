@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
 import { generateColorShades, themeShadesToCssVars } from '@/lib/theme'
 import { SubscriptionPaywall } from '@/components/SubscriptionPaywall'
+import { trialNotice, trialNoticeText, type TrialNotice } from '@/lib/trialNotice'
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext'
 import { BrandLockup } from '@/components/Logo'
 import type { PlanTier } from '@/lib/plans'
@@ -132,6 +133,7 @@ export default function PainelLayout({
   // Só true pro e-mail do dono da plataforma (PLATFORM_ADMIN_EMAILS) —
   // checado no servidor, aqui só decide se mostra o atalho no menu.
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [trialEnding, setTrialEnding] = useState<TrialNotice | null>(null)
   // Falha passageira ao carregar a loja (rede/login renovando): mostra um
   // aviso com "Tentar de novo" em vez de mandar para "Completar cadastro".
   const [loadError, setLoadError] = useState(false)
@@ -229,6 +231,7 @@ export default function PainelLayout({
             setSubscription({ blocked: false, reason: null, monthlyPrice: 49.9, planTier: 'completo', hasCompletoAccess: true })
           } else {
             const row = subStatus?.[0]
+            setTrialEnding(trialNotice(row))
             setSubscription({
               blocked: !!row?.blocked,
               // Sem teste grátis (oferta desligada ou campanha que já cobra):
@@ -423,6 +426,12 @@ export default function PainelLayout({
               <button onClick={() => { setLoadError(false); setReloadKey((k) => k + 1); router.refresh() }} className="btn-secondary text-sm py-1.5">
                 Tentar de novo
               </button>
+            </div>
+          )}
+          {trialEnding && pathname !== '/painel/planos' && (
+            <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-amber-900">
+              <span className="flex-1">{trialNoticeText(trialEnding)}</span>
+              <Link href="/painel/planos" className="btn-primary text-sm py-1.5">Assinar agora</Link>
             </div>
           )}
           <SubscriptionProvider

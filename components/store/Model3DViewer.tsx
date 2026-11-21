@@ -16,6 +16,15 @@ declare global {
   }
 }
 
+function hasWebGL(): boolean {
+  try {
+    const c = document.createElement('canvas')
+    return !!(c.getContext('webgl2') || c.getContext('webgl'))
+  } catch {
+    return false
+  }
+}
+
 let loader: Promise<void> | null = null
 function loadModelViewer() {
   if (!loader) {
@@ -55,6 +64,11 @@ export function Model3DViewer({ src, iosSrc, poster, alt, qrHint = true }: Props
     setPageUrl(window.location.href)
     setTouch(window.matchMedia('(pointer: coarse)').matches)
     let alive = true
+    // Sem WebGL (aparelho muito antigo, robôs de anúncio/busca) o leitor 3D quebra: mostra a foto.
+    if (!hasWebGL()) {
+      setFailed('Este aparelho não consegue mostrar o prato em 3D.')
+      return () => { alive = false }
+    }
     loadModelViewer().then(() => alive && setReady(true)).catch(() => alive && setFailed('Não foi possível abrir o 3D neste aparelho.'))
     return () => { alive = false }
   }, [])
@@ -86,7 +100,13 @@ export function Model3DViewer({ src, iosSrc, poster, alt, qrHint = true }: Props
   }, [ready])
 
   if (failed) {
-    return <div className="w-full h-full flex items-center justify-center text-sm text-gray-500 p-6 text-center bg-gray-50">{failed}</div>
+    return (
+      <div className="relative w-full h-full flex items-center justify-center text-sm text-gray-500 p-6 text-center bg-gray-50">
+        {/* eslint-disable-next-line @next/next/no-img-element -- foto do prato como reserva do 3D */}
+        {poster && <img src={poster} alt={alt} className="absolute inset-0 w-full h-full object-cover" />}
+        <span className={poster ? 'relative mt-auto rounded-lg bg-white/90 px-3 py-1.5 text-xs' : ''}>{failed}</span>
+      </div>
+    )
   }
 
   return (

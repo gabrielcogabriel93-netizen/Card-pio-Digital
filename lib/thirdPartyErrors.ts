@@ -13,6 +13,15 @@ const NOISE_MESSAGES = [
 
 const EXTENSION_SOURCE = /(chrome|moz|safari|safari-web)-extension:\/\//i
 
+// Robôs (anúncios da Meta, buscadores, pré-visualização de link) abrem a
+// página sem placa de vídeo, sem armazenamento etc. O que quebra neles não
+// acontece com cliente de verdade.
+const BOT_UA = /\b(bot|crawler|spider)\b|meta-externalads|facebookexternalhit|facebookcatalog|Googlebot|AdsBot|Google-InspectionTool|bingbot|YandexBot|Applebot|Slackbot|Twitterbot|WhatsApp\/|TelegramBot|LinkedInBot|Discordbot|Pinterestbot|HeadlessChrome|Lighthouse/i
+
+export function isBotUserAgent(ua: string | null | undefined): boolean {
+  return BOT_UA.test(ua || '')
+}
+
 export function isThirdPartyNoise(input: { message?: string | null; stack?: string | null; filename?: string | null }): boolean {
   const message = input.message || ''
   const where = `${input.filename || ''}\n${input.stack || ''}`

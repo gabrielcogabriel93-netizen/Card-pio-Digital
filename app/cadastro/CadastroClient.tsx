@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ResendConfirmation } from '@/components/ResendConfirmation'
 import { createClient } from '@/lib/supabase/client'
 import { createEstablishmentWithUniqueSlug, slugify } from '@/lib/establishment'
 import { vincularIndicacaoSeHouver } from '@/lib/indicacao'
@@ -100,6 +101,7 @@ export function CadastroClient({ offer }: { offer: SignupOffer }) {
         email: formData.email,
         password: formData.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/login?confirmado=1`,
           data: {
             name: formData.name,
             pending_establishment_name: formData.establishmentName,
@@ -168,8 +170,9 @@ export function CadastroClient({ offer }: { offer: SignupOffer }) {
               e depois faça login para concluir a configuração da sua loja.
             </p>
             <Link href="/login" className="btn-primary w-full">
-              Ir para o login
+              Já confirmei, ir para o login
             </Link>
+            <ResendConfirmation email={formData.email} className="mt-3 text-left" />
           </div>
         ) : (
         <>

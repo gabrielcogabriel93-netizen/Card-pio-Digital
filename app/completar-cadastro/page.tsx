@@ -68,6 +68,15 @@ export default function CompletarCadastroPage() {
       if (meta.pending_establishment_name) setEstablishmentName(meta.pending_establishment_name)
       if (meta.pending_whatsapp_number) setWhatsapp(meta.pending_whatsapp_number)
 
+      // Já temos nome da loja e WhatsApp do cadastro: cria a loja direto, sem
+      // pedir para a pessoa confirmar de novo (era onde os cadastros paravam).
+      if (meta.pending_establishment_name && meta.pending_whatsapp_number) {
+        log('completar-cadastro', 'dados do cadastro encontrados -> criando a loja sozinho')
+        setChecking(false)
+        await createStore(String(meta.pending_establishment_name), String(meta.pending_whatsapp_number))
+        return
+      }
+
       log('completar-cadastro', 'nenhum estabelecimento encontrado, exibindo formulário')
     } catch (err) {
       logError('completar-cadastro', 'exceção ao verificar usuário/estabelecimento', err)
@@ -82,10 +91,13 @@ export default function CompletarCadastroPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    log('completar-cadastro', 'submit do formulário', { establishmentName })
+    await createStore(establishmentName, whatsapp)
+  }
+
+  const createStore = async (name: string, phone: string) => {
     setSaving(true)
     setError(null)
-    log('completar-cadastro', 'submit do formulário', { establishmentName })
-
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -97,8 +109,8 @@ export default function CompletarCadastroPage() {
 
       const establishment = await createEstablishmentWithUniqueSlug(supabase, {
         ownerId: user.id,
-        name: establishmentName,
-        whatsappNumber: whatsapp,
+        name,
+        whatsappNumber: phone,
         signupCampaign: campaignFrom(user.user_metadata || {}),
       })
       log('completar-cadastro', 'estabelecimento criado', { id: establishment?.id, slug: establishment?.slug })

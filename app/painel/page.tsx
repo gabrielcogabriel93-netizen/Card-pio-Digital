@@ -64,9 +64,10 @@ export default function Dashboard() {
         .from('establishments')
         .select('id, name, slug, custom_domain, business_type, order_tracking_enabled, logo_url, theme_color, pix_key')
         .eq('owner_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (estError) logError('painel:dashboard', 'erro ao buscar estabelecimento', estError)
+      // Conta ainda sem loja: o layout do painel já leva para /completar-cadastro.
       if (!est) return
       setStore({ slug: est.slug, name: est.name, customDomain: est.custom_domain })
 

@@ -10,6 +10,7 @@
  * o log não pode derrubar o fluxo que já estava com problema.
  */
 
+import { isBotUserAgent } from './thirdPartyErrors'
 export type LogLevel = 'error' | 'critical' | 'warning'
 
 function timestamp() {
@@ -63,11 +64,13 @@ function shouldReport(key: string): boolean {
 
 // Erros esperados de uso (loja fechada, estoque, cupom) não são falhas do
 // sistema e não precisam poluir a aba de logs.
-const EXPECTED = /Muitas consultas|Muitos pedidos|fechada agora|esgotad|Estoque insuficiente|Cupom (inválido|não encontrado|expirado|esgotado|inativo)|Você já usou|Confirme seu telefone|Código (incorreto|expirado)|Informe |Escolha |pedido mínimo|Invalid login credentials|Email not confirmed|User already registered|Password should be|For security purposes, you can only request/i
+const EXPECTED = /Muitas consultas|Muitos pedidos|fechada agora|esgotad|Estoque insuficiente|Cupom (inválido|não encontrado|expirado|esgotado|inativo)|Você já usou|Confirme seu telefone|Código (incorreto|expirado)|Informe |Escolha |pedido mínimo|Invalid login credentials|Email not confirmed|User already registered|Password should be|For security purposes, you can only request|não está disponível no momento|não está mais disponível|doce e salgado/i
 
 async function persist(level: LogLevel, scope: string, message: string, detail: unknown, establishmentId?: string | null) {
   const full = [message, describe(detail)].filter(Boolean).join(': ').slice(0, 1000)
   if (EXPECTED.test(full)) return
+  // Robôs (anúncios, buscadores) não são clientes: o que quebra neles não entra nos logs.
+  if (typeof navigator !== 'undefined' && isBotUserAgent(navigator.userAgent)) return
   if (!shouldReport(`${level}|${scope}|${full}`)) return
 
   const row = {

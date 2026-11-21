@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TrackVisit } from '@/components/TrackVisit'
+import { ResendConfirmation } from '@/components/ResendConfirmation'
 import { ctaLabel, type SignupOffer } from '@/lib/offer'
 import { createClient } from '@/lib/supabase/client'
 import { log, logError } from '@/lib/logger'
@@ -15,6 +16,8 @@ import { BrandLockup } from '@/components/Logo'
 export function LoginClient({ offer }: { offer: SignupOffer }) {
   const router = useRouter()
   const [email, setEmail] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
+  useEffect(() => { setConfirmed(new URLSearchParams(window.location.search).get('confirmado') === '1') }, [])
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -132,6 +135,7 @@ export function LoginClient({ offer }: { offer: SignupOffer }) {
         <div className="card">
           <h1 className="page-title mb-2">Acessar painel</h1>
           <p className="text-gray-600 mb-6">Entre com suas credenciais para gerenciar seu cardápio.</p>
+          {confirmed && <p className="bg-green-50 text-green-800 p-3 rounded-lg text-sm mb-4">E-mail confirmado! Entre com seu e-mail e senha para terminar de criar sua loja.</p>}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -179,6 +183,7 @@ export function LoginClient({ offer }: { offer: SignupOffer }) {
                 {error === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error}
               </div>
             )}
+            {error && /Confirme seu e-mail/.test(error) && <ResendConfirmation email={email} />}
 
             <div className="text-right -mt-2">
               <button

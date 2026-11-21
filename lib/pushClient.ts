@@ -191,7 +191,8 @@ export async function unsubscribeFromOrderPush(orderId: string): Promise<void> {
     const subscription = await registration.pushManager.getSubscription()
     if (subscription) {
       const supabase = createClient()
-      await supabase.from('order_push_subscriptions').delete().eq('order_id', orderId).eq('endpoint', subscription.endpoint)
+      // Só a inscrição deste aparelho neste pedido (migration 062).
+      await supabase.rpc('remove_order_push_subscription', { p_order_id: orderId, p_endpoint: subscription.endpoint })
     }
   } catch (err) {
     logError('push', 'erro ao cancelar inscrição do pedido', err)

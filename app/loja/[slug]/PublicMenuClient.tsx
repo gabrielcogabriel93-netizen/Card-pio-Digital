@@ -6,7 +6,8 @@ import QRCode from 'qrcode'
 import { SmartImage } from '@/components/SmartImage'
 import { servedToday, weekdaysLabel } from '@/lib/weekdays'
 import { createClient } from '@/lib/supabase/client'
-import { log, logError, logCritical } from '@/lib/logger'
+import { log, logError, logCritical, logWarning } from '@/lib/logger'
+import { isNetworkError, newRequestId, placeOrderWithRetry } from '@/lib/orderSubmit'
 import { getStoreAvailability, getWeeklyHours } from '@/lib/hours'
 import { formatPhoneNumber, toWhatsAppNumber } from '@/lib/phone'
 import { useEscapeKey } from '@/lib/useEscapeKey'
@@ -63,6 +64,7 @@ import {
   ShoppingBag, X, Plus, Minus, MapPin, Clock, Loader2, Store, Bike, Package, ClipboardList, Trash2, Share2,
   CheckCircle2, PlusCircle, Copy, AlertCircle, Instagram, Gift, Table2, Layers, Search, Send, ChevronRight,
 } from 'lucide-react'
+
 
 type CartLine = CartItem<PublicProduct>
 
@@ -480,6 +482,9 @@ export default function PublicMenuClient({
   const [formOpenedAt, setFormOpenedAt] = useState(0)
   const [attemptedSubmit, setAttemptedSubmit] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Identificação do envio: a mesma enquanto o pedido não muda, para o
+  // servidor reconhecer uma repetição (internet caiu depois de gravar).
+  const requestRef = useRef<{ key: string; id: string } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [pixQr, setPixQr] = useState<string | null>(null)
   const [pixCopied, setPixCopied] = useState(false)
@@ -818,10 +823,14 @@ export default function PublicMenuClient({
         use_birthday: Number(establishment.birthday_discount_percent) > 0 && !appliedCoupon && !appliedReward,
         items: buildOrderItemsPayload(cart),
       }
+      const key = JSON.stringify(payload)
+      if (!requestRef.current || requestRef.current.key !== key) requestRef.current = { key, id: newRequestId() }
+      const sendPayload = { ...payload, request_id: requestRef.current.id }
 
-      const { data, error } = await supabase.rpc('place_order', { p_payload: payload })
-      if (error) throw new Error(error.message)
+      // Rede caiu no meio do envio: tenta de novo sozinho (o servidor não duplica).
+      const data = await placeOrderWithRetry(() => supabase.rpc('place_order', { p_payload: sendPayload }))
       const result = data as ServerOrderResult
+      requestRef.current = null
 
       if (result.customer_token && phoneDigits) saveCustomerToken(establishment.id, customerPhone, result.customer_token)
       if (phoneDigits) saveCustomer({ name: customerName.trim(), phone: customerPhone.trim() })
@@ -850,11 +859,16 @@ export default function PublicMenuClient({
       resetAfterOrder()
       setPlaced({ orderId: result.order_id, total: Number(result.total), feeToConfirm: !!result.shipping_fee_to_confirm })
     } catch (err: any) {
-      logError('loja', 'erro ao enviar pedido', err)
-      const message: string = err?.message || 'Não foi possível enviar o pedido.'
+      const raw: string = err?.message || 'Não foi possível enviar o pedido.'
+      const offline = isNetworkError(raw)
+      const message = offline
+        ? 'Sem conexão com a internet agora. Confira o sinal e toque em Fazer pedido de novo: o pedido não é enviado duas vezes.'
+        : raw
+      if (offline) logWarning('loja', 'pedido não enviado: cliente sem conexão (tentou 3 vezes)', err, establishment.id)
+      else logError('loja', 'erro ao enviar pedido', err)
       // Erros de regra (loja fechada, estoque, cupom) já vêm escritos para o cliente.
       setSubmitError(message)
-      if (!/fechada|esgot|estoque|mínimo|cupom|pontos|telefone|troco|Muitos|disponível|Escolha|Informe/i.test(message)) {
+      if (!offline && !/fechada|esgot|estoque|mínimo|cupom|pontos|telefone|troco|Muitos|disponível|Escolha|Informe|juntar/i.test(message)) {
         logCritical('loja:enviar-pedido', message, err, establishment.id)
       }
     } finally {

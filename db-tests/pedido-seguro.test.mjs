@@ -114,7 +114,7 @@ await test('pizza meio a meio cobra o sabor mais caro + adicional', async () => 
 })
 
 await test('pizza: não mistura salgada com doce', async () => {
-  await rejects(place({ customer_phone: '11977776666', items: [{ kind: 'pizza', product_id: '30000000-0000-0000-0000-000000000009', quantity: 1, size_id: '60000000-0000-0000-0000-000000000001', flavor_ids: ['61000000-0000-0000-0000-000000000003'] }] }), /Combinação/)
+  await rejects(place({ customer_phone: '11977776666', items: [{ kind: 'pizza', product_id: '30000000-0000-0000-0000-000000000009', quantity: 1, size_id: '60000000-0000-0000-0000-000000000001', flavor_ids: ['61000000-0000-0000-0000-000000000003'] }] }), /doce e salgado/)
 })
 
 await test('C8: combo tem preço do combo e passa a valer para Pix', async () => {
