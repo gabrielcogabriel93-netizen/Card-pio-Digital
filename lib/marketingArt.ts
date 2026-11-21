@@ -27,7 +27,7 @@ export const ART_SIZES: Record<ArtKind, { w: number; h: number; label: string }>
   story: { w: 1080, h: 1920, label: 'Story / status' },
 }
 
-const rgb = (t: string) => `rgb(${t.split(' ').join(',')})`
+export const rgb = (t: string) => `rgb(${t.split(' ').join(',')})`
 
 // A biblioteca do QR Code só aceita cor em hex ("#rrggbb").
 export function rgbToHex(color: string): string {
@@ -36,13 +36,13 @@ export function rgbToHex(color: string): string {
   return '#' + parts.slice(0, 3).map((n) => Math.min(255, Number(n)).toString(16).padStart(2, '0')).join('')
 }
 
-function cssFont(variable: string, fallback: string) {
+export function cssFont(variable: string, fallback: string) {
   if (typeof window === 'undefined') return fallback
   const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
   return value ? `${value}, ${fallback}` : fallback
 }
 
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+export function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -52,7 +52,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   })
 }
 
-function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let line = ''
@@ -69,14 +69,14 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines
 }
 
-function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, align: CanvasTextAlign = 'left') {
+export function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, align: CanvasTextAlign = 'left') {
   ctx.textAlign = align
   const lines = wrapLines(ctx, text, maxWidth)
   lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineHeight))
   return y + lines.length * lineHeight
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
   ctx.arcTo(x + w, y, x + w, y + h, r)
@@ -87,7 +87,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 // QR com correção de erro alta, para caber o logo da loja no centro.
-async function drawQr(ctx: CanvasRenderingContext2D, url: string, x: number, y: number, size: number, logo: HTMLImageElement | null, dark: string) {
+export async function drawQr(ctx: CanvasRenderingContext2D, url: string, x: number, y: number, size: number, logo: HTMLImageElement | null, dark: string) {
   const qrCanvas = document.createElement('canvas')
   await QRCode.toCanvas(qrCanvas, url, { errorCorrectionLevel: 'H', margin: 1, width: size, color: { dark: rgbToHex(dark), light: '#ffffff' } })
   ctx.fillStyle = '#ffffff'
@@ -107,7 +107,7 @@ async function drawQr(ctx: CanvasRenderingContext2D, url: string, x: number, y: 
   }
 }
 
-function drawLogoBadge(ctx: CanvasRenderingContext2D, logo: HTMLImageElement | null, name: string, x: number, y: number, size: number, color: string, display: string) {
+export function drawLogoBadge(ctx: CanvasRenderingContext2D, logo: HTMLImageElement | null, name: string, x: number, y: number, size: number, color: string, display: string) {
   ctx.fillStyle = '#ffffff'
   roundRect(ctx, x, y, size, size, size * 0.22)
   ctx.fill()
@@ -247,7 +247,7 @@ export interface ProductArtInput {
   highlight?: string | null
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+export function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
   const scale = Math.max(w / img.width, h / img.height)
   const sw = w / scale
   const sh = h / scale

@@ -7,6 +7,7 @@ import { publicStoreUrl } from '@/lib/domains'
 import { drawArt, ART_SIZES, type ArtKind } from '@/lib/marketingArt'
 import { toast } from '@/components/Feedback'
 import { DailySuggestion } from '@/components/painel/DailySuggestion'
+import { CarouselStudio } from '@/components/painel/CarouselStudio'
 import { Download, Loader2, Copy } from 'lucide-react'
 
 interface StoreForArt {
@@ -111,8 +112,10 @@ export default function DivulgarPage() {
     <div className="space-y-6">
       <div>
         <h1 className="page-title">Divulgar minha loja</h1>
-        <p className="text-gray-600 mt-1">Todo dia uma sugestão nova com o que está acontecendo na sua loja (produtos, cupons, avaliações, combos, novidades e conquistas), e artes prontas com a sua marca e o QR Code do cardápio.</p>
+        <p className="text-gray-600 mt-1">Carrosséis prontos com o que está acontecendo na sua loja para postar no Instagram em poucos toques, a sugestão do dia e artes com a sua marca e o QR Code do cardápio.</p>
       </div>
+
+      <CarouselStudio store={store} url={url} />
 
       <DailySuggestion store={store} url={url} />
 
